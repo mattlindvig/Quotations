@@ -1,0 +1,160 @@
+# Project Constitution
+
+This document establishes the foundational principles and standards for the Quotations project. All code, features, and changes must align with these principles.
+
+## 1. Code Quality Principles
+
+### 1.1 Readability and Maintainability
+- **Write self-documenting code**: Variable and function names must clearly express intent without requiring comments
+- **Follow consistent naming conventions**: Use camelCase for variables/functions, PascalCase for classes/types, UPPER_SNAKE_CASE for constants
+- **Keep functions focused**: Each function should have a single, well-defined responsibility (Single Responsibility Principle)
+- **Limit function complexity**: Functions should not exceed 50 lines; complex logic must be broken into smaller, composable functions
+- **Avoid deep nesting**: Maximum nesting depth of 3 levels; use early returns and guard clauses
+
+### 1.2 Code Organization
+- **Modular architecture**: Code must be organized into logical modules with clear boundaries and minimal coupling
+- **DRY (Don't Repeat Yourself)**: Duplicate code must be refactored into reusable functions or components
+- **Clear file structure**: Related functionality should be grouped together; file names must reflect their purpose
+- **Dependency management**: Minimize dependencies; prefer standard library solutions when appropriate
+
+### 1.3 Documentation
+- **Public APIs must be documented**: All exported functions, classes, and modules require clear documentation
+- **Complex logic requires comments**: Explain the "why" not the "what"; document non-obvious business logic
+- **Maintain up-to-date README**: Keep project setup, usage, and contribution guidelines current
+- **Document architectural decisions**: Significant design choices must be recorded with rationale
+
+### 1.4 Error Handling
+- **Fail fast and explicitly**: Errors must be caught early and provide clear, actionable messages
+- **No silent failures**: All error conditions must be logged or surfaced appropriately
+- **Type safety**: Leverage type systems to prevent errors at compile time
+- **Graceful degradation**: System should maintain partial functionality when non-critical components fail
+
+## 2. Testing Standards
+
+### 2.1 Test Coverage Requirements
+- **Minimum 80% code coverage**: All new features and bug fixes must maintain or improve coverage
+- **100% coverage for critical paths**: Authentication, data persistence, financial transactions, security features
+- **Test public interfaces**: All exported functions and classes require test coverage
+- **Edge cases must be tested**: Boundary conditions, empty inputs, null values, error states
+
+### 2.2 Test Quality
+- **Tests must be independent**: No test should depend on the execution or state of another test
+- **Tests must be deterministic**: No flaky tests; tests must produce consistent results
+- **Clear test naming**: Test names should describe what is being tested and expected outcome
+- **Follow AAA pattern**: Arrange, Act, Assert structure for all tests
+- **Test behavior, not implementation**: Tests should validate outcomes, not internal mechanics
+
+### 2.3 Test Types
+- **Unit tests required**: All business logic must have isolated unit tests
+- **Integration tests for APIs**: All API endpoints require integration tests
+- **End-to-end tests for critical flows**: User authentication, data CRUD operations, key user journeys
+- **Performance tests for bottlenecks**: Database queries, API response times, heavy computations
+
+### 2.4 Test Automation
+- **All tests must run in CI/CD**: Tests execute automatically on every commit
+- **Pull requests require passing tests**: No merge without green build
+- **Fast feedback loop**: Unit test suite must complete in under 2 minutes
+- **Test data management**: Use factories or fixtures; no hard-coded test data
+
+## 3. User Experience Consistency
+
+### 3.1 Design System Adherence
+- **Consistent visual language**: All UI components must follow established design tokens (colors, typography, spacing)
+- **Component library usage**: Use shared component library; custom components require design review
+- **Accessibility first**: WCAG 2.1 AA compliance required for all user-facing features
+- **Responsive design**: All interfaces must work seamlessly on mobile, tablet, and desktop
+
+### 3.2 Interaction Patterns
+- **Predictable behavior**: Similar actions should have similar outcomes across the application
+- **Clear feedback**: All user actions must provide immediate visual or textual feedback
+- **Error messages must be helpful**: Explain what went wrong and how to fix it
+- **Loading states**: Show progress indicators for operations taking >300ms
+
+### 3.3 Content and Messaging
+- **Consistent tone and voice**: Follow style guide for all user-facing text
+- **Clear and concise labels**: Button and link text must clearly indicate action
+- **Contextual help**: Provide tooltips or inline help for complex features
+- **Internationalization ready**: Design for translation; avoid hard-coded strings
+
+### 3.4 User Workflows
+- **Minimize cognitive load**: Reduce steps required to complete common tasks
+- **Progressive disclosure**: Show advanced features only when needed
+- **Undo/redo capability**: Critical actions (delete, modify) must be reversible
+- **Keyboard navigation**: All features accessible via keyboard shortcuts
+
+## 4. Performance Requirements
+
+### 4.1 Response Time Standards
+- **Page load time**: Initial page load must complete in <2 seconds on 4G connection
+- **Time to Interactive (TTI)**: <3 seconds for main user flows
+- **API response time**: 95th percentile must be <500ms for read operations, <1s for write operations
+- **Background jobs**: Long-running tasks must be asynchronous with progress tracking
+
+### 4.2 Resource Optimization
+- **Bundle size limits**: JavaScript bundles must not exceed 300KB (gzipped) per route
+- **Image optimization**: All images must be compressed and served in modern formats (WebP, AVIF)
+- **Lazy loading**: Non-critical resources must be loaded on-demand
+- **Database query optimization**: All queries must use appropriate indexes; N+1 queries prohibited
+
+### 4.3 Scalability
+- **Horizontal scaling support**: Application must support running multiple instances
+- **Stateless design**: No server-side session state; use distributed cache when needed
+- **Database connection pooling**: Efficient database connection management required
+- **Rate limiting**: All public APIs must implement rate limiting
+
+### 4.4 Monitoring and Metrics
+- **Performance monitoring**: Track Core Web Vitals (LCP, FID, CLS) in production
+- **Error tracking**: All production errors must be captured and monitored
+- **Performance budgets**: Set and enforce budgets for critical metrics
+- **Regular performance audits**: Quarterly review of application performance
+
+## 5. Security and Privacy
+
+### 5.1 Security Requirements
+- **Input validation**: All user input must be validated and sanitized
+- **Authentication and authorization**: Proper access control on all protected resources
+- **Dependency scanning**: Regular updates and vulnerability scanning of dependencies
+- **Secrets management**: No credentials or API keys in code; use environment variables
+
+### 5.2 Data Privacy
+- **Minimal data collection**: Only collect data necessary for functionality
+- **Data retention policies**: Clear policies on how long data is stored
+- **User consent**: Explicit consent for data collection and processing
+- **Secure data transmission**: HTTPS for all connections; encrypt sensitive data at rest
+
+## 6. Code Review and Quality Gates
+
+### 6.1 Pull Request Requirements
+- **Code review required**: All code must be reviewed by at least one team member
+- **Automated checks must pass**: Linting, formatting, tests, build
+- **No unresolved comments**: All review feedback must be addressed before merge
+- **Linked to issue/ticket**: All PRs must reference related work item
+
+### 6.2 Quality Checklist
+- [ ] Code follows style guide and passes linting
+- [ ] Tests added/updated with adequate coverage
+- [ ] Documentation updated if needed
+- [ ] Performance impact considered and measured
+- [ ] Accessibility requirements met
+- [ ] Security implications reviewed
+- [ ] Breaking changes documented
+
+## 7. Continuous Improvement
+
+### 7.1 Technical Debt
+- **Acknowledge and track**: Document technical debt with clear remediation plans
+- **Regular refactoring**: Allocate time in each sprint for technical improvements
+- **Boy Scout Rule**: Leave code better than you found it
+
+### 7.2 Learning and Growth
+- **Share knowledge**: Document learnings and patterns in team wiki
+- **Post-mortems**: Learn from incidents without blame
+- **Experiment safely**: Use feature flags for experimental features
+
+---
+
+**Version**: 1.0
+**Last Updated**: 2025-10-28
+**Review Cycle**: Quarterly
+
+This constitution is a living document. Propose changes through the standard RFC process.

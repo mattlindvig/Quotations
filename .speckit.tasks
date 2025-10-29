@@ -1,0 +1,1541 @@
+# Quotations Application - Task Breakdown
+
+**Version**: 1.0.0
+**Date**: 2025-10-28
+**Status**: Ready to Execute
+
+This document breaks down the implementation plan into granular, actionable tasks organized by phase, sprint, and priority.
+
+---
+
+## Task Status Legend
+
+- `[ ]` Not Started
+- `[~]` In Progress
+- `[x]` Completed
+- `[!]` Blocked
+- `[?]` Needs Clarification
+
+## Priority Levels
+
+- **P0**: Critical - Must have for MVP
+- **P1**: High - Important for good UX
+- **P2**: Medium - Nice to have
+- **P3**: Low - Future enhancement
+
+---
+
+# Phase 1: MVP (Weeks 1-12)
+
+## Sprint 1: Project Setup & Infrastructure (Weeks 1-2)
+
+### Epic 1.1: Backend Infrastructure Setup
+**Owner**: Backend Developer
+**Priority**: P0
+**Estimated Time**: 8-12 hours
+
+- [ ] **TASK-001**: Initialize Git repository with .gitignore for .NET and Node
+  - Create repository on GitHub
+  - Add .gitignore for C#, Node.js, and IDE files
+  - Set up branch protection for main
+  - **Acceptance**: Repository created, basic structure committed
+
+- [ ] **TASK-002**: Create ASP.NET Core Web API solution
+  - Run `dotnet new webapi -n Quotations.Api`
+  - Create solution file: `dotnet new sln -n Quotations`
+  - **Acceptance**: Solution builds successfully
+
+- [ ] **TASK-003**: Set up Clean Architecture project structure
+  - Create Quotations.Core class library
+  - Create Quotations.Application class library
+  - Create Quotations.Infrastructure class library
+  - Create Quotations.Tests project (xUnit)
+  - Add project references
+  - **Acceptance**: All projects added to solution and build
+
+- [ ] **TASK-004**: Install essential NuGet packages
+  - MongoDB.Driver (v2.23+)
+  - FluentValidation.AspNetCore
+  - Swashbuckle.AspNetCore
+  - Serilog.AspNetCore
+  - AutoMapper.Extensions.Microsoft.DependencyInjection
+  - **Acceptance**: All packages installed, no conflicts
+
+- [ ] **TASK-005**: Configure MongoDB connection
+  - Create MongoDbSettings.cs configuration class
+  - Create MongoDbContext.cs wrapper
+  - Add connection string to appsettings.json
+  - Implement dependency injection for MongoDB
+  - **Acceptance**: Can connect to MongoDB, test connection on startup
+
+- [ ] **TASK-006**: Set up Swagger/OpenAPI documentation
+  - Configure Swashbuckle
+  - Add XML documentation generation
+  - Configure Swagger UI
+  - Add JWT authentication to Swagger
+  - **Acceptance**: Swagger UI accessible at /swagger
+
+- [ ] **TASK-007**: Implement structured logging with Serilog
+  - Install Serilog packages
+  - Configure console and file sinks
+  - Set up log levels per environment
+  - Add request logging middleware
+  - **Acceptance**: Logs visible in console and files
+
+- [ ] **TASK-008**: Create Docker Compose for local MongoDB
+  - Create docker-compose.yml
+  - Configure MongoDB service with volume
+  - Add init script for database/collections
+  - Document Docker commands in README
+  - **Acceptance**: `docker-compose up` starts MongoDB
+
+- [ ] **TASK-009**: Implement base repository pattern
+  - Create IRepository<T> interface
+  - Create BaseRepository<T> implementation
+  - Add common CRUD operations
+  - **Acceptance**: Repository pattern ready for use
+
+- [ ] **TASK-010**: Set up global exception handling middleware
+  - Create ExceptionHandlerMiddleware.cs
+  - Handle common exceptions (validation, not found, etc.)
+  - Return consistent error responses
+  - Log exceptions with context
+  - **Acceptance**: Exceptions return proper HTTP status codes
+
+### Epic 1.2: Frontend Infrastructure Setup
+**Owner**: Frontend Developer
+**Priority**: P0
+**Estimated Time**: 6-10 hours
+
+- [ ] **TASK-011**: Initialize React + TypeScript + Vite project
+  - Run `npm create vite@latest client -- --template react-ts`
+  - Update package.json with project details
+  - **Acceptance**: `npm run dev` starts development server
+
+- [ ] **TASK-012**: Install and configure Tailwind CSS
+  - Install tailwindcss, postcss, autoprefixer
+  - Create tailwind.config.js with custom theme
+  - Add Tailwind directives to index.css
+  - Test with sample styled component
+  - **Acceptance**: Tailwind classes work correctly
+
+- [ ] **TASK-013**: Set up project folder structure
+  - Create folders: components, features, hooks, services, store, types, utils
+  - Add index.ts barrel exports where appropriate
+  - **Acceptance**: Clean folder structure in place
+
+- [ ] **TASK-014**: Configure React Router v6
+  - Install react-router-dom
+  - Create router configuration
+  - Set up basic routes (home, login, quotes)
+  - Create PrivateRoute wrapper component
+  - **Acceptance**: Routing works, 404 page shows for invalid routes
+
+- [ ] **TASK-015**: Set up Redux Toolkit for state management
+  - Install @reduxjs/toolkit and react-redux
+  - Create store configuration
+  - Set up typed hooks (useAppDispatch, useAppSelector)
+  - Create sample slice for testing
+  - **Acceptance**: Redux DevTools connected, store working
+
+- [ ] **TASK-016**: Configure Axios with interceptors
+  - Install axios
+  - Create API client wrapper
+  - Add request interceptor for auth tokens
+  - Add response interceptor for token refresh
+  - Handle common errors globally
+  - **Acceptance**: API calls include auth headers
+
+- [ ] **TASK-017**: Set up Vitest and React Testing Library
+  - Install vitest, @testing-library/react, @testing-library/jest-dom
+  - Create vitest.config.ts
+  - Create test setup file
+  - Add test scripts to package.json
+  - Write sample component test
+  - **Acceptance**: `npm test` runs tests successfully
+
+- [ ] **TASK-018**: Configure ESLint and Prettier
+  - Install ESLint, Prettier, and plugins
+  - Create .eslintrc.json configuration
+  - Create .prettierrc configuration
+  - Add format and lint scripts
+  - **Acceptance**: Code formatting and linting work
+
+- [ ] **TASK-019**: Set up environment variables
+  - Create .env.example file
+  - Add VITE_API_URL variable
+  - Document environment variables in README
+  - **Acceptance**: Environment variables accessible via import.meta.env
+
+- [ ] **TASK-020**: Create base layout components
+  - Create Header component
+  - Create Footer component
+  - Create MainLayout wrapper
+  - Add responsive navigation
+  - **Acceptance**: Layout renders correctly on all screen sizes
+
+### Epic 1.3: Documentation & DevOps
+**Owner**: Team Lead
+**Priority**: P0
+**Estimated Time**: 4-6 hours
+
+- [ ] **TASK-021**: Create comprehensive README.md
+  - Project overview and features
+  - Technology stack documentation
+  - Prerequisites and installation steps
+  - Running locally (backend, frontend, database)
+  - Environment variables documentation
+  - **Acceptance**: New developer can set up project using README
+
+- [ ] **TASK-022**: Create CONTRIBUTING.md guide
+  - Branch naming conventions
+  - Commit message format
+  - PR process and templates
+  - Code review guidelines
+  - **Acceptance**: Contributors understand workflow
+
+- [ ] **TASK-023**: Set up GitHub issue templates
+  - Bug report template
+  - Feature request template
+  - Task template
+  - **Acceptance**: Templates appear when creating issues
+
+- [ ] **TASK-024**: Create pull request template
+  - Checklist for PR author
+  - Testing instructions
+  - Screenshots section
+  - **Acceptance**: Template shows for new PRs
+
+- [ ] **TASK-025**: Set up basic GitHub Actions workflow
+  - Create .github/workflows/backend-ci.yml
+  - Add build and test steps for .NET
+  - Create .github/workflows/frontend-ci.yml
+  - Add build and test steps for React
+  - **Acceptance**: CI passes on sample PR
+
+---
+
+## Sprint 2: Authentication & User Management (Weeks 3-4)
+
+### Epic 2.1: Backend Authentication
+**Owner**: Backend Developer
+**Priority**: P0
+**Estimated Time**: 12-16 hours
+
+- [ ] **TASK-026**: Create User entity and enums
+  - Create User.cs with all properties
+  - Create UserRole enum (User, Moderator, Admin)
+  - Add BSON attributes for MongoDB
+  - **Acceptance**: User entity matches schema design
+
+- [ ] **TASK-027**: Implement UserRepository
+  - Create IUserRepository interface
+  - Implement UserRepository with MongoDB
+  - Add methods: Create, GetById, GetByEmail, Update
+  - Create indexes (email unique)
+  - **Acceptance**: CRUD operations work for users
+
+- [ ] **TASK-028**: Configure ASP.NET Core Identity with MongoDB
+  - Install AspNetCore.Identity.MongoDbCore
+  - Configure Identity services
+  - Set password requirements
+  - Configure lockout settings
+  - **Acceptance**: Identity configured correctly
+
+- [ ] **TASK-029**: Implement JWT token generation
+  - Create JwtSettings configuration class
+  - Create TokenService for generating tokens
+  - Implement access token generation
+  - Implement refresh token generation
+  - **Acceptance**: Tokens generated with correct claims
+
+- [ ] **TASK-030**: Create AuthController - Register endpoint
+  - POST /api/auth/register
+  - Validate registration data with FluentValidation
+  - Hash password securely
+  - Create user in database
+  - Return JWT tokens
+  - **Acceptance**: User can register successfully
+
+- [ ] **TASK-031**: Create AuthController - Login endpoint
+  - POST /api/auth/login
+  - Validate credentials
+  - Check password hash
+  - Generate and return JWT tokens
+  - Update last login timestamp
+  - **Acceptance**: User can login successfully
+
+- [ ] **TASK-032**: Create AuthController - Refresh token endpoint
+  - POST /api/auth/refresh
+  - Validate refresh token
+  - Generate new access token
+  - Return new tokens
+  - **Acceptance**: Token refresh works
+
+- [ ] **TASK-033**: Implement JWT authentication middleware
+  - Configure JWT Bearer authentication
+  - Add authentication middleware to pipeline
+  - Configure token validation parameters
+  - **Acceptance**: Protected endpoints require valid token
+
+- [ ] **TASK-034**: Implement role-based authorization
+  - Create custom authorization policies
+  - Add [Authorize(Roles = "...")] attributes
+  - Test role restrictions
+  - **Acceptance**: Only authorized roles can access endpoints
+
+- [ ] **TASK-035**: Create UserController - Get profile endpoint
+  - GET /api/users/me
+  - Return current user's profile
+  - Exclude sensitive data (password hash)
+  - **Acceptance**: Authenticated user can get their profile
+
+- [ ] **TASK-036**: Create UserController - Update profile endpoint
+  - PUT /api/users/me
+  - Validate update data
+  - Update user profile
+  - Return updated user
+  - **Acceptance**: User can update their profile
+
+- [ ] **TASK-037**: Write unit tests for AuthService
+  - Test token generation
+  - Test password hashing
+  - Test user validation
+  - Achieve 80%+ coverage
+  - **Acceptance**: All auth service tests pass
+
+- [ ] **TASK-038**: Write integration tests for auth endpoints
+  - Test registration flow
+  - Test login flow
+  - Test token refresh
+  - Test unauthorized access
+  - **Acceptance**: All integration tests pass
+
+### Epic 2.2: Frontend Authentication
+**Owner**: Frontend Developer
+**Priority**: P0
+**Estimated Time**: 10-14 hours
+
+- [ ] **TASK-039**: Create TypeScript types for auth
+  - Create types/user.ts with User interface
+  - Create types/auth.ts with login/register types
+  - Define AuthState interface
+  - **Acceptance**: Types match backend DTOs
+
+- [ ] **TASK-040**: Implement authService API client
+  - Create services/authService.ts
+  - Implement register method
+  - Implement login method
+  - Implement refresh token method
+  - Implement logout method
+  - **Acceptance**: All auth API calls functional
+
+- [ ] **TASK-041**: Create auth Redux slice
+  - Create store/slices/authSlice.ts
+  - Add state for user, tokens, loading, error
+  - Implement login async thunk
+  - Implement register async thunk
+  - Implement logout action
+  - Add token to localStorage
+  - **Acceptance**: Auth state managed correctly
+
+- [ ] **TASK-042**: Implement automatic token refresh logic
+  - Detect token expiration
+  - Call refresh endpoint automatically
+  - Update stored tokens
+  - Redirect to login on refresh failure
+  - **Acceptance**: Tokens refresh automatically
+
+- [ ] **TASK-043**: Create useAuth custom hook
+  - Create hooks/useAuth.ts
+  - Expose login, register, logout functions
+  - Expose user, isAuthenticated, loading state
+  - **Acceptance**: Components can use auth easily
+
+- [ ] **TASK-044**: Create LoginPage component
+  - Create features/auth/LoginPage.tsx
+  - Add email and password inputs
+  - Implement form validation with Zod
+  - Show loading and error states
+  - Redirect on successful login
+  - **Acceptance**: User can login via UI
+
+- [ ] **TASK-045**: Create RegisterPage component
+  - Create features/auth/RegisterPage.tsx
+  - Add email, name, password, confirm password inputs
+  - Implement form validation
+  - Show password strength indicator
+  - Show loading and error states
+  - **Acceptance**: User can register via UI
+
+- [ ] **TASK-046**: Create PrivateRoute component
+  - Check authentication status
+  - Redirect to login if not authenticated
+  - Show loading spinner while checking
+  - **Acceptance**: Protected routes require auth
+
+- [ ] **TASK-047**: Update Header with auth status
+  - Show login/register links when logged out
+  - Show user menu when logged in
+  - Add logout button
+  - Display user name/avatar
+  - **Acceptance**: Header reflects auth state
+
+- [ ] **TASK-048**: Implement role-based UI rendering
+  - Create useHasRole hook
+  - Conditionally show moderator/admin features
+  - Hide features based on permissions
+  - **Acceptance**: UI adapts to user role
+
+- [ ] **TASK-049**: Write tests for auth components
+  - Test LoginPage form validation
+  - Test RegisterPage form validation
+  - Test PrivateRoute redirect behavior
+  - Test useAuth hook
+  - **Acceptance**: All auth component tests pass
+
+---
+
+## Sprint 3: Quote Display & Search (Weeks 5-6)
+
+### Epic 3.1: Backend Quote Display
+**Owner**: Backend Developer
+**Priority**: P0
+**Estimated Time**: 14-18 hours
+
+- [ ] **TASK-050**: Create Quote entity and enums
+  - Create Quote.cs with all properties
+  - Create QuoteStatus enum
+  - Create SourceType enum
+  - Add BSON attributes
+  - **Acceptance**: Quote entity matches schema
+
+- [ ] **TASK-051**: Create Tag entity
+  - Create Tag.cs with all properties
+  - Add support for parent-child hierarchy
+  - **Acceptance**: Tag entity ready
+
+- [ ] **TASK-052**: Implement QuoteRepository
+  - Create IQuoteRepository interface
+  - Implement QuoteRepository with MongoDB
+  - Add CRUD methods
+  - Implement pagination support
+  - **Acceptance**: Basic quote operations work
+
+- [ ] **TASK-053**: Create MongoDB text indexes for search
+  - Create index on text, author, source fields
+  - Create index on status field
+  - Create index on author field
+  - Create index on sourceType field
+  - Create index on tags array
+  - Test index performance
+  - **Acceptance**: Indexes created and working
+
+- [ ] **TASK-054**: Implement GetQuotesQuery with CQRS
+  - Create GetQuotesQuery.cs
+  - Create GetQuotesHandler.cs
+  - Implement pagination logic
+  - Return PagedResult<QuoteDto>
+  - **Acceptance**: Can retrieve paginated quotes
+
+- [ ] **TASK-055**: Implement filtering by status
+  - Add status filter to query
+  - Filter only approved quotes for public
+  - Allow moderators to see all statuses
+  - **Acceptance**: Status filtering works
+
+- [ ] **TASK-056**: Implement filtering by author
+  - Add author filter to query
+  - Support partial name matching
+  - Case-insensitive search
+  - **Acceptance**: Author filtering works
+
+- [ ] **TASK-057**: Implement filtering by source type
+  - Add sourceType filter to query
+  - Support multiple source types
+  - **Acceptance**: Source type filtering works
+
+- [ ] **TASK-058**: Implement filtering by tags
+  - Add tags filter to query
+  - Support multiple tags (AND logic)
+  - **Acceptance**: Tag filtering works
+
+- [ ] **TASK-059**: Implement full-text search
+  - Use MongoDB text search
+  - Search across text, author, source
+  - Add relevance scoring
+  - **Acceptance**: Search returns relevant results
+
+- [ ] **TASK-060**: Implement sorting options
+  - Sort by created date (newest/oldest)
+  - Sort by author (A-Z)
+  - Sort by view count
+  - Sort by relevance (for search)
+  - **Acceptance**: All sorting options work
+
+- [ ] **TASK-061**: Create QuotesController GET endpoints
+  - GET /api/quotes (with filters, pagination, search)
+  - Parse query parameters
+  - Call GetQuotesQuery handler
+  - Return PagedResult
+  - **Acceptance**: Endpoint returns filtered quotes
+
+- [ ] **TASK-062**: Implement GetQuoteByIdQuery
+  - Create query and handler
+  - Increment view count
+  - Return full quote details
+  - **Acceptance**: Can retrieve single quote
+
+- [ ] **TASK-063**: Create GET /api/quotes/{id} endpoint
+  - Call GetQuoteByIdQuery handler
+  - Return 404 if not found
+  - **Acceptance**: Single quote retrieval works
+
+- [ ] **TASK-064**: Implement GetRandomQuoteQuery
+  - Get random approved quote from database
+  - Use MongoDB $sample or random logic
+  - **Acceptance**: Returns random quote
+
+- [ ] **TASK-065**: Create GET /api/quotes/random endpoint
+  - Call GetRandomQuoteQuery handler
+  - Return random quote
+  - **Acceptance**: Random quote endpoint works
+
+- [ ] **TASK-066**: Implement QuoteDto mapping with AutoMapper
+  - Create mapping profile
+  - Map Quote entity to QuoteDto
+  - Exclude sensitive fields
+  - **Acceptance**: DTOs mapped correctly
+
+- [ ] **TASK-067**: Write unit tests for QuoteRepository
+  - Test CRUD operations
+  - Test filtering logic
+  - Test pagination
+  - Achieve 80%+ coverage
+  - **Acceptance**: Repository tests pass
+
+- [ ] **TASK-068**: Write integration tests for quote endpoints
+  - Test GET /api/quotes with various filters
+  - Test pagination
+  - Test search
+  - Test GET /api/quotes/{id}
+  - Test GET /api/quotes/random
+  - **Acceptance**: All integration tests pass
+
+### Epic 3.2: Frontend Quote Display
+**Owner**: Frontend Developer
+**Priority**: P0
+**Estimated Time**: 16-20 hours
+
+- [ ] **TASK-069**: Create TypeScript types for quotes
+  - Create types/quote.ts
+  - Define Quote interface
+  - Define SourceType enum
+  - Define QuoteStatus enum
+  - Define QuoteFilters interface
+  - Define QuotesResponse interface
+  - **Acceptance**: Types match backend DTOs
+
+- [ ] **TASK-070**: Implement quoteService API client
+  - Create services/quoteService.ts
+  - Implement getQuotes with filters
+  - Implement getQuoteById
+  - Implement getRandomQuote
+  - **Acceptance**: All quote API calls work
+
+- [ ] **TASK-071**: Create quotes Redux slice
+  - Create store/slices/quotesSlice.ts
+  - Add state for quotes, filters, pagination
+  - Implement fetchQuotes async thunk
+  - Implement setFilters action
+  - Implement setPage action
+  - **Acceptance**: Quote state managed correctly
+
+- [ ] **TASK-072**: Create QuoteCard component
+  - Create components/quotes/QuoteCard.tsx
+  - Display quote text prominently
+  - Show author, source, source type
+  - Display tags as chips
+  - Add share button
+  - Make responsive
+  - **Acceptance**: Quote card looks great on all devices
+
+- [ ] **TASK-073**: Create QuoteGrid component
+  - Create components/quotes/QuoteGrid.tsx
+  - Display quotes in responsive grid
+  - Use CSS Grid or Flexbox
+  - Add loading skeletons
+  - Handle empty state
+  - **Acceptance**: Grid displays quotes nicely
+
+- [ ] **TASK-074**: Create QuoteList component (alternative view)
+  - Create components/quotes/QuoteList.tsx
+  - Display quotes in compact list format
+  - Show essential information only
+  - **Acceptance**: List view works
+
+- [ ] **TASK-075**: Create QuotesPage main page
+  - Create features/quotes/QuotesPage.tsx
+  - Integrate QuoteGrid
+  - Add view toggle (grid/list)
+  - Show loading and error states
+  - **Acceptance**: Main quotes page functional
+
+- [ ] **TASK-076**: Implement Pagination component
+  - Create components/common/Pagination.tsx
+  - Show page numbers
+  - Add previous/next buttons
+  - Disable buttons at boundaries
+  - Show total count
+  - **Acceptance**: Pagination works correctly
+
+- [ ] **TASK-077**: Create QuoteSearch component
+  - Create features/quotes/components/QuoteSearch.tsx
+  - Add search input with icon
+  - Implement debounced search
+  - Show search suggestions (optional)
+  - Clear button
+  - **Acceptance**: Search updates filters
+
+- [ ] **TASK-078**: Create QuoteFilters component
+  - Create features/quotes/components/QuoteFilters.tsx
+  - Add author filter (autocomplete)
+  - Add source type filter (dropdown/checkboxes)
+  - Add tag filter (multi-select)
+  - Add date range filter
+  - Show active filters with clear options
+  - **Acceptance**: All filters functional
+
+- [ ] **TASK-079**: Implement useQuotes custom hook
+  - Create features/quotes/hooks/useQuotes.ts
+  - Fetch quotes on mount and filter changes
+  - Expose quotes, loading, error states
+  - Expose updateFilters and changePage functions
+  - **Acceptance**: Hook simplifies component logic
+
+- [ ] **TASK-080**: Implement useDebounce hook
+  - Create hooks/useDebounce.ts
+  - Debounce search input
+  - Configurable delay
+  - **Acceptance**: Search doesn't fire on every keystroke
+
+- [ ] **TASK-081**: Create QuoteDetail modal/page
+  - Create components/quotes/QuoteDetail.tsx
+  - Show full quote information
+  - Display all metadata
+  - Add share options
+  - Show context if available
+  - **Acceptance**: Detail view shows all info
+
+- [ ] **TASK-082**: Add loading skeletons
+  - Create components/common/Skeleton.tsx
+  - Add skeleton for QuoteCard
+  - Show while loading
+  - **Acceptance**: Loading states look polished
+
+- [ ] **TASK-083**: Implement infinite scroll (optional)
+  - Create useInfiniteScroll hook
+  - Load more quotes on scroll
+  - Alternative to pagination
+  - **Acceptance**: Infinite scroll works smoothly
+
+- [ ] **TASK-084**: Add sorting UI
+  - Create sort dropdown component
+  - Show sort options
+  - Update query on change
+  - **Acceptance**: Sorting works from UI
+
+- [ ] **TASK-085**: Implement responsive design
+  - Test on mobile (320px+)
+  - Test on tablet (768px+)
+  - Test on desktop (1024px+)
+  - Adjust grid columns
+  - Stack filters on mobile
+  - **Acceptance**: Works on all screen sizes
+
+- [ ] **TASK-086**: Write component tests
+  - Test QuoteCard rendering
+  - Test QuoteFilters state changes
+  - Test QuoteSearch debouncing
+  - Test Pagination navigation
+  - **Acceptance**: All component tests pass
+
+---
+
+## Sprint 4: Quote Submission (Weeks 7-8)
+
+### Epic 4.1: Backend Quote Submission
+**Owner**: Backend Developer
+**Priority**: P0
+**Estimated Time**: 14-18 hours
+
+- [ ] **TASK-087**: Create CreateQuoteCommand
+  - Create CreateQuoteCommand.cs
+  - Define all required properties
+  - **Acceptance**: Command matches request model
+
+- [ ] **TASK-088**: Implement CreateQuoteValidator with FluentValidation
+  - Create CreateQuoteValidator.cs
+  - Validate text length (10-1000 chars)
+  - Validate author (required, 2-100 chars)
+  - Validate source (required, 2-200 chars)
+  - Validate at least one tag
+  - Validate date not in future
+  - **Acceptance**: Validation catches invalid data
+
+- [ ] **TASK-089**: Implement CreateQuoteHandler
+  - Create CreateQuoteHandler.cs
+  - Validate command
+  - Create Quote entity with Pending status
+  - Set createdBy to current user
+  - Save to database
+  - Return created quote
+  - **Acceptance**: Quote creation works
+
+- [ ] **TASK-090**: Create POST /api/quotes endpoint
+  - Add to QuotesController
+  - Require authentication
+  - Call CreateQuoteHandler
+  - Return 201 Created with quote
+  - Handle validation errors
+  - **Acceptance**: Authenticated users can submit quotes
+
+- [ ] **TASK-091**: Implement duplicate detection algorithm
+  - Create DuplicateDetectionService
+  - Normalize text (lowercase, remove punctuation)
+  - Use MongoDB text search for candidates
+  - Calculate similarity score (Levenshtein or similar)
+  - Return matches with similarity > 80%
+  - **Acceptance**: Similar quotes detected
+
+- [ ] **TASK-092**: Create CheckDuplicatesQuery
+  - Create query and handler
+  - Accept text and author
+  - Call DuplicateDetectionService
+  - Return list of similar quotes
+  - **Acceptance**: Duplicate check works
+
+- [ ] **TASK-093**: Create POST /api/quotes/check-duplicates endpoint
+  - Allow anyone to check duplicates
+  - Return list of similar quotes with scores
+  - **Acceptance**: Endpoint returns duplicates
+
+- [ ] **TASK-094**: Implement GetMySubmissionsQuery
+  - Create query and handler
+  - Filter by current user's ID
+  - Include all statuses
+  - Support pagination
+  - **Acceptance**: Users can see their submissions
+
+- [ ] **TASK-095**: Create GET /api/quotes/my-submissions endpoint
+  - Require authentication
+  - Call GetMySubmissionsQuery
+  - Return user's quotes
+  - **Acceptance**: Endpoint returns user's submissions
+
+- [ ] **TASK-096**: Implement UpdateQuoteCommand (for pending quotes)
+  - Create command and handler
+  - Validate user owns the quote
+  - Only allow if status is Pending
+  - Update allowed fields
+  - **Acceptance**: Users can edit pending quotes
+
+- [ ] **TASK-097**: Create PUT /api/quotes/{id} endpoint
+  - Require authentication
+  - Validate ownership
+  - Validate quote is pending
+  - Call UpdateQuoteHandler
+  - **Acceptance**: Users can update their pending quotes
+
+- [ ] **TASK-098**: Implement DeleteQuoteCommand (for pending quotes)
+  - Create command and handler
+  - Validate ownership and status
+  - Soft delete or hard delete
+  - **Acceptance**: Users can delete pending quotes
+
+- [ ] **TASK-099**: Create DELETE /api/quotes/{id} endpoint
+  - Require authentication
+  - Validate ownership and status
+  - Call DeleteQuoteHandler
+  - Return 204 No Content
+  - **Acceptance**: Users can delete their pending quotes
+
+- [ ] **TASK-100**: Write unit tests for CreateQuoteHandler
+  - Test successful creation
+  - Test validation failures
+  - Test unauthorized access
+  - **Acceptance**: Handler tests pass
+
+- [ ] **TASK-101**: Write unit tests for DuplicateDetectionService
+  - Test exact matches
+  - Test similar matches
+  - Test no matches
+  - Test edge cases
+  - **Acceptance**: 80%+ coverage
+
+- [ ] **TASK-102**: Write integration tests for submission flow
+  - Test full submission process
+  - Test duplicate detection
+  - Test edit/delete
+  - **Acceptance**: All integration tests pass
+
+### Epic 4.2: Frontend Quote Submission
+**Owner**: Frontend Developer
+**Priority**: P0
+**Estimated Time**: 12-16 hours
+
+- [ ] **TASK-103**: Create SubmitQuotePage component
+  - Create features/submission/SubmitQuotePage.tsx
+  - Add page header
+  - Include QuoteForm
+  - Handle submission success/error
+  - **Acceptance**: Submit page exists
+
+- [ ] **TASK-104**: Create QuoteForm component
+  - Create features/submission/QuoteForm.tsx
+  - Add all form fields (text, author, source, etc.)
+  - Use React Hook Form
+  - Add character counters
+  - **Acceptance**: Form renders correctly
+
+- [ ] **TASK-105**: Implement form validation with Zod
+  - Create validation schema
+  - Validate text length
+  - Validate required fields
+  - Show inline error messages
+  - **Acceptance**: Validation works client-side
+
+- [ ] **TASK-106**: Create DuplicateChecker component
+  - Create features/submission/DuplicateChecker.tsx
+  - Check duplicates as user types (debounced)
+  - Show warning if duplicates found
+  - Display similar quotes
+  - Allow user to confirm "not a duplicate"
+  - **Acceptance**: Duplicate warnings shown
+
+- [ ] **TASK-107**: Implement TagSelector component
+  - Create components/common/TagSelector.tsx
+  - Multi-select dropdown or chips
+  - Autocomplete suggestions
+  - Show tag descriptions on hover
+  - **Acceptance**: Users can select tags easily
+
+- [ ] **TASK-108**: Add form auto-save to localStorage
+  - Save draft every 30 seconds
+  - Restore draft on page load
+  - Clear draft on successful submit
+  - **Acceptance**: Draft not lost on refresh
+
+- [ ] **TASK-109**: Implement submission API calls
+  - Add createQuote to quoteService
+  - Add checkDuplicates to quoteService
+  - Handle API errors
+  - **Acceptance**: Submission calls backend
+
+- [ ] **TASK-110**: Create MySubmissionsPage
+  - Create features/submission/MySubmissionsPage.tsx
+  - Fetch user's submissions
+  - Display in table or cards
+  - Show status badges
+  - Add edit/delete buttons
+  - **Acceptance**: Users see their submissions
+
+- [ ] **TASK-111**: Implement edit functionality for pending quotes
+  - Pre-fill form with existing data
+  - Call update API
+  - Show success message
+  - **Acceptance**: Users can edit pending quotes
+
+- [ ] **TASK-112**: Implement delete functionality for pending quotes
+  - Add confirmation modal
+  - Call delete API
+  - Remove from list
+  - **Acceptance**: Users can delete pending quotes
+
+- [ ] **TASK-113**: Add success/error notifications
+  - Create toast/notification system
+  - Show success on submit
+  - Show errors clearly
+  - **Acceptance**: User feedback is clear
+
+- [ ] **TASK-114**: Implement SourceType dropdown
+  - Create dropdown with all source types
+  - Icons for each type (optional)
+  - **Acceptance**: Source type selection works
+
+- [ ] **TASK-115**: Write tests for submission components
+  - Test form validation
+  - Test duplicate checker
+  - Test edit/delete actions
+  - **Acceptance**: All tests pass
+
+---
+
+## Sprint 5: Moderation System (Weeks 9-10)
+
+### Epic 5.1: Backend Moderation
+**Owner**: Backend Developer
+**Priority**: P0
+**Estimated Time**: 16-20 hours
+
+- [ ] **TASK-116**: Create Review entity
+  - Create Review.cs
+  - Include quote ID, moderator ID, action, notes
+  - **Acceptance**: Review entity ready
+
+- [ ] **TASK-117**: Implement ReviewRepository
+  - Create IReviewRepository
+  - Implement ReviewRepository
+  - Add CRUD operations
+  - **Acceptance**: Reviews can be saved
+
+- [ ] **TASK-118**: Create GetModerationQueueQuery
+  - Create query and handler
+  - Filter by status (pending, under review, etc.)
+  - Support pagination
+  - Include submitter information
+  - **Acceptance**: Queue retrieval works
+
+- [ ] **TASK-119**: Create GET /api/moderation/queue endpoint
+  - Require Moderator or Admin role
+  - Call GetModerationQueueQuery
+  - Return paginated results
+  - **Acceptance**: Moderators see pending quotes
+
+- [ ] **TASK-120**: Implement ReviewQuoteCommand
+  - Create command with action (approve, reject, request revision)
+  - Include moderator notes
+  - Include optional edits
+  - **Acceptance**: Command defined
+
+- [ ] **TASK-121**: Implement ReviewQuoteHandler
+  - Validate quote exists and is pending
+  - Update quote status based on action
+  - Set reviewedBy and reviewedAt
+  - Create Review record
+  - Apply edits if provided
+  - Update user stats
+  - **Acceptance**: Review process works
+
+- [ ] **TASK-122**: Create POST /api/moderation/review/{id} endpoint
+  - Require Moderator role
+  - Call ReviewQuoteHandler
+  - Return updated quote
+  - **Acceptance**: Moderators can review quotes
+
+- [ ] **TASK-123**: Implement moderation statistics
+  - Create GetModerationStatsQuery
+  - Count pending, approved, rejected quotes
+  - Average review time
+  - Moderator leaderboard (optional)
+  - **Acceptance**: Stats available
+
+- [ ] **TASK-124**: Create GET /api/moderation/stats endpoint
+  - Require Moderator role
+  - Return statistics
+  - **Acceptance**: Stats endpoint works
+
+- [ ] **TASK-125**: Implement UpdateQuoteCommand (moderator override)
+  - Allow moderators to edit any quote
+  - Log edits in Review table
+  - **Acceptance**: Moderators can edit quotes
+
+- [ ] **TASK-126**: Create PUT /api/quotes/{id}/edit endpoint
+  - Require Moderator role
+  - Call UpdateQuoteHandler with override
+  - Return updated quote
+  - **Acceptance**: Moderator edits work
+
+- [ ] **TASK-127**: Implement notification system (stub)
+  - Create INotificationService interface
+  - Stub implementation for email
+  - Call on quote approval/rejection
+  - **Acceptance**: Notifications sent (stub)
+
+- [ ] **TASK-128**: Write unit tests for ReviewQuoteHandler
+  - Test all review actions
+  - Test authorization
+  - Test status transitions
+  - **Acceptance**: Handler tests pass
+
+- [ ] **TASK-129**: Write integration tests for moderation endpoints
+  - Test queue retrieval
+  - Test review actions
+  - Test moderator edits
+  - **Acceptance**: Integration tests pass
+
+### Epic 5.2: Frontend Moderation
+**Owner**: Frontend Developer
+**Priority**: P0
+**Estimated Time**: 14-18 hours
+
+- [ ] **TASK-130**: Create ModerationQueuePage
+  - Create features/moderation/ModerationQueuePage.tsx
+  - Fetch pending submissions
+  - Display in table or cards
+  - Show filters (status, date, etc.)
+  - **Acceptance**: Queue page functional
+
+- [ ] **TASK-131**: Create ReviewPanel component
+  - Create features/moderation/ReviewPanel.tsx
+  - Show quote details
+  - Show submitter info
+  - Display duplicate warnings
+  - Add action buttons (approve, reject, request revision)
+  - Add notes textarea
+  - **Acceptance**: Review interface complete
+
+- [ ] **TASK-132**: Implement DuplicateComparison component
+  - Create features/moderation/DuplicateComparison.tsx
+  - Side-by-side comparison
+  - Highlight differences
+  - Suggest merge or keep separate
+  - **Acceptance**: Duplicates easily compared
+
+- [ ] **TASK-133**: Create moderation API service
+  - Create services/moderationService.ts
+  - Implement getQueue
+  - Implement reviewQuote
+  - Implement getStats
+  - **Acceptance**: All moderation API calls work
+
+- [ ] **TASK-134**: Implement review actions
+  - Approve quote (with optional edits)
+  - Reject quote (with reason)
+  - Request revision (with notes)
+  - **Acceptance**: All actions functional
+
+- [ ] **TASK-135**: Add edit functionality in review panel
+  - Allow moderator to fix typos
+  - Allow moderator to add/remove tags
+  - Allow moderator to update metadata
+  - Track changes
+  - **Acceptance**: Inline editing works
+
+- [ ] **TASK-136**: Create ModerationDashboard
+  - Show queue length
+  - Show average review time
+  - Show approval/rejection rates
+  - Show moderator activity
+  - **Acceptance**: Dashboard informative
+
+- [ ] **TASK-137**: Implement batch actions (optional)
+  - Select multiple quotes
+  - Approve/reject in bulk
+  - **Acceptance**: Batch operations work
+
+- [ ] **TASK-138**: Add role-based route guards
+  - Protect moderation routes
+  - Redirect if not moderator
+  - **Acceptance**: Only moderators access moderation
+
+- [ ] **TASK-139**: Write tests for moderation components
+  - Test ReviewPanel actions
+  - Test DuplicateComparison
+  - Test role guards
+  - **Acceptance**: All tests pass
+
+---
+
+## Sprint 6: Tag Management & Polish (Weeks 11-12)
+
+### Epic 6.1: Backend Tag Management
+**Owner**: Backend Developer
+**Priority**: P1
+**Estimated Time**: 10-14 hours
+
+- [ ] **TASK-140**: Implement TagRepository
+  - Create ITagRepository
+  - Implement TagRepository
+  - Add CRUD operations
+  - Support hierarchy queries
+  - **Acceptance**: Tag operations work
+
+- [ ] **TASK-141**: Create GetTagsQuery
+  - Create query and handler
+  - Include hierarchy information
+  - Return usage counts
+  - Support filtering
+  - **Acceptance**: Tags retrieval works
+
+- [ ] **TASK-142**: Create GET /api/tags endpoint
+  - Return all tags with hierarchy
+  - Include usage counts
+  - **Acceptance**: Public can get tags
+
+- [ ] **TASK-143**: Create GET /api/tags/{id} endpoint
+  - Return single tag details
+  - Include parent/children info
+  - **Acceptance**: Tag details retrieval works
+
+- [ ] **TASK-144**: Implement CreateTagCommand
+  - Create command and handler
+  - Validate tag name uniqueness
+  - Generate slug
+  - Support parent tag assignment
+  - **Acceptance**: Tag creation works
+
+- [ ] **TASK-145**: Create POST /api/tags endpoint
+  - Require Moderator role
+  - Call CreateTagHandler
+  - Return created tag
+  - **Acceptance**: Moderators can create tags
+
+- [ ] **TASK-146**: Implement UpdateTagCommand
+  - Create command and handler
+  - Allow name, description, parent changes
+  - Update slug if needed
+  - **Acceptance**: Tag updates work
+
+- [ ] **TASK-147**: Create PUT /api/tags/{id} endpoint
+  - Require Moderator role
+  - Call UpdateTagHandler
+  - Return updated tag
+  - **Acceptance**: Moderators can update tags
+
+- [ ] **TASK-148**: Implement DeleteTagCommand
+  - Create command and handler
+  - Check tag usage
+  - Prevent deletion if used
+  - Or reassign quotes to parent tag
+  - **Acceptance**: Tag deletion works safely
+
+- [ ] **TASK-149**: Create DELETE /api/tags/{id} endpoint
+  - Require Moderator role
+  - Call DeleteTagHandler
+  - **Acceptance**: Moderators can delete unused tags
+
+- [ ] **TASK-150**: Implement tag merging functionality
+  - Create MergeTagsCommand
+  - Merge source tag into target
+  - Update all quotes
+  - Delete source tag
+  - **Acceptance**: Tag merging works
+
+- [ ] **TASK-151**: Create POST /api/tags/merge endpoint
+  - Require Moderator role
+  - Merge tags
+  - **Acceptance**: Moderators can merge tags
+
+- [ ] **TASK-152**: Implement tag usage counting
+  - Update usage count on quote creation
+  - Update on quote deletion
+  - Update on tag changes
+  - **Acceptance**: Usage counts accurate
+
+- [ ] **TASK-153**: Write tests for tag operations
+  - Test CRUD operations
+  - Test hierarchy queries
+  - Test tag merging
+  - **Acceptance**: All tag tests pass
+
+### Epic 6.2: Frontend Tag Management & Polish
+**Owner**: Frontend Developer
+**Priority**: P1
+**Estimated Time**: 12-16 hours
+
+- [ ] **TASK-154**: Create TagManagementPage (for moderators)
+  - Create features/tags/TagManagementPage.tsx
+  - List all tags
+  - Show hierarchy
+  - Show usage counts
+  - Add create/edit/delete actions
+  - **Acceptance**: Tag management UI functional
+
+- [ ] **TASK-155**: Create TagEditor component
+  - Modal or form for creating/editing tags
+  - Name, description, parent selection
+  - **Acceptance**: Tag editing works
+
+- [ ] **TASK-156**: Implement tag hierarchy visualization
+  - Tree view or nested list
+  - Expand/collapse functionality
+  - **Acceptance**: Hierarchy clear and navigable
+
+- [ ] **TASK-157**: Implement tag merging UI
+  - Select source and target tags
+  - Confirm merge action
+  - **Acceptance**: Merging works from UI
+
+- [ ] **TASK-158**: Enhance TagSelector with autocomplete
+  - As-you-type suggestions
+  - Show tag descriptions
+  - Show usage counts
+  - **Acceptance**: Tag selection improved
+
+- [ ] **TASK-159**: Implement tag filters with counts
+  - Show number of quotes per tag
+  - Update counts dynamically
+  - **Acceptance**: Filter counts accurate
+
+- [ ] **TASK-160**: Add accessibility improvements
+  - Keyboard navigation
+  - ARIA labels
+  - Focus management
+  - Screen reader support
+  - **Acceptance**: WCAG 2.1 AA compliant
+
+- [ ] **TASK-161**: Implement dark mode (optional)
+  - Create dark theme
+  - Theme toggle
+  - Persist preference
+  - **Acceptance**: Dark mode works
+
+- [ ] **TASK-162**: Add loading skeletons everywhere
+  - Consistent loading states
+  - Smooth transitions
+  - **Acceptance**: Loading states polished
+
+- [ ] **TASK-163**: Implement error boundaries
+  - Catch React errors
+  - Show fallback UI
+  - Log errors
+  - **Acceptance**: Errors handled gracefully
+
+- [ ] **TASK-164**: Optimize performance
+  - Code splitting by route
+  - Lazy load components
+  - Memoize expensive calculations
+  - Optimize images
+  - **Acceptance**: Lighthouse score >90
+
+- [ ] **TASK-165**: Add animations and transitions
+  - Page transitions
+  - Card hover effects
+  - Smooth scrolling
+  - **Acceptance**: UI feels polished
+
+- [ ] **TASK-166**: Implement share functionality
+  - Share button on quotes
+  - Copy link
+  - Social media share (Twitter, Facebook)
+  - Generate quote image (optional)
+  - **Acceptance**: Sharing works
+
+- [ ] **TASK-167**: Create 404 and error pages
+  - Custom 404 page
+  - Error page for 500 errors
+  - Helpful navigation
+  - **Acceptance**: Error pages look good
+
+- [ ] **TASK-168**: Final responsive design testing
+  - Test on real devices
+  - Fix any responsive issues
+  - Test touch interactions
+  - **Acceptance**: Works perfectly on all devices
+
+- [ ] **TASK-169**: Write final component tests
+  - Test tag management
+  - Test accessibility
+  - Achieve 80%+ coverage
+  - **Acceptance**: All tests pass
+
+---
+
+## Sprint 7: Testing & Deployment (Week 12)
+
+### Epic 7.1: Comprehensive Testing
+**Owner**: Full Team
+**Priority**: P0
+**Estimated Time**: 16-20 hours
+
+- [ ] **TASK-170**: Backend unit test coverage review
+  - Ensure 80%+ coverage
+  - Test all edge cases
+  - Test error handling
+  - **Acceptance**: Coverage target met
+
+- [ ] **TASK-171**: Backend integration test coverage review
+  - Test all API endpoints
+  - Test authentication flows
+  - Test authorization
+  - **Acceptance**: All critical paths tested
+
+- [ ] **TASK-172**: Frontend unit test coverage review
+  - Ensure 80%+ coverage
+  - Test all components
+  - Test all hooks
+  - **Acceptance**: Coverage target met
+
+- [ ] **TASK-173**: Frontend integration test coverage review
+  - Test user flows
+  - Test form submissions
+  - Test navigation
+  - **Acceptance**: Critical flows tested
+
+- [ ] **TASK-174**: End-to-end testing setup
+  - Set up Playwright or Cypress
+  - Write E2E tests for critical flows
+  - Test in CI/CD
+  - **Acceptance**: E2E tests passing
+
+- [ ] **TASK-175**: Performance testing
+  - Load test API endpoints
+  - Test with 10,000+ quotes
+  - Measure response times
+  - Optimize slow queries
+  - **Acceptance**: Performance requirements met
+
+- [ ] **TASK-176**: Security testing
+  - Test authentication bypass attempts
+  - Test authorization
+  - Test input validation
+  - Test SQL/NoSQL injection
+  - Test XSS vulnerabilities
+  - **Acceptance**: No critical vulnerabilities
+
+- [ ] **TASK-177**: Accessibility audit
+  - Run automated tools (axe, Lighthouse)
+  - Manual keyboard testing
+  - Screen reader testing
+  - Fix all issues
+  - **Acceptance**: WCAG 2.1 AA compliant
+
+- [ ] **TASK-178**: Browser compatibility testing
+  - Test on Chrome, Firefox, Safari, Edge
+  - Test on mobile browsers
+  - Fix compatibility issues
+  - **Acceptance**: Works on all supported browsers
+
+- [ ] **TASK-179**: User acceptance testing
+  - Get 5 beta users
+  - Collect feedback
+  - Fix critical issues
+  - **Acceptance**: Positive feedback received
+
+### Epic 7.2: Deployment & Documentation
+**Owner**: DevOps Lead
+**Priority**: P0
+**Estimated Time**: 12-16 hours
+
+- [ ] **TASK-180**: Set up MongoDB Atlas production cluster
+  - Create cluster
+  - Configure security
+  - Set up backups
+  - **Acceptance**: Production database ready
+
+- [ ] **TASK-181**: Set up backend hosting (Azure/AWS)
+  - Create app service or container
+  - Configure environment variables
+  - Set up SSL
+  - **Acceptance**: Backend deployed
+
+- [ ] **TASK-182**: Set up frontend hosting (Vercel/Netlify)
+  - Connect GitHub repository
+  - Configure build settings
+  - Set up custom domain (if available)
+  - Configure environment variables
+  - **Acceptance**: Frontend deployed
+
+- [ ] **TASK-183**: Configure CI/CD pipelines
+  - Ensure tests run on PR
+  - Auto-deploy on merge to main
+  - Set up staging environment
+  - **Acceptance**: CI/CD working
+
+- [ ] **TASK-184**: Set up monitoring and logging
+  - Application Insights or similar
+  - Error tracking (Sentry)
+  - Performance monitoring
+  - Set up alerts
+  - **Acceptance**: Monitoring in place
+
+- [ ] **TASK-185**: Create API documentation
+  - Ensure Swagger docs are complete
+  - Add examples
+  - Document authentication
+  - **Acceptance**: Docs clear and comprehensive
+
+- [ ] **TASK-186**: Update README with deployment info
+  - Deployment instructions
+  - Environment variables
+  - Production URLs
+  - **Acceptance**: README up to date
+
+- [ ] **TASK-187**: Create user documentation
+  - How to browse quotes
+  - How to submit quotes
+  - How to use moderation tools
+  - **Acceptance**: Users have documentation
+
+- [ ] **TASK-188**: Seed production database
+  - Add initial tags
+  - Add seed quotes (100+)
+  - Create admin user
+  - **Acceptance**: Database has initial content
+
+- [ ] **TASK-189**: Final production smoke tests
+  - Test all critical features in production
+  - Verify SSL
+  - Verify backups
+  - **Acceptance**: Production working correctly
+
+- [ ] **TASK-190**: MVP launch! 🚀
+  - Announce to initial users
+  - Monitor for issues
+  - Be ready for quick fixes
+  - **Acceptance**: Application live and stable
+
+---
+
+# Phase 2: Enhanced Features (Weeks 13-18)
+
+## Future Sprints Overview
+
+### Sprint 8: Advanced Search & Duplicate Detection (Weeks 13-14)
+- Implement MongoDB Atlas Search or ElasticSearch
+- Improve duplicate detection algorithm
+- Add fuzzy search
+- Add search suggestions
+- Advanced filtering combinations
+
+### Sprint 9: Enhanced Moderation Tools (Weeks 15-16)
+- Automated quality scoring
+- Tag suggestions using ML
+- Moderator notes and collaboration
+- Review history tracking
+- Batch approval workflows
+
+### Sprint 10: Data Export & Social Features (Weeks 17-18)
+- Export quotes to JSON, CSV, PDF
+- Generate quote images
+- Enhanced sharing (Pinterest, LinkedIn)
+- Embed quotes on other sites
+- Public API (basic)
+
+---
+
+# Success Metrics Tracking
+
+## Definition of Done Checklist
+
+For each task to be considered complete, it must meet these criteria:
+
+- [ ] **Functionality**: Feature works as specified
+- [ ] **Code Quality**: Follows coding standards, passes linting
+- [ ] **Tests**: Unit tests written with 80%+ coverage
+- [ ] **Documentation**: Code documented, README updated if needed
+- [ ] **Code Review**: Peer reviewed and approved
+- [ ] **Accessibility**: Meets WCAG 2.1 AA standards (frontend)
+- [ ] **Performance**: Meets performance requirements
+- [ ] **Security**: No known vulnerabilities
+- [ ] **Responsive**: Works on mobile/tablet/desktop (frontend)
+- [ ] **Integration**: Works with other features
+
+## Sprint Success Criteria
+
+### Sprint 1-2 Success
+- [ ] Development environment set up
+- [ ] Authentication working
+- [ ] CI/CD pipeline running
+
+### Sprint 3-4 Success
+- [ ] Users can browse quotes
+- [ ] Search and filters working
+- [ ] Users can submit quotes
+
+### Sprint 5-6 Success
+- [ ] Moderation system functional
+- [ ] Tag management complete
+- [ ] UI polished
+
+### Sprint 7 Success (MVP Complete!)
+- [ ] All tests passing
+- [ ] Application deployed to production
+- [ ] 100+ quotes in database
+- [ ] 5+ beta users successfully using the app
+- [ ] Performance requirements met
+- [ ] Accessibility compliant
+- [ ] Zero critical bugs
+
+---
+
+# Task Management Tips
+
+## Using This Document
+
+1. **Track Progress**: Mark tasks as `[~]` when starting, `[x]` when done
+2. **Estimate Time**: Add time estimates to help with sprint planning
+3. **Assign Owners**: Assign tasks to team members
+4. **Dependencies**: Note any task dependencies
+5. **Blockers**: Mark blocked tasks with `[!]` and document blockers
+6. **Questions**: Mark tasks needing clarification with `[?]`
+
+## Example Task Status Update
+
+```
+- [x] **TASK-001**: Initialize Git repository
+  - Completed: 2025-10-28
+  - Time: 1 hour
+  - Notes: Added comprehensive .gitignore
+
+- [~] **TASK-002**: Create ASP.NET Core Web API solution
+  - Started: 2025-10-29
+  - Estimated completion: 2025-10-29
+  - Owner: Backend Developer
+
+- [!] **TASK-003**: Set up Clean Architecture
+  - Blocked by: TASK-002
+  - Expected unblock: 2025-10-29
+```
+
+## Sprint Planning
+
+**Recommended Velocity**:
+- 20-25 tasks per 2-week sprint for a team of 3-4 developers
+- Adjust based on team capacity and task complexity
+
+**Sprint Ceremonies**:
+- Sprint planning: Review and assign upcoming tasks
+- Daily standup: Update task status, identify blockers
+- Sprint review: Demo completed features
+- Sprint retrospective: Discuss what went well and improvements
+
+---
+
+# Appendix: Quick Reference
+
+## Task Count by Epic
+
+| Epic | Task Count | Estimated Hours |
+|------|------------|-----------------|
+| 1.1 Backend Infrastructure | 10 | 8-12 |
+| 1.2 Frontend Infrastructure | 10 | 6-10 |
+| 1.3 Documentation & DevOps | 5 | 4-6 |
+| 2.1 Backend Authentication | 13 | 12-16 |
+| 2.2 Frontend Authentication | 11 | 10-14 |
+| 3.1 Backend Quote Display | 19 | 14-18 |
+| 3.2 Frontend Quote Display | 18 | 16-20 |
+| 4.1 Backend Quote Submission | 16 | 14-18 |
+| 4.2 Frontend Quote Submission | 13 | 12-16 |
+| 5.1 Backend Moderation | 14 | 16-20 |
+| 5.2 Frontend Moderation | 10 | 14-18 |
+| 6.1 Backend Tag Management | 14 | 10-14 |
+| 6.2 Frontend Tag Management | 16 | 12-16 |
+| 7.1 Comprehensive Testing | 10 | 16-20 |
+| 7.2 Deployment | 11 | 12-16 |
+| **Total MVP** | **190 tasks** | **178-234 hours** |
+
+## Phase 1 Timeline Summary
+
+- **Sprint 1-2**: Setup & Auth (Weeks 1-4) - 49 tasks
+- **Sprint 3-4**: Display & Submission (Weeks 5-8) - 67 tasks
+- **Sprint 5-6**: Moderation & Tags (Weeks 9-12) - 54 tasks
+- **Sprint 7**: Testing & Deploy (Week 12) - 20 tasks
+
+## Critical Path Tasks
+
+These tasks are on the critical path and should be prioritized:
+
+1. TASK-001 to TASK-010: Infrastructure (blocks everything)
+2. TASK-026 to TASK-038: Authentication (blocks protected features)
+3. TASK-050 to TASK-068: Quote display (core feature)
+4. TASK-087 to TASK-102: Quote submission (core feature)
+5. TASK-116 to TASK-129: Moderation (core feature)
+6. TASK-170 to TASK-190: Testing & deployment (final gate)
+
+---
+
+**Document Status**: Ready for Execution
+**Last Updated**: 2025-10-28
+**Next Review**: After each sprint
