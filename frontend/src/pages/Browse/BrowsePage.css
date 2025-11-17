@@ -1,0 +1,176 @@
+.browse-page {
+  min-height: 100vh;
+  background: #fafafa;
+  padding: 24px 16px;
+}
+
+.browse-header {
+  max-width: 900px;
+  margin: 0 auto 32px;
+  text-align: center;
+}
+
+.page-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #212121;
+  margin: 0 0 12px 0;
+}
+
+.page-description {
+  font-size: 1.125rem;
+  color: #666;
+  margin: 0;
+}
+
+.browse-content {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.error-message {
+  background: #ffebee;
+  border: 1px solid #ef5350;
+  border-radius: 8px;
+  padding: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.error-icon {
+  width: 40px;
+  height: 40px;
+  color: #d32f2f;
+  flex-shrink: 0;
+}
+
+.error-content {
+  flex: 1;
+}
+
+.error-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #c62828;
+  margin: 0 0 8px 0;
+}
+
+.error-text {
+  font-size: 1rem;
+  color: #d32f2f;
+  margin: 0 0 16px 0;
+}
+
+.retry-button {
+  background: #d32f2f;
+  color: #ffffff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease-in-out;
+}
+
+.retry-button:hover {
+  background: #c62828;
+}
+
+.retry-button:focus {
+  outline: 2px solid #d32f2f;
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #1976d2;
+  color: white;
+  padding: 8px 16px;
+  text-decoration: none;
+  border-radius: 0 0 4px 0;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+.results-info {
+  margin: 16px 0;
+  padding: 12px;
+  background: #e3f2fd;
+  border-radius: 4px;
+}
+
+.search-mode-indicator {
+  margin: 0 0 4px 0;
+  font-size: 0.9375rem;
+  color: #1565c0;
+}
+
+.result-count {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #616161;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin: 24px 0;
+}
+
+.empty-state p {
+  margin: 0 0 16px 0;
+  font-size: 1.125rem;
+  color: #757575;
+}
+
+.clear-all-button {
+  padding: 10px 20px;
+  border: 1px solid #1976d2;
+  background: #ffffff;
+  color: #1976d2;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease-in-out;
+}
+
+.clear-all-button:hover {
+  background: #1976d2;
+  color: #ffffff;
+}
+
+@media (max-width: 768px) {
+  .page-title {
+    font-size: 2rem;
+  }
+
+  .page-description {
+    font-size: 1rem;
+  }
+
+  .browse-page {
+    padding: 16px 8px;
+  }
+
+  .error-message {
+    flex-direction: column;
+    padding: 16px;
+  }
+
+  .error-icon {
+    width: 32px;
+    height: 32px;
+  }
+}
