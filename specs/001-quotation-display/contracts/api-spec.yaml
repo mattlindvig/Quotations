@@ -1,0 +1,1039 @@
+openapi: 3.0.3
+info:
+  title: Quotations API
+  description: |
+    REST API for the Quotation Display and Management Application.
+    Supports browsing, searching, filtering, submitting, and reviewing quotations.
+  version: 1.0.0
+  contact:
+    name: Quotations API Support
+
+servers:
+  - url: https://api.quotations.example.com/v1
+    description: Production server
+  - url: https://staging-api.quotations.example.com/v1
+    description: Staging server
+  - url: http://localhost:5000/v1
+    description: Local development server
+
+tags:
+  - name: Quotations
+    description: Browse, search, and filter quotations
+  - name: Submissions
+    description: Submit new quotations (requires authentication)
+  - name: Review
+    description: Review pending quotations (requires reviewer role)
+  - name: Authors
+    description: Browse authors
+  - name: Sources
+    description: Browse sources
+  - name: Tags
+    description: Browse and search tags
+  - name: Authentication
+    description: User registration and login
+
+paths:
+  # ==================== Quotations ====================
+
+  /quotations:
+    get:
+      tags: [Quotations]
+      summary: Get quotations with optional filters
+      description: |
+        Retrieve a paginated list of approved quotations.
+        Supports text search and filtering by author, source type, and tags.
+      operationId: getQuotations
+      parameters:
+        - name: search
+          in: query
+          description: Text search across quote, author, source
+          schema:
+            type: string
+            maxLength: 200
+        - name: authorId
+          in: query
+          description: Filter by author ID
+          schema:
+            type: string
+            format: objectid
+        - name: sourceType
+          in: query
+          description: Filter by source type
+          schema:
+            $ref: '#/components/schemas/SourceType'
+        - name: tags
+          in: query
+          description: Filter by tags (comma-separated)
+          schema:
+            type: string
+            example: "wisdom,philosophy"
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: Number of results per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sortBy
+          in: query
+          description: Sort field
+          schema:
+            type: string
+            enum: [relevance, date, author, source]
+            default: date
+        - name: sortOrder
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotationListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /quotations/{id}:
+    get:
+      tags: [Quotations]
+      summary: Get a single quotation by ID
+      operationId: getQuotationById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Quotation ID
+          schema:
+            type: string
+            format: objectid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quotation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== Submissions ====================
+
+  /submissions:
+    post:
+      tags: [Submissions]
+      summary: Submit a new quotation for review
+      description: |
+        Authenticated users can submit quotations.
+        Submissions enter pending review state.
+      operationId: submitQuotation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitQuotationRequest'
+      responses:
+        '201':
+          description: Quotation submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /submissions/my:
+    get:
+      tags: [Submissions]
+      summary: Get user's submission history
+      description: Retrieve all quotations submitted by the authenticated user
+      operationId: getMySubmissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            $ref: '#/components/schemas/QuotationStatus'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== Review ====================
+
+  /review/pending:
+    get:
+      tags: [Review]
+      summary: Get pending quotations for review
+      description: Retrieve quotations awaiting review (reviewer role required)
+      operationId: getPendingQuotations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /review/{id}/approve:
+    post:
+      tags: [Review]
+      summary: Approve a pending quotation
+      description: Approve quotation and make it publicly visible
+      operationId: approveQuotation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Quotation ID
+          schema:
+            type: string
+            format: objectid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveQuotationRequest'
+      responses:
+        '200':
+          description: Quotation approved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /review/{id}/reject:
+    post:
+      tags: [Review]
+      summary: Reject a pending quotation
+      description: Reject quotation with reason
+      operationId: rejectQuotation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Quotation ID
+          schema:
+            type: string
+            format: objectid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectQuotationRequest'
+      responses:
+        '200':
+          description: Quotation rejected successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /review/{id}/duplicates:
+    get:
+      tags: [Review]
+      summary: Check for potential duplicates
+      description: Search for similar quotations to assist duplicate detection
+      operationId: checkDuplicates
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Quotation ID to check
+          schema:
+            type: string
+            format: objectid
+      responses:
+        '200':
+          description: List of potential duplicates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  duplicates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Quotation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== Authors ====================
+
+  /authors:
+    get:
+      tags: [Authors]
+      summary: Get authors list
+      operationId: getAuthors
+      parameters:
+        - name: search
+          in: query
+          description: Search author names
+          schema:
+            type: string
+            maxLength: 200
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /authors/{id}:
+    get:
+      tags: [Authors]
+      summary: Get author details
+      operationId: getAuthorById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: objectid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Author'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== Sources ====================
+
+  /sources:
+    get:
+      tags: [Sources]
+      summary: Get sources list
+      operationId: getSources
+      parameters:
+        - name: search
+          in: query
+          description: Search source titles
+          schema:
+            type: string
+            maxLength: 200
+        - name: type
+          in: query
+          description: Filter by source type
+          schema:
+            $ref: '#/components/schemas/SourceType'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /sources/{id}:
+    get:
+      tags: [Sources]
+      summary: Get source details
+      operationId: getSourceById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: objectid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== Tags ====================
+
+  /tags:
+    get:
+      tags: [Tags]
+      summary: Get popular tags with usage counts
+      operationId: getTags
+      parameters:
+        - name: search
+          in: query
+          description: Search tags by prefix
+          schema:
+            type: string
+            maxLength: 50
+        - name: limit
+          in: query
+          description: Number of tags to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TagUsage'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ==================== Authentication ====================
+
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register a new user account
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate user and get JWT token
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh JWT token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+# ==================== Components ====================
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /auth/login
+
+  schemas:
+    # ===== Core Entities =====
+
+    Quotation:
+      type: object
+      required: [id, text, author, source, tags, status, submittedAt]
+      properties:
+        id:
+          type: string
+          format: objectid
+          example: "507f1f77bcf86cd799439011"
+        text:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          example: "Be the change you wish to see in the world."
+        author:
+          $ref: '#/components/schemas/AuthorReference'
+        source:
+          $ref: '#/components/schemas/SourceReference'
+        tags:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+          example: ["inspiration", "change", "philosophy"]
+        status:
+          $ref: '#/components/schemas/QuotationStatus'
+        submittedBy:
+          $ref: '#/components/schemas/UserReference'
+        submittedAt:
+          type: string
+          format: date-time
+        reviewedBy:
+          allOf:
+            - $ref: '#/components/schemas/UserReference'
+            - nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectionReason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          nullable: true
+
+    AuthorReference:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: objectid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: "Mahatma Gandhi"
+
+    SourceReference:
+      type: object
+      required: [id, title, type]
+      properties:
+        id:
+          type: string
+          format: objectid
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+          example: "The Story of My Experiments with Truth"
+        type:
+          $ref: '#/components/schemas/SourceType'
+
+    UserReference:
+      type: object
+      required: [id, username]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+          example: "john_doe"
+
+    Author:
+      type: object
+      required: [id, name, quotationCount]
+      properties:
+        id:
+          type: string
+          format: objectid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        lifespan:
+          type: string
+          pattern: '^\d{4}-(present|\d{4})$'
+          example: "1869-1948"
+          nullable: true
+        occupation:
+          type: string
+          maxLength: 200
+          example: "Political Leader, Philosopher"
+          nullable: true
+        biography:
+          type: string
+          maxLength: 2000
+          nullable: true
+        quotationCount:
+          type: integer
+          minimum: 0
+
+    Source:
+      type: object
+      required: [id, title, type, quotationCount]
+      properties:
+        id:
+          type: string
+          format: objectid
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+        type:
+          $ref: '#/components/schemas/SourceType'
+        year:
+          type: integer
+          minimum: 1000
+          maximum: 2100
+          nullable: true
+        additionalInfo:
+          type: string
+          maxLength: 500
+          nullable: true
+        quotationCount:
+          type: integer
+          minimum: 0
+
+    TagUsage:
+      type: object
+      required: [tag, count]
+      properties:
+        tag:
+          type: string
+          minLength: 1
+          maxLength: 50
+        count:
+          type: integer
+          minimum: 0
+
+    # ===== Enums =====
+
+    QuotationStatus:
+      type: string
+      enum: [pending, approved, rejected]
+
+    SourceType:
+      type: string
+      enum: [book, movie, speech, interview, other]
+
+    # ===== Request/Response Models =====
+
+    SubmitQuotationRequest:
+      type: object
+      required: [text, authorName, sourceTitle, sourceType]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        authorName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        sourceTitle:
+          type: string
+          minLength: 1
+          maxLength: 300
+        sourceType:
+          $ref: '#/components/schemas/SourceType'
+        tags:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+
+    SubmissionResponse:
+      type: object
+      required: [id, status, message]
+      properties:
+        id:
+          type: string
+          format: objectid
+        status:
+          type: string
+          example: "pending"
+        message:
+          type: string
+          example: "Quotation submitted successfully and is pending review."
+
+    ApproveQuotationRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          description: "Modified text (optional)"
+        tags:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+          description: "Modified tags (optional)"
+
+    RejectQuotationRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    ReviewResponse:
+      type: object
+      required: [id, status, message]
+      properties:
+        id:
+          type: string
+          format: objectid
+        status:
+          $ref: '#/components/schemas/QuotationStatus'
+        message:
+          type: string
+
+    QuotationListResponse:
+      type: object
+      required: [quotations, pagination]
+      properties:
+        quotations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quotation'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    AuthorListResponse:
+      type: object
+      required: [authors, pagination]
+      properties:
+        authors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Author'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    SourceListResponse:
+      type: object
+      required: [sources, pagination]
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/Source'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    PaginationMetadata:
+      type: object
+      required: [page, pageSize, totalCount, totalPages]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        totalCount:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+
+    RegisterRequest:
+      type: object
+      required: [email, username, password, displayName]
+      properties:
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_]+$'
+        password:
+          type: string
+          minLength: 8
+          format: password
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+
+    AuthResponse:
+      type: object
+      required: [token, refreshToken, expiresAt, user]
+      properties:
+        token:
+          type: string
+          description: JWT access token
+        refreshToken:
+          type: string
+          description: Refresh token for renewing access token
+        expiresAt:
+          type: string
+          format: date-time
+          description: Token expiration timestamp
+        user:
+          type: object
+          required: [id, username, displayName, roles]
+          properties:
+            id:
+              type: string
+              format: uuid
+            username:
+              type: string
+            displayName:
+              type: string
+            roles:
+              type: array
+              items:
+                type: string
+                enum: [User, Reviewer, Admin]
+
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Validation failed"
+            errors:
+              text: ["Text is required", "Text must be between 1 and 5000 characters"]
+              tags: ["Maximum 20 tags allowed"]
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
