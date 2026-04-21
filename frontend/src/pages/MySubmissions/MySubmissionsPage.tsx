@@ -28,15 +28,15 @@ export const MySubmissionsPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const response = await apiClient.get<ApiResponse<PaginatedResponse>>(
+      const response = await apiClient.get<ApiResponse<PaginatedResponse<Quotation>>>(
         `/api/v1/submissions/my?page=${pagination.page}&pageSize=${pagination.pageSize}`
       );
 
-      if (response.data.success && response.data.data) {
-        setSubmissions(response.data.data.items);
+      if (response.success && response.data) {
+        setSubmissions(response.data.items);
         setPagination((prev) => ({
           ...prev,
-          totalCount: response.data.data!.pagination.totalCount,
+          totalCount: response.data!.pagination.totalCount,
         }));
       }
     } catch (err: any) {

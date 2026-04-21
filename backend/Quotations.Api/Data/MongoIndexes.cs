@@ -81,5 +81,21 @@ public static class MongoIndexes
         };
 
         await sourcesCollection.Indexes.CreateManyAsync(sourceIndexes);
+
+        // Users indexes
+        var usersCollection = database.GetCollection<object>("users");
+        var userIndexes = new[]
+        {
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys.Ascending("username"),
+                new CreateIndexOptions { Name = "username_idx", Unique = true }
+            ),
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys.Ascending("email"),
+                new CreateIndexOptions { Name = "email_idx", Unique = true }
+            )
+        };
+
+        await usersCollection.Indexes.CreateManyAsync(userIndexes);
     }
 }

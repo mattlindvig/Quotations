@@ -16,7 +16,7 @@ import './BrowsePage.css';
  * Preserves search/filter state in URL query parameters
  */
 export const BrowsePage: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [activeMode, setActiveMode] = useState<'browse' | 'search'>('browse');
 
   // Extract initial values from URL

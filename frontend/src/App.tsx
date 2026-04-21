@@ -6,6 +6,7 @@ import { BrowsePage } from './pages/Browse/BrowsePage';
 import { SubmitPage } from './pages/Submit/SubmitPage';
 import { MySubmissionsPage } from './pages/MySubmissions/MySubmissionsPage';
 import { ReviewQueuePage } from './pages/Review/ReviewQueuePage';
+import { LoginPage } from './pages/Login/LoginPage';
 import './App.css';
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
             <Routes>
               <Route path="/" element={<BrowsePage />} />
               <Route path="/browse" element={<BrowsePage />} />
+              <Route path="/login" element={<LoginPage />} />
               <Route path="/submit" element={<SubmitPage />} />
               <Route path="/my-submissions" element={<MySubmissionsPage />} />
               <Route path="/review" element={<ReviewQueuePage />} />

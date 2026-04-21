@@ -26,15 +26,15 @@ export const ReviewQueuePage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const response = await apiClient.get<ApiResponse<PaginatedResponse>>(
+      const response = await apiClient.get<ApiResponse<PaginatedResponse<Quotation>>>(
         `/api/v1/review/pending?page=${pagination.page}&pageSize=${pagination.pageSize}`
       );
 
-      if (response.data.success && response.data.data) {
-        setQuotations(response.data.data.items);
+      if (response.success && response.data) {
+        setQuotations(response.data.items);
         setPagination((prev) => ({
           ...prev,
-          totalCount: response.data.data!.pagination.totalCount,
+          totalCount: response.data!.pagination.totalCount,
         }));
       }
     } catch (err: any) {

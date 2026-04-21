@@ -141,7 +141,7 @@ export const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onCan
         }, 3000);
       } else if (response.data.errors) {
         const apiErrors: Record<string, string> = {};
-        Object.entries(response.data.errors).forEach(([key, messages]) => {
+        Object.entries(response.data.errors as Record<string, string[]>).forEach(([key, messages]) => {
           apiErrors[key] = messages[0];
         });
         setErrors(apiErrors);

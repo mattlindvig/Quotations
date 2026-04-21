@@ -28,6 +28,7 @@ export interface Quotation {
   status: QuotationStatus;
   submittedAt: string;
   reviewedAt?: string;
+  submittedBy?: { id: string; username: string };
 }
 
 export interface PaginationMetadata {
@@ -39,10 +40,12 @@ export interface PaginationMetadata {
   hasNext: boolean;
 }
 
-export interface PaginatedQuotationsResponse {
-  items: Quotation[];
+export interface PaginatedResponse<T> {
+  items: T[];
   pagination: PaginationMetadata;
 }
+
+export type PaginatedQuotationsResponse = PaginatedResponse<Quotation>;
 
 export interface ApiResponse<T> {
   data?: T;

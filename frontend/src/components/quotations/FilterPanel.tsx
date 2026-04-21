@@ -8,12 +8,6 @@ interface Author {
   name: string;
 }
 
-interface Source {
-  id: string;
-  title: string;
-  type: SourceType;
-}
-
 interface Tag {
   tag: string;
   count: number;
@@ -58,12 +52,12 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           apiClient.get<ApiResponse<Tag[]>>('/api/v1/tags?limit=50'),
         ]);
 
-        if (authorsResponse.data.success && authorsResponse.data.data) {
-          setAuthors(authorsResponse.data.data);
+        if (authorsResponse.success && authorsResponse.data) {
+          setAuthors(authorsResponse.data);
         }
 
-        if (tagsResponse.data.success && tagsResponse.data.data) {
-          setTags(tagsResponse.data.data);
+        if (tagsResponse.success && tagsResponse.data) {
+          setTags(tagsResponse.data);
         }
       } catch (error) {
         console.error('Failed to fetch metadata:', error);

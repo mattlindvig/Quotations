@@ -8,6 +8,7 @@ using MongoDB.Bson.Serialization.Conventions;
 using Quotations.Api.Data;
 using Quotations.Api.Extensions;
 using Quotations.Api.Models;
+using Quotations.Api.Repositories;
 using Quotations.Api.Services;
 
 // Configure MongoDB serialization conventions
@@ -106,7 +107,7 @@ builder.Services.AddSwaggerGen(options =>
 // Add Health Checks
 builder.Services.AddHealthChecks()
     .AddMongoDb(
-        builder.Configuration["MongoDbSettings:ConnectionString"] ?? "mongodb://localhost:27017",
+        sp => sp.GetRequiredService<MongoDbService>().Database.Client,
         name: "mongodb",
         failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
         tags: new[] { "db", "mongodb" });
@@ -120,9 +121,11 @@ builder.Services.Configure<MongoDbSettings>(
 builder.Services.AddSingleton<MongoDbService>();
 
 // Register application services
-builder.Services.AddScoped<Quotations.Api.Repositories.IQuotationRepository, Quotations.Api.Repositories.QuotationRepository>();
-builder.Services.AddScoped<Quotations.Api.Repositories.IAuthorRepository, Quotations.Api.Repositories.AuthorRepository>();
-builder.Services.AddScoped<Quotations.Api.Repositories.ISourceRepository, Quotations.Api.Repositories.SourceRepository>();
+builder.Services.AddScoped<IQuotationRepository, QuotationRepository>();
+builder.Services.AddScoped<IAuthorRepository, AuthorRepository>();
+builder.Services.AddScoped<ISourceRepository, SourceRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<QuotationService>();
 
 // Configure JWT Authentication (using custom implementation, not ASP.NET Identity)

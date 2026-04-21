@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { apiClient } from '../../services/apiClient';
 import { DuplicateChecker } from './DuplicateChecker';
 import { RejectModal } from './RejectModal';

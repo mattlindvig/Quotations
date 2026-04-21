@@ -4,11 +4,7 @@ A full-stack web application for displaying, searching, filtering, submitting, a
 
 ## Project Status
 
-**Current Phase**: Phase 6 Complete ✅ - Core Implementation Done
-
-**Completed Tasks**: 95/110 (86%) - Phases 1-6: T001-T095
-
-**Next Phase**: Phase 7 - Polish & Cross-Cutting Concerns (T096-T110)
+**Current Phase**: Phase 6 Complete + Additional Enhancements ✅
 
 ### Completed Phases:
 - ✅ **Phase 1**: Project setup, dependencies, linting, testing configuration
@@ -17,13 +13,15 @@ A full-stack web application for displaying, searching, filtering, submitting, a
 - ✅ **Phase 4**: User Story 2 - Search and filter quotations
 - ✅ **Phase 5**: User Story 3 - Submit new quotations
 - ✅ **Phase 6**: User Story 4 - Review and approve quotations (Reviewer/Admin workflow)
+- ✅ **Enhancements**: Auth endpoints (register/login), Login/Register page, TanStack Virtual list, Docker Compose, unit tests
 
 ### Core Features:
 - **Browse & Search**: Full-text search, filter by author/source/tags, pagination, responsive design
 - **Submit Quotations**: User submission form with validation and duplicate checking
 - **Review Workflow**: Reviewer/Admin approval queue with approve/reject actions
-- **User Management**: JWT authentication with role-based access (User, Reviewer, Admin)
+- **User Management**: Register/login with JWT, role-based access (User, Reviewer, Admin), session restored on refresh
 - **My Submissions**: Users can track their submitted quotations and statuses
+- **Virtualized List**: Optional TanStack Virtual rendering for large result sets
 
 ## Quick Links
 
@@ -35,48 +33,52 @@ A full-stack web application for displaying, searching, filtering, submitting, a
 ## Technology Stack
 
 ### Backend
-- **Framework**: ASP.NET Core 8.0 Web API
+- **Framework**: ASP.NET Core 9.0 Web API (.NET 9)
 - **Language**: C# 12
-- **Database**: MongoDB 6.0+ with MongoDB.Driver
-- **Authentication**: JWT Bearer tokens with role-based authorization
-- **Validation**: FluentValidation
-- **Testing**: xUnit, Moq, FluentAssertions
+- **Database**: MongoDB 7.0+ via MongoDB.Driver 3.x
+- **Authentication**: JWT Bearer tokens, PasswordHasher, role-based authorization
+- **Validation**: FluentValidation.DependencyInjectionExtensions 11.x
+- **Logging**: Serilog.AspNetCore 9.x
+- **Testing**: xUnit 2.9, Moq, FluentAssertions 7.x, Testcontainers 3.x
 - **Architecture**: Repository pattern, service layer, DTOs
 
 ### Frontend
-- **Framework**: React 18 with TypeScript
-- **Build Tool**: Vite
-- **Routing**: React Router v6
-- **HTTP Client**: Axios with interceptors
-- **Testing**: Vitest, React Testing Library
+- **Framework**: React 19 with TypeScript 5.9
+- **Build Tool**: Vite 7
+- **Routing**: React Router v7
+- **HTTP Client**: Axios with interceptors and auth token injection
+- **Virtualization**: TanStack Virtual 3.x (optional, opt-in per list)
+- **Testing**: Vitest 4, React Testing Library 16
 - **Styling**: Custom CSS with responsive design
-- **Optimization**: React.memo, useMemo, useCallback, virtualization
 
 ### DevOps & Tools
-- **Linting**: ESLint (frontend), Roslyn analyzers (backend)
-- **Code Quality**: SonarCloud (planned - Phase 7)
-- **Security Scanning**: Snyk (planned - Phase 7)
-- **Performance**: Lighthouse CI, K6 load testing (planned - Phase 7)
-- **Containerization**: Docker Compose (planned - Phase 7)
+- **Containerization**: Docker Compose (MongoDB 7 + backend + frontend)
+- **Linting**: ESLint 9 (frontend), SonarAnalyzer.CSharp 10.x (backend)
+- **Code Quality**: SonarCloud (Phase 7)
+- **Security Scanning**: Snyk (Phase 7)
+- **Performance**: Lighthouse CI, K6 load testing (Phase 7)
 
 ## Getting Started
 
 ### Quick Start with Docker Compose (Recommended)
 
 ```bash
-# Coming in Phase 7 - T109
-docker-compose up
+docker-compose up --build
 # Frontend: http://localhost:5173
-# Backend: https://localhost:5000
-# MongoDB: mongodb://localhost:27017
+# Backend:  http://localhost:5000
+# Swagger:  http://localhost:5000/swagger
+# MongoDB:  mongodb://localhost:27017
 ```
+
+> **Note**: The default `Jwt__Secret` in `docker-compose.yml` is for local development only.
+> Replace it with a securely generated 32+ character string before any shared deployment.
 
 ### Manual Setup
 
 #### Prerequisites
 - **Node.js 18+** (for frontend)
-- **.NET SDK 8.0+** (for backend)
-- **MongoDB 6.0+** (local install or Docker)
+- **.NET SDK 9.0** (for backend)
+- **MongoDB 7.0+** (local install or Docker)
 
 #### 1. Database Setup
 
@@ -85,7 +87,7 @@ docker-compose up
 docker run -d -p 27017:27017 --name quotations-mongo \
   -e MONGO_INITDB_ROOT_USERNAME=admin \
   -e MONGO_INITDB_ROOT_PASSWORD=password123 \
-  mongo:6.0
+  mongo:7.0
 ```
 
 **Option B: Local MongoDB**
@@ -106,21 +108,10 @@ dotnet run --project Quotations.Api
 # Swagger UI: https://localhost:5000/swagger
 ```
 
-**Backend Environment Variables** (optional - has defaults):
+**JWT Secret** — the default in `appsettings.json` is a placeholder. Set a real secret via user secrets:
 ```bash
-# Create backend/Quotations.Api/appsettings.Development.json
-{
-  "MongoDB": {
-    "ConnectionString": "mongodb://localhost:27017",
-    "DatabaseName": "QuotationsDb"
-  },
-  "Jwt": {
-    "Secret": "your-secret-key-min-32-chars",
-    "Issuer": "QuotationsApi",
-    "Audience": "QuotationsApp",
-    "ExpiryMinutes": 60
-  }
-}
+cd backend/Quotations.Api
+dotnet user-secrets set "Jwt:Secret" "your-secure-random-32-char-string"
 ```
 
 #### 3. Frontend Setup
@@ -135,7 +126,7 @@ npm run dev
 
 **Frontend Environment Variables**:
 ```bash
-# Create frontend/.env.development
+# Create frontend/.env.development (or .env.local)
 VITE_API_BASE_URL=https://localhost:5000/api/v1
 ```
 
@@ -176,6 +167,7 @@ Quotations/
 │   │   │   └── common/              # Pagination, ErrorBoundary
 │   │   ├── pages/                   # Page-level components
 │   │   │   ├── Browse/              # BrowsePage
+│   │   │   ├── Login/               # LoginPage (sign in + register tabs)
 │   │   │   ├── Submit/              # SubmitPage
 │   │   │   ├── MySubmissions/       # MySubmissionsPage
 │   │   │   └── Review/              # ReviewQueuePage
@@ -190,7 +182,7 @@ Quotations/
 │       ├── tasks.md                 # Task breakdown (110 tasks)
 │       ├── quickstart.md            # Developer setup guide
 │       └── contracts/               # API contracts
-└── docker-compose.yml               # Multi-container setup (Phase 7)
+└── docker-compose.yml               # Multi-container setup (MongoDB 7 + backend + frontend)
 ```
 
 ## Authentication & Authorization
@@ -214,11 +206,11 @@ The system seeds three default users for testing:
 
 ### JWT Token Flow
 
-1. User logs in via `POST /api/v1/auth/login`
-2. Backend validates credentials and returns JWT token
-3. Frontend stores token in memory (AuthContext)
-4. Token included in `Authorization: Bearer <token>` header for protected endpoints
-5. Backend validates token and extracts user claims (userId, roles)
+1. User registers via `POST /api/v1/auth/register` or logs in via `POST /api/v1/auth/login`
+2. Backend hashes/verifies password with `PasswordHasher`, then issues a signed JWT
+3. Frontend stores token in `localStorage` and decodes the payload to restore session on refresh
+4. Every request includes `Authorization: Bearer <token>` via Axios interceptor
+5. Backend validates the token signature and extracts claims (`sub` → userId, `role` → roles)
 
 ## API Endpoints
 

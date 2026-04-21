@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
   # MongoDB Database
   mongodb:
-    image: mongo:6.0
+    image: mongo:7.0
     container_name: quotations-mongodb
     restart: unless-stopped
     environment:
@@ -22,7 +20,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend API
+  # Backend API (HTTP only in Docker — TLS is terminated at the reverse proxy or load balancer in production)
   backend:
     build:
       context: ./backend
@@ -31,27 +29,22 @@ services:
     restart: unless-stopped
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=https://+:5000;http://+:5001
+      - ASPNETCORE_URLS=http://+:5000
       - MongoDbSettings__ConnectionString=mongodb://admin:password123@mongodb:27017
-      - MongoDbSettings__DatabaseName=QuotationsDb
-      - Jwt__Secret=super-secret-key-min-32-characters-long-for-jwt
-      - Jwt__Issuer=QuotationsApi
-      - Jwt__Audience=QuotationsApp
-      - Jwt__ExpiryMinutes=60
-      - ASPNETCORE_Kestrel__Certificates__Default__Password=password
-      - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/aspnetapp.pfx
+      - MongoDbSettings__DatabaseName=quotations
+      - Jwt__Secret=change-this-to-a-secret-at-least-32-chars-long
+      - Jwt__Issuer=http://localhost:5000
+      - Jwt__Audience=http://localhost:5173
+      - Jwt__ExpirationMinutes=60
     ports:
       - "5000:5000"
-      - "5001:5001"
     depends_on:
       mongodb:
         condition: service_healthy
     networks:
       - quotations-network
-    volumes:
-      - ~/.aspnet/https:/https:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/api/v1/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/v1/health/live"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -65,11 +58,12 @@ services:
     container_name: quotations-frontend
     restart: unless-stopped
     environment:
-      - VITE_API_BASE_URL=https://localhost:5000/api/v1
+      - VITE_API_BASE_URL=http://localhost:5000/api/v1
     ports:
       - "5173:5173"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - quotations-network
     healthcheck:

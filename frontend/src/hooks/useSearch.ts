@@ -28,7 +28,6 @@ export function useSearch(): UseSearchResult {
   const [pagination, setPagination] = useState<PaginatedQuotationsResponse['pagination'] | null>(
     null
   );
-  const [currentPage, setCurrentPage] = useState(1);
   const [currentPageSize, setCurrentPageSize] = useState(20);
 
   const performSearch = useCallback(async (query: string, page = 1, pageSize = 20) => {
@@ -42,7 +41,6 @@ export function useSearch(): UseSearchResult {
     setSearchQuery(query);
     setSearchLoading(true);
     setSearchError(null);
-    setCurrentPage(page);
     setCurrentPageSize(pageSize);
 
     try {
@@ -56,9 +54,9 @@ export function useSearch(): UseSearchResult {
         `/api/v1/quotations/search?${params.toString()}`
       );
 
-      if (response.data.success && response.data.data) {
-        setSearchResults(response.data.data.items);
-        setPagination(response.data.data.pagination);
+      if (response.success && response.data) {
+        setSearchResults(response.data.items);
+        setPagination(response.data.pagination);
       } else {
         setSearchError('Failed to search quotations');
         setSearchResults([]);
@@ -80,7 +78,6 @@ export function useSearch(): UseSearchResult {
     setSearchResults([]);
     setSearchError(null);
     setPagination(null);
-    setCurrentPage(1);
   }, []);
 
   const goToPage = useCallback(

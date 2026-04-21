@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Identity;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using Quotations.Api.Models;
 
 namespace Quotations.Api.Data;
 
@@ -165,5 +167,58 @@ public static class DataSeeder
         await quotationsCollection.InsertManyAsync(quotations);
 
         Console.WriteLine($"Database seeded successfully with {authors.Length} authors, {sources.Length} sources, and {quotations.Length} quotations.");
+
+        await SeedUsersAsync(database);
+    }
+
+    private static async Task SeedUsersAsync(IMongoDatabase database)
+    {
+        var usersCollection = database.GetCollection<BsonDocument>("users");
+        var count = await usersCollection.CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty);
+        if (count > 0)
+            return;
+
+        var hasher = new PasswordHasher<User>();
+        var placeholder = new User();
+
+        var users = new[]
+        {
+            new BsonDocument
+            {
+                { "username", "testuser" },
+                { "email", "testuser@example.com" },
+                { "passwordHash", hasher.HashPassword(placeholder, "Test123!") },
+                { "displayName", "Test User" },
+                { "roles", new BsonArray { "User" } },
+                { "isActive", true },
+                { "submissionCount", 0 },
+                { "createdAt", DateTime.UtcNow }
+            },
+            new BsonDocument
+            {
+                { "username", "reviewer" },
+                { "email", "reviewer@example.com" },
+                { "passwordHash", hasher.HashPassword(placeholder, "Review123!") },
+                { "displayName", "Reviewer" },
+                { "roles", new BsonArray { "User", "Reviewer" } },
+                { "isActive", true },
+                { "submissionCount", 0 },
+                { "createdAt", DateTime.UtcNow }
+            },
+            new BsonDocument
+            {
+                { "username", "admin" },
+                { "email", "admin@example.com" },
+                { "passwordHash", hasher.HashPassword(placeholder, "Admin123!") },
+                { "displayName", "Administrator" },
+                { "roles", new BsonArray { "User", "Reviewer", "Admin" } },
+                { "isActive", true },
+                { "submissionCount", 0 },
+                { "createdAt", DateTime.UtcNow }
+            }
+        };
+
+        await usersCollection.InsertManyAsync(users);
+        Console.WriteLine($"Seeded {users.Length} test users.");
     }
 }

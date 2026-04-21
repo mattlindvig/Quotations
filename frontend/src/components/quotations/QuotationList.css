@@ -9,8 +9,10 @@
   flex-direction: column;
 }
 
-.virtualized-list {
-  outline: none;
+.quotation-list-virtual-scroll {
+  height: 80vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .quotation-list-loading {

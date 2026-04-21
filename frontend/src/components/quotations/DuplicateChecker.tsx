@@ -28,8 +28,8 @@ export const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ quotationId 
         `/api/v1/review/${quotationId}/duplicates`
       );
 
-      if (response.data.success && response.data.data) {
-        setDuplicates(response.data.data);
+      if (response.success && response.data) {
+        setDuplicates(response.data);
       }
     } catch (err: any) {
       console.error('Error fetching duplicates:', err);
