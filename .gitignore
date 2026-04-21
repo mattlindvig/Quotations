@@ -141,6 +141,11 @@ pnpm-debug.log*
 *.sublime-project
 *.sublime-workspace
 
+# ===== .NET Publish Output =====
+[Pp]ublish/
+**/publish/
+BenchmarkDotNet.Artifacts/
+
 # ===== Build Tools =====
 .sass-cache/
 connect.lock

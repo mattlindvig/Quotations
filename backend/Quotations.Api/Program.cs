@@ -106,7 +106,7 @@ builder.Services.AddSwaggerGen(options =>
 // Add Health Checks
 builder.Services.AddHealthChecks()
     .AddMongoDb(
-        mongodbConnectionString: builder.Configuration["MongoDbSettings:ConnectionString"] ?? "mongodb://localhost:27017",
+        builder.Configuration["MongoDbSettings:ConnectionString"] ?? "mongodb://localhost:27017",
         name: "mongodb",
         failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
         tags: new[] { "db", "mongodb" });
