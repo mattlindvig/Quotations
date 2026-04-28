@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { apiClient } from '../../services/apiClient';
 import { DuplicateChecker } from './DuplicateChecker';
 import { RejectModal } from './RejectModal';
-import type { Quotation, ApiResponse } from '../../types/quotation';
+import type { Quotation, AiReview, AiScore, ApiResponse } from '../../types/quotation';
 import './ReviewCard.css';
 
 interface ReviewCardProps {
@@ -11,9 +11,105 @@ interface ReviewCardProps {
   onReject: (id: string) => void;
 }
 
-/**
- * Review Card - displays a quotation pending review with action buttons
- */
+function ScoreBar({ score }: { score: number }) {
+  const pct = Math.round((score / 10) * 100);
+  const color = score >= 7 ? '#22c55e' : score >= 4 ? '#f59e0b' : '#ef4444';
+  return (
+    <div className="ai-score-bar-wrap">
+      <div className="ai-score-bar" style={{ width: `${pct}%`, background: color }} />
+      <span className="ai-score-label">{score}/10</span>
+    </div>
+  );
+}
+
+function ScoreRow({ label, score }: { label: string; score: AiScore }) {
+  return (
+    <div className="ai-score-row">
+      <div className="ai-score-header">
+        <span className="ai-score-dimension">{label}</span>
+        <ScoreBar score={score.score} />
+      </div>
+      <p className="ai-score-reasoning">{score.reasoning}</p>
+      {score.suggestedValue && (
+        <div className="ai-suggestion">
+          <span className="ai-suggestion-label">{score.wasAiFilled ? 'AI identified:' : 'Suggested fix:'}</span>
+          <span className="ai-suggestion-value">{score.suggestedValue}</span>
+        </div>
+      )}
+      {score.citations && score.citations.length > 0 && (
+        <ul className="ai-citations">
+          {score.citations.map((c, i) => (
+            <li key={i} className="ai-citation">{c}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function AiReviewPanel({ aiReview }: { aiReview: AiReview }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const statusConfig: Record<string, { label: string; className: string }> = {
+    notreviewed: { label: 'Not Reviewed', className: 'ai-status-not-reviewed' },
+    pending: { label: 'Pending', className: 'ai-status-pending' },
+    inprogress: { label: 'In Progress', className: 'ai-status-in-progress' },
+    reviewed: { label: 'Reviewed', className: 'ai-status-reviewed' },
+    failed: { label: 'Failed', className: 'ai-status-failed' },
+  };
+
+  const { label, className } = statusConfig[aiReview.status] ?? { label: aiReview.status, className: '' };
+  const hasScores = aiReview.status === 'reviewed' && aiReview.quoteAccuracy;
+
+  return (
+    <div className="ai-review-panel">
+      <div className="ai-review-header" onClick={() => hasScores && setExpanded(!expanded)}>
+        <div className="ai-review-title">
+          <svg className="ai-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8v4l3 3" strokeLinecap="round" />
+          </svg>
+          <span>AI Analysis</span>
+          <span className={`ai-status-badge ${className}`}>{label}</span>
+        </div>
+        {hasScores && (
+          <button className="ai-expand-toggle" aria-expanded={expanded}>
+            {expanded ? '▲ Hide' : '▼ Show'}
+          </button>
+        )}
+      </div>
+
+      {aiReview.modelUsed && (
+        <div className="ai-meta">
+          Model: {aiReview.modelUsed}
+          {aiReview.reviewedAt && (
+            <span> · {new Date(aiReview.reviewedAt).toLocaleString()}</span>
+          )}
+        </div>
+      )}
+
+      {hasScores && expanded && (
+        <div className="ai-scores">
+          {aiReview.summary && <p className="ai-summary">{aiReview.summary}</p>}
+          {aiReview.quoteAccuracy && <ScoreRow label="Quote Accuracy" score={aiReview.quoteAccuracy} />}
+          {aiReview.attributionAccuracy && <ScoreRow label="Attribution" score={aiReview.attributionAccuracy} />}
+          {aiReview.sourceAccuracy && <ScoreRow label="Source" score={aiReview.sourceAccuracy} />}
+          {aiReview.suggestedTags && aiReview.suggestedTags.length > 0 && (
+            <div className="ai-suggested-tags">
+              <span className="ai-suggested-tags-label">AI suggested tags:</span>
+              <div className="ai-tags-list">
+                {aiReview.suggestedTags.map((tag) => (
+                  <span key={tag} className="ai-tag">{tag}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export const ReviewCard: React.FC<ReviewCardProps> = ({ quotation, onApprove, onReject }) => {
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -21,9 +117,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({ quotation, onApprove, on
   const [error, setError] = useState<string | null>(null);
 
   const handleApprove = async () => {
-    if (!confirm('Are you sure you want to approve this quotation?')) {
-      return;
-    }
+    if (!confirm('Are you sure you want to approve this quotation?')) return;
 
     try {
       setLoading(true);
@@ -34,11 +128,10 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({ quotation, onApprove, on
         {}
       );
 
-      if (response.data.success) {
+      if (response.success) {
         onApprove(quotation.id);
       }
     } catch (err: any) {
-      console.error('Error approving quotation:', err);
       setError(err.response?.data?.errors?.general?.[0] || 'Failed to approve quotation');
     } finally {
       setLoading(false);
@@ -52,17 +145,14 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({ quotation, onApprove, on
 
       const response = await apiClient.post<ApiResponse<any>>(
         `/api/v1/review/${quotation.id}/reject`,
-        {
-          rejectionReason: reason,
-        }
+        { rejectionReason: reason }
       );
 
-      if (response.data.success) {
+      if (response.success) {
         setShowRejectModal(false);
         onReject(quotation.id);
       }
     } catch (err: any) {
-      console.error('Error rejecting quotation:', err);
       setError(err.response?.data?.errors?.general?.[0] || 'Failed to reject quotation');
     } finally {
       setLoading(false);
@@ -110,15 +200,15 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({ quotation, onApprove, on
               <span className="metadata-label">Tags:</span>
               <div className="tags-list">
                 {quotation.tags.map((tag) => (
-                  <span key={tag} className="tag">
-                    {tag}
-                  </span>
+                  <span key={tag} className="tag">{tag}</span>
                 ))}
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {quotation.aiReview && <AiReviewPanel aiReview={quotation.aiReview} />}
 
       {error && <div className="review-error">{error}</div>}
 

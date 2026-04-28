@@ -41,6 +41,13 @@ public static class MongoIndexes
                     .Ascending("status")
                     .Ascending("submittedAt"),
                 new CreateIndexOptions { Name = "review_queue_idx" }
+            ),
+            // AI review queue — used by background worker to find unreviewed/pending quotations
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys
+                    .Ascending("aiReview.status")
+                    .Ascending("submittedAt"),
+                new CreateIndexOptions { Name = "ai_review_queue_idx" }
             )
         };
 

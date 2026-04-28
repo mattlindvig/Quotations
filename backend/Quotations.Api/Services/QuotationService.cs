@@ -17,17 +17,20 @@ public class QuotationService
     private readonly IQuotationRepository _quotationRepository;
     private readonly IAuthorRepository _authorRepository;
     private readonly ISourceRepository _sourceRepository;
+    private readonly AiReviewService _aiReviewService;
     private readonly ILogger<QuotationService> _logger;
 
     public QuotationService(
         IQuotationRepository quotationRepository,
         IAuthorRepository authorRepository,
         ISourceRepository sourceRepository,
+        AiReviewService aiReviewService,
         ILogger<QuotationService> logger)
     {
         _quotationRepository = quotationRepository;
         _authorRepository = authorRepository;
         _sourceRepository = sourceRepository;
+        _aiReviewService = aiReviewService;
         _logger = logger;
     }
 
@@ -125,7 +128,7 @@ public class QuotationService
     /// <summary>
     /// Submit a new quotation with author/source lookup or creation
     /// </summary>
-    public async Task<QuotationDto> SubmitQuotationAsync(SubmitQuotationRequest request, string? userId = null, string? username = null)
+    public async Task<QuotationDto> SubmitQuotationAsync(SubmitQuotationRequest request, string? userId = null, string? username = null, string mode = "async")
     {
         _logger.LogInformation("Submitting new quotation by user {Username} (ID: {UserId})", username ?? "Anonymous", userId ?? "N/A");
 
@@ -194,9 +197,51 @@ public class QuotationService
             };
         }
 
+        // Set initial AI review status based on submission mode
+        quotation.AiReview = new AiReview
+        {
+            Status = mode == "sync" ? AiReviewStatus.Pending : AiReviewStatus.Pending
+        };
+
         var created = await _quotationRepository.CreateQuotationAsync(quotation);
         _logger.LogInformation("Successfully created quotation {QuotationId} by {AuthorName}", created.Id, author.Name);
+
+        if (mode == "sync")
+        {
+            await _aiReviewService.ReviewQuotationAsync(created);
+        }
+
         return MapToDto(created);
+    }
+
+    /// <summary>
+    /// Submit multiple quotations in bulk — always processes AI review asynchronously
+    /// </summary>
+    public async Task<BulkSubmitResult> BulkSubmitQuotationsAsync(
+        BulkSubmitQuotationRequest request,
+        string? userId = null,
+        string? username = null)
+    {
+        var result = new BulkSubmitResult();
+
+        for (var i = 0; i < request.Quotations.Count; i++)
+        {
+            var item = request.Quotations[i];
+            try
+            {
+                var dto = await SubmitQuotationAsync(item, userId, username, "async");
+                result.Accepted++;
+                result.Results.Add(new BulkSubmitItemResult { Index = i, Success = true, Quotation = dto });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Bulk submit item {Index} failed: {Message}", i, ex.Message);
+                result.Failed++;
+                result.Results.Add(new BulkSubmitItemResult { Index = i, Success = false, Error = ex.Message });
+            }
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -368,7 +413,39 @@ public class QuotationService
             Tags = quotation.Tags,
             Status = quotation.Status.ToString().ToLowerInvariant(),
             SubmittedAt = quotation.SubmittedAt,
-            ReviewedAt = quotation.ReviewedAt
+            ReviewedAt = quotation.ReviewedAt,
+            AiReview = MapAiReviewToDto(quotation.AiReview)
+        };
+    }
+
+    private static AiReviewDto? MapAiReviewToDto(AiReview? aiReview)
+    {
+        if (aiReview == null) return null;
+
+        return new AiReviewDto
+        {
+            Status = aiReview.Status.ToString().ToLowerInvariant(),
+            ModelUsed = aiReview.ModelUsed,
+            ReviewedAt = aiReview.ReviewedAt,
+            Summary = aiReview.Summary,
+            QuoteAccuracy = MapScoreToDto(aiReview.QuoteAccuracy),
+            AttributionAccuracy = MapScoreToDto(aiReview.AttributionAccuracy),
+            SourceAccuracy = MapScoreToDto(aiReview.SourceAccuracy),
+            SuggestedTags = aiReview.SuggestedTags
+        };
+    }
+
+    private static AiScoreDto? MapScoreToDto(AiScoreWithSuggestion? score)
+    {
+        if (score == null) return null;
+
+        return new AiScoreDto
+        {
+            Score = score.Score,
+            Reasoning = score.Reasoning,
+            SuggestedValue = score.SuggestedValue,
+            WasAiFilled = score.WasAiFilled,
+            Citations = score.Citations
         };
     }
 }

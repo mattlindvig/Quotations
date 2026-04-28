@@ -88,10 +88,10 @@ public interface IQuotationRepository
     /// <summary>
     /// Find potential duplicate quotations
     /// </summary>
-    /// <param name="text">Quotation text to match</param>
-    /// <param name="authorId">Author ID to match</param>
-    /// <param name="sourceId">Source ID to match</param>
-    /// <param name="excludeId">ID of quotation to exclude from results</param>
-    /// <returns>List of potential duplicate quotations</returns>
     Task<List<Quotation>> FindPotentialDuplicatesAsync(string text, string authorId, string sourceId, string excludeId);
+
+    /// <summary>
+    /// Get a batch of quotations whose AI review is pending or not yet started
+    /// </summary>
+    Task<List<Quotation>> GetPendingAiReviewsAsync(int batchSize);
 }

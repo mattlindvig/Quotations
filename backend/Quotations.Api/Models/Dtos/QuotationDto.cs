@@ -16,6 +16,28 @@ public class QuotationDto
     public string Status { get; set; } = string.Empty;
     public DateTime SubmittedAt { get; set; }
     public DateTime? ReviewedAt { get; set; }
+    public AiReviewDto? AiReview { get; set; }
+}
+
+public class AiReviewDto
+{
+    public string Status { get; set; } = string.Empty;
+    public string? ModelUsed { get; set; }
+    public DateTime? ReviewedAt { get; set; }
+    public AiScoreDto? QuoteAccuracy { get; set; }
+    public AiScoreDto? AttributionAccuracy { get; set; }
+    public AiScoreDto? SourceAccuracy { get; set; }
+    public string? Summary { get; set; }
+    public List<string> SuggestedTags { get; set; } = new();
+}
+
+public class AiScoreDto
+{
+    public int Score { get; set; }
+    public string Reasoning { get; set; } = string.Empty;
+    public string? SuggestedValue { get; set; }
+    public bool WasAiFilled { get; set; }
+    public List<string> Citations { get; set; } = new();
 }
 
 /// <summary>

@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using AiReviewStatusEnum = Quotations.Api.Models.AiReviewStatus;
 
 namespace Quotations.Api.Repositories;
 
@@ -251,6 +252,19 @@ public class QuotationRepository : IQuotationRepository
         }).ToList();
 
         return duplicates;
+    }
+
+    public async Task<List<Quotation>> GetPendingAiReviewsAsync(int batchSize)
+    {
+        var filter = Builders<Quotation>.Filter.In(
+            "aiReview.status",
+            new[] { nameof(AiReviewStatusEnum.NotReviewed), nameof(AiReviewStatusEnum.Pending) });
+
+        return await _quotations
+            .Find(filter)
+            .SortBy(q => q.SubmittedAt)
+            .Limit(batchSize)
+            .ToListAsync();
     }
 
     /// <summary>

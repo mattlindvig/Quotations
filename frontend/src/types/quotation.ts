@@ -19,6 +19,27 @@ export interface Source {
   year?: number;
 }
 
+export type AiReviewStatus = 'notreviewed' | 'pending' | 'inprogress' | 'reviewed' | 'failed';
+
+export interface AiScore {
+  score: number;
+  reasoning: string;
+  suggestedValue?: string | null;
+  wasAiFilled: boolean;
+  citations: string[];
+}
+
+export interface AiReview {
+  status: AiReviewStatus;
+  modelUsed?: string | null;
+  reviewedAt?: string | null;
+  quoteAccuracy?: AiScore | null;
+  attributionAccuracy?: AiScore | null;
+  sourceAccuracy?: AiScore | null;
+  summary?: string | null;
+  suggestedTags: string[];
+}
+
 export interface Quotation {
   id: string;
   text: string;
@@ -29,6 +50,7 @@ export interface Quotation {
   submittedAt: string;
   reviewedAt?: string;
   submittedBy?: { id: string; username: string };
+  aiReview?: AiReview;
 }
 
 export interface PaginationMetadata {

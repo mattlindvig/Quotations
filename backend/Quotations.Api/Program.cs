@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
+using Quotations.Api.BackgroundServices;
+using Quotations.Api.Configuration;
 using Quotations.Api.Data;
 using Quotations.Api.Extensions;
 using Quotations.Api.Models;
@@ -125,8 +127,15 @@ builder.Services.AddScoped<IQuotationRepository, QuotationRepository>();
 builder.Services.AddScoped<IAuthorRepository, AuthorRepository>();
 builder.Services.AddScoped<ISourceRepository, SourceRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IAiReviewErrorRepository, AiReviewErrorRepository>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<QuotationService>();
+
+// AI Review services
+builder.Services.Configure<AiReviewOptions>(builder.Configuration.GetSection("AiReview"));
+builder.Services.AddHttpClient<IAnthropicService, AnthropicService>();
+builder.Services.AddScoped<AiReviewService>();
+builder.Services.AddHostedService<AiReviewBackgroundService>();
 
 // Configure JWT Authentication (using custom implementation, not ASP.NET Identity)
 builder.Services.AddJwtAuthentication(builder.Configuration);

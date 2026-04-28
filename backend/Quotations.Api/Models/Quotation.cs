@@ -124,6 +124,9 @@ public class Quotation
     [BsonElement("rejectionReason")]
     public string? RejectionReason { get; set; }
 
+    [BsonElement("aiReview")]
+    public AiReview AiReview { get; set; } = new();
+
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
