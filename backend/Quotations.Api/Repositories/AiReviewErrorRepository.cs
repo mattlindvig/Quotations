@@ -35,4 +35,16 @@ public class AiReviewErrorRepository : IAiReviewErrorRepository
     {
         return await _collection.CountDocumentsAsync(FilterDefinition<AiReviewError>.Empty);
     }
+
+    public async Task<bool> DeleteByQuotationIdAsync(string quotationId)
+    {
+        var result = await _collection.DeleteOneAsync(e => e.QuotationId == quotationId);
+        return result.DeletedCount > 0;
+    }
+
+    public async Task<long> DeleteAllAsync()
+    {
+        var result = await _collection.DeleteManyAsync(FilterDefinition<AiReviewError>.Empty);
+        return result.DeletedCount;
+    }
 }

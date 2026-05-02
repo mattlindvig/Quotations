@@ -73,6 +73,19 @@ public class QuotationsController : ControllerBase
     }
 
     /// <summary>
+    /// Get a single random approved quotation
+    /// </summary>
+    [HttpGet("random")]
+    public async Task<ActionResult<ApiResponse<QuotationDto>>> GetRandom()
+    {
+        var quotation = await _quotationService.GetRandomQuotationAsync();
+        if (quotation == null)
+            return NotFound(new ApiResponse<object> { Success = false });
+
+        return Ok(new ApiResponse<QuotationDto> { Data = quotation, Success = true });
+    }
+
+    /// <summary>
     /// Get a single quotation by ID
     /// </summary>
     /// <param name="id">Quotation ID</param>

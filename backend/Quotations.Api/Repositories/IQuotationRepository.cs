@@ -94,4 +94,34 @@ public interface IQuotationRepository
     /// Get a batch of quotations whose AI review is pending or not yet started
     /// </summary>
     Task<List<Quotation>> GetPendingAiReviewsAsync(int batchSize);
+
+    /// <summary>
+    /// Get counts of quotations grouped by aiReview.status, plus average accuracy scores
+    /// </summary>
+    Task<Dictionary<string, long>> GetAiReviewCountsByStatusAsync();
+
+    /// <summary>
+    /// Get average AI accuracy scores across all reviewed quotations
+    /// </summary>
+    Task<(double? QuoteAccuracy, double? Attribution, double? Source)> GetAverageAiScoresAsync();
+
+    /// <summary>
+    /// Get most recently AI-reviewed quotations
+    /// </summary>
+    Task<List<Quotation>> GetRecentlyAiReviewedAsync(int limit = 20);
+
+    /// <summary>
+    /// Reset AI review state to NotReviewed so the background service picks it up again
+    /// </summary>
+    Task<bool> ResetAiReviewAsync(string quotationId);
+
+    /// <summary>
+    /// Reset AI review state for all Failed quotations
+    /// </summary>
+    Task<long> ResetAllFailedAiReviewsAsync();
+
+    /// <summary>
+    /// Return a single random approved quotation
+    /// </summary>
+    Task<Quotation?> GetRandomQuotationAsync();
 }

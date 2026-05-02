@@ -267,6 +267,97 @@ public class QuotationRepository : IQuotationRepository
             .ToListAsync();
     }
 
+    public async Task<Dictionary<string, long>> GetAiReviewCountsByStatusAsync()
+    {
+        var pipeline = new[]
+        {
+            new BsonDocument("$group", new BsonDocument
+            {
+                { "_id", "$aiReview.status" },
+                { "count", new BsonDocument("$sum", 1) }
+            })
+        };
+
+        var results = await _quotations.Aggregate<BsonDocument>(pipeline).ToListAsync();
+        return results
+            .Where(doc => doc["_id"] != BsonNull.Value)
+            .ToDictionary(
+                doc => doc["_id"].AsString,
+                doc => (long)doc["count"].AsInt32);
+    }
+
+    public async Task<(double? QuoteAccuracy, double? Attribution, double? Source)> GetAverageAiScoresAsync()
+    {
+        var pipeline = new[]
+        {
+            new BsonDocument("$match", new BsonDocument("aiReview.status", "Reviewed")),
+            new BsonDocument("$group", new BsonDocument
+            {
+                { "_id", BsonNull.Value },
+                { "avgQuote", new BsonDocument("$avg", "$aiReview.quoteAccuracy.score") },
+                { "avgAttribution", new BsonDocument("$avg", "$aiReview.attributionAccuracy.score") },
+                { "avgSource", new BsonDocument("$avg", "$aiReview.sourceAccuracy.score") }
+            })
+        };
+
+        var result = await _quotations.Aggregate<BsonDocument>(pipeline).FirstOrDefaultAsync();
+        if (result == null) return (null, null, null);
+
+        double? quote = result["avgQuote"] != BsonNull.Value ? result["avgQuote"].ToDouble() : null;
+        double? attr = result["avgAttribution"] != BsonNull.Value ? result["avgAttribution"].ToDouble() : null;
+        double? src = result["avgSource"] != BsonNull.Value ? result["avgSource"].ToDouble() : null;
+
+        return (quote, attr, src);
+    }
+
+    public async Task<List<Quotation>> GetRecentlyAiReviewedAsync(int limit = 20)
+    {
+        var filter = Builders<Quotation>.Filter.Eq("aiReview.status", "Reviewed");
+
+        return await _quotations
+            .Find(filter)
+            .SortByDescending(q => q.AiReview.ReviewedAt)
+            .Limit(limit)
+            .ToListAsync();
+    }
+
+    public async Task<Quotation?> GetRandomQuotationAsync()
+    {
+        var pipeline = new[]
+        {
+            new BsonDocument("$match", new BsonDocument("status", "Approved")),
+            new BsonDocument("$sample", new BsonDocument("size", 1))
+        };
+        return await _quotations.Aggregate<Quotation>(pipeline).FirstOrDefaultAsync();
+    }
+
+    public async Task<bool> ResetAiReviewAsync(string quotationId)
+    {
+        var update = Builders<Quotation>.Update
+            .Set("aiReview.status", nameof(AiReviewStatusEnum.NotReviewed))
+            .Set("aiReview.retryCount", 0)
+            .Set("aiReview.failureReason", BsonNull.Value)
+            .Set("aiReview.lastAttemptAt", BsonNull.Value)
+            .Set("updatedAt", DateTime.UtcNow);
+
+        var result = await _quotations.UpdateOneAsync(q => q.Id == quotationId, update);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<long> ResetAllFailedAiReviewsAsync()
+    {
+        var filter = Builders<Quotation>.Filter.Eq("aiReview.status", nameof(AiReviewStatusEnum.Failed));
+        var update = Builders<Quotation>.Update
+            .Set("aiReview.status", nameof(AiReviewStatusEnum.NotReviewed))
+            .Set("aiReview.retryCount", 0)
+            .Set("aiReview.failureReason", BsonNull.Value)
+            .Set("aiReview.lastAttemptAt", BsonNull.Value)
+            .Set("updatedAt", DateTime.UtcNow);
+
+        var result = await _quotations.UpdateManyAsync(filter, update);
+        return result.ModifiedCount;
+    }
+
     /// <summary>
     /// Calculate similarity ratio between two strings (0.0 to 1.0)
     /// </summary>

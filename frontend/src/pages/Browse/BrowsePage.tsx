@@ -7,19 +7,18 @@ import { QuotationList } from '../../components/quotations/QuotationList';
 import { PaginationControls } from '../../components/quotations/PaginationControls';
 import { SearchBar } from '../../components/quotations/SearchBar';
 import { FilterPanel } from '../../components/quotations/FilterPanel';
-import type { SourceType } from '../../types/quotation';
+import { SurpriseModal } from '../../components/quotations/SurpriseModal';
+import apiClient from '../../services/apiClient';
+import type { Quotation, SourceType, ApiResponse } from '../../types/quotation';
 import './BrowsePage.css';
 
-/**
- * Browse page - displays paginated list of approved quotations with search and filter
- * Implements accessibility best practices (ARIA labels, semantic HTML, keyboard navigation)
- * Preserves search/filter state in URL query parameters
- */
 export const BrowsePage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [activeMode, setActiveMode] = useState<'browse' | 'search'>('browse');
+  const [surpriseQuote, setSurpriseQuote] = useState<Quotation | null>(null);
+  const [surpriseLoading, setSurpriseLoading] = useState(false);
+  const [showSurprise, setShowSurprise] = useState(false);
 
-  // Extract initial values from URL
   const initialQuery = searchParams.get('q') || '';
   const initialPage = parseInt(searchParams.get('page') || '1');
   const initialAuthorId = searchParams.get('authorId') || undefined;
@@ -32,7 +31,6 @@ export const BrowsePage: React.FC = () => {
     tags: initialTags,
   };
 
-  // Hooks
   const { filters, setFilters } = useFilters(initialFilters);
   const {
     quotations: browseQuotations,
@@ -56,22 +54,19 @@ export const BrowsePage: React.FC = () => {
     goToPage: searchPage,
   } = useSearch();
 
-  // Determine active data
   const quotations = activeMode === 'search' ? searchResults : browseQuotations;
   const loading = activeMode === 'search' ? searchLoading : browseLoading;
   const error = activeMode === 'search' ? searchError : browseError;
   const pagination = activeMode === 'search' ? searchPagination : browsePagination;
   const hasResults = quotations.length > 0;
 
-  // Initialize search from URL on mount
   useEffect(() => {
     if (initialQuery) {
       performSearch(initialQuery, initialPage);
       setActiveMode('search');
     }
-  }, []); // Run only on mount
+  }, []);
 
-  // Handle search
   const handleSearch = useCallback(
     (query: string) => {
       if (query.trim()) {
@@ -86,143 +81,150 @@ export const BrowsePage: React.FC = () => {
     [performSearch, clearSearch, fetchQuotations, filters]
   );
 
-  // Handle filter changes
   const handleFilterChange = useCallback(
     (newFilters: QuotationFilters) => {
       setFilters(newFilters);
       if (activeMode === 'browse') {
-        fetchQuotations({ ...newFilters, page: 1 });
+        // Explicitly reset every filter field first so cleared selections don't
+        // persist in the ref that useQuotations merges against.
+        fetchQuotations({
+          status: 'approved',
+          page: 1,
+          pageSize: 20,
+          authorId: undefined,
+          sourceType: undefined,
+          tags: undefined,
+          ...newFilters,
+        });
       }
     },
     [setFilters, fetchQuotations, activeMode]
   );
 
-  // Handle pagination
   const handlePageChange = useCallback(
     (page: number) => {
-      if (activeMode === 'search') {
-        searchPage(page);
-      } else {
-        browsePage(page);
-      }
+      if (activeMode === 'search') searchPage(page);
+      else browsePage(page);
     },
     [activeMode, searchPage, browsePage]
   );
 
   const handleNextPage = useCallback(() => {
-    if (activeMode === 'browse') {
-      browseNextPage();
-    } else if (pagination && pagination.hasNext) {
-      searchPage(pagination.page + 1);
-    }
+    if (activeMode === 'browse') browseNextPage();
+    else if (pagination?.hasNext) searchPage(pagination.page + 1);
   }, [activeMode, browseNextPage, searchPage, pagination]);
 
   const handlePreviousPage = useCallback(() => {
-    if (activeMode === 'browse') {
-      browsePreviousPage();
-    } else if (pagination && pagination.hasPrevious) {
-      searchPage(pagination.page - 1);
-    }
+    if (activeMode === 'browse') browsePreviousPage();
+    else if (pagination?.hasPrevious) searchPage(pagination.page - 1);
   }, [activeMode, browsePreviousPage, searchPage, pagination]);
+
+  const fetchSurprise = useCallback(async () => {
+    setSurpriseLoading(true);
+    try {
+      const res = await apiClient.get<ApiResponse<Quotation>>('/quotations/random');
+      setSurpriseQuote(res.data ?? null);
+    } catch {
+      setSurpriseQuote(null);
+    } finally {
+      setSurpriseLoading(false);
+    }
+  }, []);
+
+  const handleSurprise = useCallback(async () => {
+    setShowSurprise(true);
+    await fetchSurprise();
+  }, [fetchSurprise]);
 
   return (
     <main className="browse-page" id="main-content">
-      <div className="browse-header">
-        <h1 className="page-title">Browse Quotations</h1>
-        <p className="page-description">
-          Explore our collection of inspiring quotations from various sources
-        </p>
-      </div>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
 
-      <div className="browse-content">
-        <SearchBar onSearch={handleSearch} initialValue={initialQuery} />
-        <FilterPanel onFilterChange={handleFilterChange} initialFilters={initialFilters} />
+      <div className="browse-layout">
+        {/* Sidebar — filters */}
+        <aside className="browse-sidebar">
+          <FilterPanel onFilterChange={handleFilterChange} initialFilters={initialFilters} />
+        </aside>
 
-        {/* Result count and mode indicator */}
-        {!loading && hasResults && (
-          <div className="results-info" aria-live="polite">
-            {activeMode === 'search' && (
-              <p className="search-mode-indicator">
-                Showing search results for: <strong>"{searchQuery}"</strong>
-              </p>
-            )}
-            {pagination && (
-              <p className="result-count">
-                {pagination.totalCount} {pagination.totalCount === 1 ? 'quotation' : 'quotations'} found
-              </p>
-            )}
+        {/* Main content */}
+        <div className="browse-main">
+          <div className="browse-toolbar">
+            <SearchBar onSearch={handleSearch} initialValue={initialQuery} />
+            <button className="surprise-btn" onClick={handleSurprise} title="Show me a random quote">
+              ✨ Surprise Me
+            </button>
           </div>
-        )}
 
-        {/* Empty state */}
-        {!loading && !hasResults && !error && (
-          <div className="empty-state" role="status">
-            <p>No quotations found matching your criteria.</p>
-            {(searchQuery || filters.authorId || filters.sourceType || filters.tags?.length) && (
-              <button
-                className="clear-all-button"
-                onClick={() => {
-                  clearSearch();
-                  setFilters({});
-                  setActiveMode('browse');
-                  fetchQuotations({ page: 1 });
-                }}
-              >
-                Clear search and filters
-              </button>
-            )}
-          </div>
-        )}
-
-        {error && (
-          <div className="error-message" role="alert" aria-live="assertive">
-            <svg
-              className="error-icon"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                fillRule="evenodd"
-                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <div className="error-content">
-              <h2 className="error-title">Error Loading Quotations</h2>
-              <p className="error-text">{error}</p>
-              <button
-                className="retry-button"
-                onClick={() => window.location.reload()}
-                aria-label="Retry loading quotations"
-              >
-                Retry
-              </button>
+          {!loading && hasResults && (
+            <div className="results-info" aria-live="polite">
+              {activeMode === 'search' && (
+                <p className="search-mode-indicator">
+                  Results for: <strong>"{searchQuery}"</strong>
+                </p>
+              )}
+              {pagination && (
+                <p className="result-count">
+                  {pagination.totalCount.toLocaleString()} {pagination.totalCount === 1 ? 'quotation' : 'quotations'}
+                </p>
+              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {!error && hasResults && (
-          <>
-            <QuotationList quotations={quotations} loading={loading} />
+          {!loading && !hasResults && !error && (
+            <div className="empty-state" role="status">
+              <p>No quotations found matching your criteria.</p>
+              {(searchQuery || filters.authorId || filters.sourceType || filters.tags?.length) && (
+                <button
+                  className="clear-all-button"
+                  onClick={() => {
+                    clearSearch();
+                    setFilters({});
+                    setActiveMode('browse');
+                    fetchQuotations({ page: 1 });
+                  }}
+                >
+                  Clear search and filters
+                </button>
+              )}
+            </div>
+          )}
 
-            {!loading && pagination && (
-              <PaginationControls
-                pagination={pagination}
-                onPageChange={handlePageChange}
-                onPrevious={handlePreviousPage}
-                onNext={handleNextPage}
-              />
-            )}
-          </>
-        )}
+          {error && (
+            <div className="error-message" role="alert">
+              <div className="error-content">
+                <h2 className="error-title">Error Loading Quotations</h2>
+                <p className="error-text">{error}</p>
+                <button className="retry-button" onClick={() => window.location.reload()}>
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!error && hasResults && (
+            <>
+              <QuotationList quotations={quotations} loading={loading} />
+              {!loading && pagination && (
+                <PaginationControls
+                  pagination={pagination}
+                  onPageChange={handlePageChange}
+                  onPrevious={handlePreviousPage}
+                  onNext={handleNextPage}
+                />
+              )}
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Skip to content link for accessibility */}
-      <a href="#main-content" className="skip-link">
-        Skip to main content
-      </a>
+      {showSurprise && (
+        <SurpriseModal
+          quotation={surpriseQuote}
+          loading={surpriseLoading}
+          onClose={() => { setShowSurprise(false); setSurpriseQuote(null); }}
+          onTryAgain={fetchSurprise}
+        />
+      )}
     </main>
   );
 };

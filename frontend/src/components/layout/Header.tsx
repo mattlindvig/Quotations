@@ -1,49 +1,36 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import './Header.css';
 
 const Header = () => {
   const { isAuthenticated, user, logout, hasRole } = useAuth();
 
   return (
-    <header
-      style={{
-        padding: '1rem 2rem',
-        backgroundColor: '#f8f9fa',
-        borderBottom: '1px solid #dee2e6',
-      }}
-    >
-      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '2rem' }}>
-        <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <Link to="/" style={{ fontSize: '1.5rem', fontWeight: 'bold', textDecoration: 'none' }}>
-            Quotations
-          </Link>
-          <Link to="/" style={{ textDecoration: 'none' }}>
-            Browse
-          </Link>
-          <Link to="/submit" style={{ textDecoration: 'none' }}>
-            Submit
-          </Link>
+    <header className="site-header">
+      <nav className="site-nav">
+        <div className="nav-links">
+          <Link to="/" className="nav-brand">Quotations</Link>
+          <Link to="/" className="nav-link">Browse</Link>
+          <Link to="/submit" className="nav-link">Submit</Link>
           {isAuthenticated && (
-            <Link to="/my-submissions" style={{ textDecoration: 'none' }}>
-              My Submissions
-            </Link>
+            <Link to="/my-submissions" className="nav-link">My Submissions</Link>
           )}
           {(hasRole('Reviewer') || hasRole('Admin')) && (
-            <Link to="/review" style={{ textDecoration: 'none' }}>
-              Review
-            </Link>
+            <Link to="/review" className="nav-link">Review</Link>
+          )}
+          {(hasRole('Reviewer') || hasRole('Admin')) && (
+            <Link to="/ai-review" className="nav-link">AI Status</Link>
           )}
         </div>
-        <div style={{ flexShrink: 0 }}>
+
+        <div className="nav-user">
           {isAuthenticated ? (
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <span>Welcome, {user?.displayName}</span>
-              <button onClick={logout}>Logout</button>
-            </div>
+            <>
+              <span className="nav-welcome">Welcome, {user?.displayName}</span>
+              <button className="nav-logout" onClick={logout}>Logout</button>
+            </>
           ) : (
-            <Link to="/login" style={{ textDecoration: 'none' }}>
-              Login
-            </Link>
+            <Link to="/login" className="nav-link">Login</Link>
           )}
         </div>
       </nav>

@@ -36,6 +36,7 @@ services:
       - Jwt__Issuer=http://localhost:5000
       - Jwt__Audience=http://localhost:5173
       - Jwt__ExpirationMinutes=60
+      - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
     ports:
       - "5000:5000"
     depends_on:

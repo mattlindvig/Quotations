@@ -74,6 +74,12 @@ public class QuotationService
         return quotation != null ? MapToDto(quotation) : null;
     }
 
+    public async Task<QuotationDto?> GetRandomQuotationAsync()
+    {
+        var quotation = await _quotationRepository.GetRandomQuotationAsync();
+        return quotation != null ? MapToDto(quotation) : null;
+    }
+
     /// <summary>
     /// Search quotations by text
     /// </summary>

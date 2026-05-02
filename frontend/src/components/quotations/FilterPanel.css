@@ -2,15 +2,15 @@
   background: #ffffff;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
-  margin-bottom: 24px;
   overflow: hidden;
 }
 
+/* ── Header (toggle button row) ── */
 .filter-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
+  padding: 14px 16px;
   background: #fafafa;
   border-bottom: 1px solid #e0e0e0;
 }
@@ -19,59 +19,53 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border: none;
   background: transparent;
   color: #424242;
   font-size: 0.9375rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   border-radius: 4px;
-  transition: background 0.2s ease-in-out;
+  transition: background 0.15s;
 }
 
-.filter-toggle:hover {
-  background: #f5f5f5;
-}
+.filter-toggle:hover { background: #f0f0f0; }
 
 .filter-toggle svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .filter-badge {
   background: #1976d2;
-  color: #ffffff;
-  padding: 2px 8px;
+  color: #fff;
+  padding: 1px 7px;
   border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 600;
-  min-width: 20px;
-  text-align: center;
 }
 
 .clear-filters-button {
-  padding: 6px 12px;
+  padding: 5px 10px;
   border: 1px solid #e0e0e0;
-  background: #ffffff;
+  background: #fff;
   color: #d32f2f;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
   border-radius: 4px;
-  transition: all 0.2s ease-in-out;
+  transition: all 0.15s;
 }
 
-.clear-filters-button:hover {
-  background: #ffebee;
-  border-color: #d32f2f;
-}
+.clear-filters-button:hover { background: #ffebee; border-color: #d32f2f; }
 
+/* ── Filter body ── */
 .filter-content {
-  padding: 20px;
+  padding: 18px 16px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 .filter-group {
@@ -81,25 +75,25 @@
 }
 
 .filter-label {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #424242;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #616161;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .filter-select {
-  padding: 10px 12px;
+  padding: 9px 12px;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
-  background: #ffffff;
+  background: #fff;
   color: #212121;
-  font-size: 0.9375rem;
+  font-size: 0.9rem;
   cursor: pointer;
-  transition: all 0.2s ease-in-out;
+  transition: border-color 0.15s;
 }
 
-.filter-select:hover {
-  border-color: #bdbdbd;
-}
+.filter-select:hover { border-color: #bdbdbd; }
 
 .filter-select:focus {
   outline: none;
@@ -107,59 +101,62 @@
   box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
 }
 
+/* ── Tag chips ── */
 .tags-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .tag-filter-button {
-  padding: 6px 12px;
+  padding: 5px 11px;
   border: 1px solid #e0e0e0;
-  background: #ffffff;
+  background: #fff;
   color: #616161;
-  font-size: 0.8125rem;
+  font-size: 0.8rem;
   cursor: pointer;
-  border-radius: 16px;
-  transition: all 0.2s ease-in-out;
+  border-radius: 14px;
+  transition: all 0.15s;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
-.tag-filter-button:hover {
-  border-color: #1976d2;
-  background: #e3f2fd;
-}
+.tag-filter-button:hover { border-color: #1976d2; background: #e3f2fd; color: #1565c0; }
 
 .tag-filter-button.active {
   background: #1976d2;
-  color: #ffffff;
+  color: #fff;
   border-color: #1976d2;
 }
 
 .tag-count {
-  font-size: 0.75rem;
-  opacity: 0.8;
+  font-size: 0.7rem;
+  opacity: 0.75;
 }
 
-@media (max-width: 640px) {
-  .filter-header {
-    padding: 12px;
-  }
+/* Collapsed state — mobile only */
+.filter-content--collapsed {
+  display: none;
+}
 
-  .filter-content {
-    padding: 16px;
-    gap: 16px;
+/* ── Desktop: always show filter body, hide toggle chevron ── */
+@media (min-width: 901px) {
+  .filter-content--collapsed {
+    display: flex; /* override mobile hide */
   }
 
   .filter-toggle {
-    padding: 6px 10px;
-    font-size: 0.875rem;
+    cursor: default;
+    pointer-events: none;
+    font-size: 1rem;
   }
 
-  .clear-filters-button {
-    padding: 4px 10px;
-    font-size: 0.8125rem;
-  }
+  .filter-toggle svg { display: none; }
+}
+
+/* ── Mobile ── */
+@media (max-width: 640px) {
+  .filter-header { padding: 10px 12px; }
+  .filter-content { padding: 14px 12px; gap: 14px; }
 }

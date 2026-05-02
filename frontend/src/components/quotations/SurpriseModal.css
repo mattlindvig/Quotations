@@ -1,0 +1,112 @@
+.surprise-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.surprise-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 2.5rem;
+  max-width: 600px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: surprise-in 0.2s ease-out;
+}
+
+@keyframes surprise-in {
+  from { opacity: 0; transform: scale(0.95) translateY(-8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.surprise-loading {
+  text-align: center;
+  color: #757575;
+  font-size: 1.1rem;
+  padding: 1rem 0;
+}
+
+.surprise-text {
+  font-size: 1.3rem;
+  line-height: 1.65;
+  font-style: italic;
+  color: #212121;
+  margin: 0 0 1.25rem 0;
+  border-left: 4px solid #1976d2;
+  padding-left: 1.25rem;
+}
+
+.surprise-author {
+  font-weight: 600;
+  color: #1976d2;
+  font-size: 1rem;
+  margin: 0 0 0.4rem 0;
+}
+
+.surprise-source {
+  color: #757575;
+  font-style: italic;
+  font-size: 0.9rem;
+  margin: 0 0 1rem 0;
+}
+
+.surprise-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.surprise-tag {
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+}
+
+.surprise-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding-top: 1.25rem;
+  border-top: 1px solid #f0f0f0;
+}
+
+.surprise-btn-again {
+  padding: 0.6rem 1.25rem;
+  background: #1976d2;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.surprise-btn-again:hover:not(:disabled) { background: #1565c0; }
+.surprise-btn-again:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.surprise-btn-close {
+  padding: 0.6rem 1.25rem;
+  background: transparent;
+  color: #616161;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.surprise-btn-close:hover { background: #f5f5f5; }
+
+@media (max-width: 640px) {
+  .surprise-modal { padding: 1.5rem; }
+  .surprise-text { font-size: 1.1rem; }
+}

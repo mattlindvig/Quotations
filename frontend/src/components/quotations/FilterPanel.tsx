@@ -124,8 +124,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         )}
       </div>
 
-      {isExpanded && (
-        <div id="filter-content" className="filter-content">
+      <div
+        id="filter-content"
+        className={`filter-content${isExpanded ? '' : ' filter-content--collapsed'}`}
+      >
           {/* Author filter */}
           <div className="filter-group">
             <label htmlFor="author-filter" className="filter-label">
@@ -185,7 +187,6 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             </div>
           )}
         </div>
-      )}
     </div>
   );
 };

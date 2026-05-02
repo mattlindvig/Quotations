@@ -7,6 +7,7 @@ import { SubmitPage } from './pages/Submit/SubmitPage';
 import { MySubmissionsPage } from './pages/MySubmissions/MySubmissionsPage';
 import { ReviewQueuePage } from './pages/Review/ReviewQueuePage';
 import { LoginPage } from './pages/Login/LoginPage';
+import AiReviewDashboardPage from './pages/AiReviewDashboard/AiReviewDashboardPage';
 import './App.css';
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
               <Route path="/submit" element={<SubmitPage />} />
               <Route path="/my-submissions" element={<MySubmissionsPage />} />
               <Route path="/review" element={<ReviewQueuePage />} />
+              <Route path="/ai-review" element={<AiReviewDashboardPage />} />
             </Routes>
           </main>
           <Footer />
