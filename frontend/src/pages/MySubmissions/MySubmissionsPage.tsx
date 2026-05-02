@@ -29,7 +29,7 @@ export const MySubmissionsPage: React.FC = () => {
       setError(null);
 
       const response = await apiClient.get<ApiResponse<PaginatedResponse<Quotation>>>(
-        `/api/v1/submissions/my?page=${pagination.page}&pageSize=${pagination.pageSize}`
+        `/submissions/my?page=${pagination.page}&pageSize=${pagination.pageSize}`
       );
 
       if (response.success && response.data) {

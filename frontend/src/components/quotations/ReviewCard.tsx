@@ -124,7 +124,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({ quotation, onApprove, on
       setError(null);
 
       const response = await apiClient.post<ApiResponse<any>>(
-        `/api/v1/review/${quotation.id}/approve`,
+        `/review/${quotation.id}/approve`,
         {}
       );
 
@@ -144,7 +144,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({ quotation, onApprove, on
       setError(null);
 
       const response = await apiClient.post<ApiResponse<any>>(
-        `/api/v1/review/${quotation.id}/reject`,
+        `/review/${quotation.id}/reject`,
         { rejectionReason: reason }
       );
 

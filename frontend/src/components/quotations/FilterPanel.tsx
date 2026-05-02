@@ -48,8 +48,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     const fetchMetadata = async () => {
       try {
         const [authorsResponse, tagsResponse] = await Promise.all([
-          apiClient.get<ApiResponse<Author[]>>('/api/v1/authors?limit=100'),
-          apiClient.get<ApiResponse<Tag[]>>('/api/v1/tags?limit=50'),
+          apiClient.get<ApiResponse<Author[]>>('/authors?limit=100'),
+          apiClient.get<ApiResponse<Tag[]>>('/tags?limit=50'),
         ]);
 
         if (authorsResponse.success && authorsResponse.data) {

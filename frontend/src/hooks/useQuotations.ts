@@ -55,7 +55,7 @@ export function useQuotations(initialFilters?: QuotationFilters): UseQuotationsR
       }
 
       const response = await apiClient.get<ApiResponse<PaginatedQuotationsResponse>>(
-        `/api/v1/quotations?${params.toString()}`
+        `/quotations?${params.toString()}`
       );
 
       if (response.success && response.data) {

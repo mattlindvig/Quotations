@@ -25,7 +25,7 @@ export const DuplicateChecker: React.FC<DuplicateCheckerProps> = ({ quotationId 
       setError(null);
 
       const response = await apiClient.get<ApiResponse<Quotation[]>>(
-        `/api/v1/review/${quotationId}/duplicates`
+        `/review/${quotationId}/duplicates`
       );
 
       if (response.success && response.data) {

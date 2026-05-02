@@ -163,8 +163,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
-
 // Global error handling middleware (must be first)
 app.UseMiddleware<Quotations.Api.Middleware.ErrorHandlingMiddleware>();
 

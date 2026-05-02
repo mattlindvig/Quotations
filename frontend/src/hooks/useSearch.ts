@@ -51,7 +51,7 @@ export function useSearch(): UseSearchResult {
       });
 
       const response = await apiClient.get<ApiResponse<PaginatedQuotationsResponse>>(
-        `/api/v1/quotations/search?${params.toString()}`
+        `/quotations/search?${params.toString()}`
       );
 
       if (response.success && response.data) {

@@ -119,7 +119,7 @@ export const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onCan
         tags: formData.tags,
       };
 
-      const response = await apiClient.post<ApiResponse<any>>('/api/v1/submissions', payload);
+      const response = await apiClient.post<ApiResponse<any>>('/submissions', payload);
 
       if (response.data.success) {
         setShowSuccess(true);
