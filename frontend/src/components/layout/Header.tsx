@@ -12,8 +12,8 @@ const Header = () => {
         borderBottom: '1px solid #dee2e6',
       }}
     >
-      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '2rem' }}>
+        <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <Link to="/" style={{ fontSize: '1.5rem', fontWeight: 'bold', textDecoration: 'none' }}>
             Quotations
           </Link>
@@ -34,7 +34,7 @@ const Header = () => {
             </Link>
           )}
         </div>
-        <div>
+        <div style={{ flexShrink: 0 }}>
           {isAuthenticated ? (
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
               <span>Welcome, {user?.displayName}</span>
