@@ -36,7 +36,7 @@ public class AiReviewService
 
         quotation.AiReview.Status = AiReviewStatus.InProgress;
         quotation.AiReview.LastAttemptAt = DateTime.UtcNow;
-        await _quotationRepository.UpdateQuotationAsync(quotation);
+        await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
 
         try
         {
@@ -53,7 +53,7 @@ public class AiReviewService
                 // API key not configured — mark as not reviewed so it's skipped gracefully
                 quotation.AiReview.Status = AiReviewStatus.NotReviewed;
                 quotation.AiReview.FailureReason = "AI analysis not available (API key not configured)";
-                await _quotationRepository.UpdateQuotationAsync(quotation);
+                await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
                 return;
             }
 
@@ -91,7 +91,7 @@ public class AiReviewService
 
             quotation.AiReview.SuggestedTags = result.SuggestedTags;
 
-            await _quotationRepository.UpdateQuotationAsync(quotation);
+            await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
             _logger.LogInformation("Completed AI review for quotation {QuotationId} using {Model}", quotation.Id, result.ModelUsed);
         }
         catch (Exception ex)
@@ -121,7 +121,7 @@ public class AiReviewService
                 quotation.AiReview.Status = AiReviewStatus.Pending;
             }
 
-            await _quotationRepository.UpdateQuotationAsync(quotation);
+            await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
         }
     }
 }

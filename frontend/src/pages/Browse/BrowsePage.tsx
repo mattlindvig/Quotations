@@ -8,11 +8,11 @@ import { SearchBar } from '../../components/quotations/SearchBar';
 import { FilterPanel } from '../../components/quotations/FilterPanel';
 import { SurpriseModal } from '../../components/quotations/SurpriseModal';
 import apiClient from '../../services/apiClient';
-import type { Quotation, SourceType, ApiResponse } from '../../types/quotation';
+import type { Quotation, SourceType, ApiResponse, QuotationSortBy } from '../../types/quotation';
 import './BrowsePage.css';
 
 export const BrowsePage: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeMode, setActiveMode] = useState<'browse' | 'search'>('browse');
   const [surpriseQuote, setSurpriseQuote] = useState<Quotation | null>(null);
   const [surpriseLoading, setSurpriseLoading] = useState(false);
@@ -23,6 +23,7 @@ export const BrowsePage: React.FC = () => {
   const initialAuthorName = searchParams.get('authorName') || undefined;
   const initialSourceType = searchParams.get('sourceType') as SourceType | undefined;
   const initialTags = searchParams.get('tags')?.split(',').filter(Boolean) || undefined;
+  const sortBy = (searchParams.get('sortBy') as QuotationSortBy | null) || 'newest';
 
   const initialFilters: QuotationFilters = {
     authorName: initialAuthorName,
@@ -38,7 +39,7 @@ export const BrowsePage: React.FC = () => {
     pagination: browsePagination,
     fetchQuotations,
     nextPage: browseNextPage,
-  } = useQuotations({ status: 'approved', page: initialPage, pageSize: 20, ...filters });
+  } = useQuotations({ status: 'approved', page: initialPage, pageSize: 20, sortBy, ...filters });
 
   const {
     searchQuery,
@@ -96,23 +97,39 @@ export const BrowsePage: React.FC = () => {
     }
   }, []);
 
+  const updateUrl = useCallback(
+    (query: string, newFilters: QuotationFilters, newSortBy: QuotationSortBy) => {
+      const params: Record<string, string> = {};
+      if (query) params.q = query;
+      if (newFilters.authorName) params.authorName = newFilters.authorName;
+      if (newFilters.sourceType) params.sourceType = newFilters.sourceType;
+      if (newFilters.tags?.length) params.tags = newFilters.tags.join(',');
+      if (newSortBy !== 'newest') params.sortBy = newSortBy;
+      setSearchParams(params, { replace: true });
+    },
+    [setSearchParams]
+  );
+
   const handleSearch = useCallback(
     (query: string) => {
       if (query.trim()) {
         performSearch(query, 1);
         setActiveMode('search');
+        updateUrl(query, filters, sortBy);
       } else {
         clearSearch();
         setActiveMode('browse');
         fetchQuotations({ ...filters, page: 1 });
+        updateUrl('', filters, sortBy);
       }
     },
-    [performSearch, clearSearch, fetchQuotations, filters]
+    [performSearch, clearSearch, fetchQuotations, filters, sortBy, updateUrl]
   );
 
   const handleFilterChange = useCallback(
     (newFilters: QuotationFilters) => {
       setFilters(newFilters);
+      updateUrl(activeMode === 'search' ? searchQuery : '', newFilters, sortBy);
       if (activeMode === 'browse') {
         fetchQuotations({
           status: 'approved',
@@ -125,7 +142,7 @@ export const BrowsePage: React.FC = () => {
         });
       }
     },
-    [setFilters, fetchQuotations, activeMode]
+    [setFilters, fetchQuotations, activeMode, searchQuery, updateUrl]
   );
 
   const fetchSurprise = useCallback(async () => {
@@ -190,6 +207,7 @@ export const BrowsePage: React.FC = () => {
                     setFilters({});
                     setActiveMode('browse');
                     fetchQuotations({ page: 1 });
+                    setSearchParams({}, { replace: true });
                   }}
                 >
                   Clear search and filters

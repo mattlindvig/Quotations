@@ -26,7 +26,8 @@ public interface IQuotationRepository
         string? authorId = null,
         string? authorName = null,
         SourceType? sourceType = null,
-        List<string>? tags = null);
+        List<string>? tags = null,
+        string? sortBy = null);
 
     /// <summary>
     /// Get distinct author names from quotations, ordered by usage count descending
@@ -76,13 +77,9 @@ public interface IQuotationRepository
     Task<bool> DeleteQuotationAsync(string id);
 
     /// <summary>
-    /// Check if a duplicate quotation exists (same text, author, source)
+    /// Check if an exact duplicate quotation exists (same normalized text, any author/source).
     /// </summary>
-    /// <param name="text">Quotation text</param>
-    /// <param name="authorId">Author ID</param>
-    /// <param name="sourceId">Source ID</param>
-    /// <returns>True if duplicate exists</returns>
-    Task<bool> IsDuplicateAsync(string text, string authorId, string sourceId);
+    Task<bool> IsDuplicateAsync(string text);
 
     /// <summary>
     /// Get distinct tags with usage counts
@@ -92,14 +89,19 @@ public interface IQuotationRepository
     Task<List<(string Tag, int Count)>> GetTagsWithCountsAsync(int? limit = null, string? authorName = null, SourceType? sourceType = null);
 
     /// <summary>
-    /// Find potential duplicate quotations
+    /// Find potential duplicate quotations by text similarity, optionally narrowed to the same author name.
     /// </summary>
-    Task<List<Quotation>> FindPotentialDuplicatesAsync(string text, string authorId, string sourceId, string excludeId);
+    Task<List<Quotation>> FindPotentialDuplicatesAsync(string text, string authorName, string excludeId);
 
     /// <summary>
     /// Get a batch of quotations whose AI review is pending or not yet started
     /// </summary>
     Task<List<Quotation>> GetPendingAiReviewsAsync(int batchSize);
+
+    /// <summary>
+    /// Get paginated quotations that have not yet been AI-reviewed (status = NotReviewed)
+    /// </summary>
+    Task<(List<Quotation> Items, long TotalCount)> GetUnreviewedForAiAsync(int page = 1, int pageSize = 20);
 
     /// <summary>
     /// Get counts of quotations grouped by aiReview.status, plus average accuracy scores
@@ -115,6 +117,13 @@ public interface IQuotationRepository
     /// Get most recently AI-reviewed quotations
     /// </summary>
     Task<List<Quotation>> GetRecentlyAiReviewedAsync(int limit = 20);
+
+    /// <summary>
+    /// Update only the aiReview subdocument of a quotation, leaving all other fields untouched.
+    /// Use this instead of UpdateQuotationAsync when only AI review data changes, to avoid
+    /// ObjectId serialization errors on quotations with empty author/source IDs.
+    /// </summary>
+    Task<bool> UpdateAiReviewAsync(string quotationId, AiReview aiReview);
 
     /// <summary>
     /// Reset AI review state to NotReviewed so the background service picks it up again

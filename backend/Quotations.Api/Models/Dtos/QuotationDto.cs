@@ -16,6 +16,7 @@ public class QuotationDto
     public string Status { get; set; } = string.Empty;
     public DateTime SubmittedAt { get; set; }
     public DateTime? ReviewedAt { get; set; }
+    public List<string> PotentialDuplicateIds { get; set; } = new();
     public AiReviewDto? AiReview { get; set; }
 }
 

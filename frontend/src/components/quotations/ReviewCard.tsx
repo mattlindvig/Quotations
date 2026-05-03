@@ -111,7 +111,8 @@ function AiReviewPanel({ aiReview }: { aiReview: AiReview }) {
 }
 
 export const ReviewCard: React.FC<ReviewCardProps> = ({ quotation, onApprove, onReject }) => {
-  const [showDuplicates, setShowDuplicates] = useState(false);
+  const isFlaggedDuplicate = (quotation.potentialDuplicateIds?.length ?? 0) > 0;
+  const [showDuplicates, setShowDuplicates] = useState(isFlaggedDuplicate);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,10 +172,11 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({ quotation, onApprove, on
           )}
         </div>
         <button
-          className="duplicate-toggle"
+          className={`duplicate-toggle${isFlaggedDuplicate ? ' duplicate-toggle--flagged' : ''}`}
           onClick={() => setShowDuplicates(!showDuplicates)}
           aria-expanded={showDuplicates}
         >
+          {isFlaggedDuplicate && <span className="duplicate-flag-badge">!</span>}
           {showDuplicates ? 'Hide' : 'Check'} Duplicates
         </button>
       </div>

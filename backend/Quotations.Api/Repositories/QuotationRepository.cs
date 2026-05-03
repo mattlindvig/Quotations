@@ -30,7 +30,8 @@ public class QuotationRepository : IQuotationRepository
         string? authorId = null,
         string? authorName = null,
         SourceType? sourceType = null,
-        List<string>? tags = null)
+        List<string>? tags = null,
+        string? sortBy = null)
     {
         var filterBuilder = Builders<Quotation>.Filter;
         var filters = new List<FilterDefinition<Quotation>>();
@@ -75,9 +76,17 @@ public class QuotationRepository : IQuotationRepository
         var totalCount = await _quotations.CountDocumentsAsync(combinedFilter);
 
         // Get paginated results
+        var sortDefinition = sortBy switch
+        {
+            "oldest" => Builders<Quotation>.Sort.Ascending(q => q.SubmittedAt),
+            "author" => Builders<Quotation>.Sort.Ascending(q => q.Author.Name),
+            "year" => Builders<Quotation>.Sort.Descending("source.year"),
+            _ => Builders<Quotation>.Sort.Descending(q => q.SubmittedAt),
+        };
+
         var items = await _quotations
             .Find(combinedFilter)
-            .SortByDescending(q => q.SubmittedAt)
+            .Sort(sortDefinition)
             .Skip((page - 1) * pageSize)
             .Limit(pageSize)
             .ToListAsync();
@@ -167,15 +176,12 @@ public class QuotationRepository : IQuotationRepository
         return result.DeletedCount > 0;
     }
 
-    public async Task<bool> IsDuplicateAsync(string text, string authorId, string sourceId)
+    public async Task<bool> IsDuplicateAsync(string text)
     {
-        var normalizedText = text.Trim().ToLowerInvariant();
-
+        var normalizedText = text.Trim();
         var filter = Builders<Quotation>.Filter.And(
             Builders<Quotation>.Filter.Regex(q => q.Text, new BsonRegularExpression($"^{Regex.Escape(normalizedText)}$", "i")),
-            Builders<Quotation>.Filter.Eq(q => q.Author.Id, authorId),
-            Builders<Quotation>.Filter.Eq(q => q.Source.Id, sourceId),
-            Builders<Quotation>.Filter.Eq(q => q.Status, QuotationStatus.Approved)
+            Builders<Quotation>.Filter.Ne(q => q.Status, QuotationStatus.Rejected)
         );
 
         var count = await _quotations.CountDocumentsAsync(filter);
@@ -222,46 +228,43 @@ public class QuotationRepository : IQuotationRepository
     /// <summary>
     /// Find potential duplicate quotations based on text similarity, author, and source
     /// </summary>
-    public async Task<List<Quotation>> FindPotentialDuplicatesAsync(string text, string authorId, string sourceId, string excludeId)
+    public async Task<List<Quotation>> FindPotentialDuplicatesAsync(string text, string authorName, string excludeId)
     {
-        // Normalize text for comparison (trim, lowercase, remove extra whitespace)
-        var normalizedText = text.Trim().ToLowerInvariant();
+        var normalizedText = NormalizeForComparison(text);
 
-        var filter = Builders<Quotation>.Filter.And(
-            // Exclude the quotation itself
-            Builders<Quotation>.Filter.Ne(q => q.Id, excludeId),
-            // Match same author
-            Builders<Quotation>.Filter.Eq("author.id", authorId),
-            // Match same source
-            Builders<Quotation>.Filter.Eq("source.id", sourceId),
-            // Only check approved or pending quotations (not rejected)
-            Builders<Quotation>.Filter.In(q => q.Status, new[] { QuotationStatus.Approved, QuotationStatus.Pending })
-        );
-
-        // Get all quotations with same author and source
-        var candidates = await _quotations.Find(filter).Limit(100).ToListAsync();
-
-        // Filter by text similarity (exact match or very similar)
-        var duplicates = candidates.Where(q =>
+        var filters = new List<FilterDefinition<Quotation>>
         {
-            var candidateText = q.Text.Trim().ToLowerInvariant();
-            // Exact match
-            if (candidateText == normalizedText) return true;
+            Builders<Quotation>.Filter.Ne(q => q.Status, QuotationStatus.Rejected),
+        };
 
-            // Calculate simple similarity (Levenshtein distance would be better but this is a simple check)
-            // Check if one text contains the other (handles minor differences like punctuation)
-            if (normalizedText.Contains(candidateText) || candidateText.Contains(normalizedText))
+        // Exclude the quotation itself when an ID is provided
+        if (!string.IsNullOrWhiteSpace(excludeId))
+            filters.Add(Builders<Quotation>.Filter.Ne(q => q.Id, excludeId));
+
+        // Narrow by author name when provided (not ID — imported quotes have empty IDs)
+        if (!string.IsNullOrWhiteSpace(authorName))
+            filters.Add(Builders<Quotation>.Filter.Eq("author.name", authorName));
+
+        var candidates = await _quotations
+            .Find(Builders<Quotation>.Filter.And(filters))
+            .Limit(200)
+            .ToListAsync();
+
+        return candidates.Where(q =>
+        {
+            var candidateNormalized = NormalizeForComparison(q.Text);
+
+            if (candidateNormalized == normalizedText) return true;
+
+            if (normalizedText.Contains(candidateNormalized) || candidateNormalized.Contains(normalizedText))
                 return true;
 
-            // Check if they differ by only a few characters (typos, punctuation)
-            var lengthDiff = Math.Abs(normalizedText.Length - candidateText.Length);
-            if (lengthDiff <= 5 && CalculateSimilarity(normalizedText, candidateText) > 0.90)
+            // 80% Levenshtein similarity — catches paraphrasing and minor wording differences
+            if (CalculateSimilarity(normalizedText, candidateNormalized) >= 0.80)
                 return true;
 
             return false;
         }).ToList();
-
-        return duplicates;
     }
 
     public async Task<List<Quotation>> GetPendingAiReviewsAsync(int batchSize)
@@ -275,6 +278,21 @@ public class QuotationRepository : IQuotationRepository
             .SortBy(q => q.SubmittedAt)
             .Limit(batchSize)
             .ToListAsync();
+    }
+
+    public async Task<(List<Quotation> Items, long TotalCount)> GetUnreviewedForAiAsync(int page = 1, int pageSize = 20)
+    {
+        var filter = Builders<Quotation>.Filter.Eq("aiReview.status", nameof(AiReviewStatusEnum.NotReviewed));
+
+        var total = await _quotations.CountDocumentsAsync(filter);
+        var items = await _quotations
+            .Find(filter)
+            .SortBy(q => q.SubmittedAt)
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync();
+
+        return (items, total);
     }
 
     public async Task<Dictionary<string, long>> GetAiReviewCountsByStatusAsync()
@@ -341,6 +359,16 @@ public class QuotationRepository : IQuotationRepository
         return await _quotations.Aggregate<Quotation>(pipeline).FirstOrDefaultAsync();
     }
 
+    public async Task<bool> UpdateAiReviewAsync(string quotationId, AiReview aiReview)
+    {
+        var update = Builders<Quotation>.Update
+            .Set(q => q.AiReview, aiReview)
+            .Set(q => q.UpdatedAt, DateTime.UtcNow);
+
+        var result = await _quotations.UpdateOneAsync(q => q.Id == quotationId, update);
+        return result.ModifiedCount > 0;
+    }
+
     public async Task<bool> ResetAiReviewAsync(string quotationId)
     {
         var update = Builders<Quotation>.Update
@@ -391,21 +419,56 @@ public class QuotationRepository : IQuotationRepository
     }
 
     /// <summary>
-    /// Calculate similarity ratio between two strings (0.0 to 1.0)
+    /// Strips punctuation and collapses whitespace so comparison focuses on words.
+    /// </summary>
+    private static string NormalizeForComparison(string text)
+    {
+        var sb = new System.Text.StringBuilder(text.Length);
+        bool lastWasSpace = true;
+        foreach (char c in text.ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(c))
+            {
+                sb.Append(c);
+                lastWasSpace = false;
+            }
+            else if (!lastWasSpace)
+            {
+                sb.Append(' ');
+                lastWasSpace = true;
+            }
+        }
+        return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Levenshtein-based similarity ratio (0.0–1.0). Uses two-row rolling array
+    /// to keep memory O(n) instead of O(m*n).
     /// </summary>
     private static double CalculateSimilarity(string s1, string s2)
     {
         if (s1 == s2) return 1.0;
         if (s1.Length == 0 || s2.Length == 0) return 0.0;
 
-        int matches = 0;
-        int minLength = Math.Min(s1.Length, s2.Length);
+        int[] prev = new int[s2.Length + 1];
+        int[] curr = new int[s2.Length + 1];
 
-        for (int i = 0; i < minLength; i++)
+        for (int j = 0; j <= s2.Length; j++) prev[j] = j;
+
+        for (int i = 1; i <= s1.Length; i++)
         {
-            if (s1[i] == s2[i]) matches++;
+            curr[0] = i;
+            for (int j = 1; j <= s2.Length; j++)
+            {
+                int cost = s1[i - 1] == s2[j - 1] ? 0 : 1;
+                curr[j] = Math.Min(
+                    Math.Min(curr[j - 1] + 1, prev[j] + 1),
+                    prev[j - 1] + cost);
+            }
+            (prev, curr) = (curr, prev);
         }
 
-        return (double)matches / Math.Max(s1.Length, s2.Length);
+        int distance = prev[s2.Length];
+        return 1.0 - (double)distance / Math.Max(s1.Length, s2.Length);
     }
 }

@@ -49,7 +49,8 @@ public class QuotationService
         string? authorId = null,
         string? authorName = null,
         SourceType? sourceType = null,
-        List<string>? tags = null)
+        List<string>? tags = null,
+        string? sortBy = null)
     {
         // Validate pagination parameters
         if (page < 1) page = 1;
@@ -57,7 +58,7 @@ public class QuotationService
         if (pageSize > 100) pageSize = 100; // Max page size limit
 
         var (items, totalCount) = await _quotationRepository.GetQuotationsAsync(
-            page, pageSize, status, authorId, authorName, sourceType, tags);
+            page, pageSize, status, authorId, authorName, sourceType, tags, sortBy);
 
         return new PaginatedQuotationsResponse
         {
@@ -208,6 +209,11 @@ public class QuotationService
                 Username = username ?? "User"
             };
         }
+
+        // Flag similar quotes for reviewer attention — don't block the submission
+        var similarQuotes = await _quotationRepository.FindPotentialDuplicatesAsync(quotation.Text, "", "");
+        if (similarQuotes.Count > 0)
+            quotation.PotentialDuplicateIds = similarQuotes.Select(q => q.Id).ToList();
 
         // Set initial AI review status based on submission mode
         quotation.AiReview = new AiReview
@@ -397,7 +403,7 @@ public class QuotationService
         }
 
         var duplicates = await _quotationRepository.FindPotentialDuplicatesAsync(
-            quotation.Text, quotation.Author.Id, quotation.Source.Id, id);
+            quotation.Text, quotation.Author.Name, id);
 
         return duplicates.Select(MapToDto).ToList();
     }
@@ -426,6 +432,7 @@ public class QuotationService
             Status = quotation.Status.ToString().ToLowerInvariant(),
             SubmittedAt = quotation.SubmittedAt,
             ReviewedAt = quotation.ReviewedAt,
+            PotentialDuplicateIds = quotation.PotentialDuplicateIds,
             AiReview = MapAiReviewToDto(quotation.AiReview)
         };
     }

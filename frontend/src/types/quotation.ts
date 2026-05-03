@@ -50,6 +50,7 @@ export interface Quotation {
   submittedAt: string;
   reviewedAt?: string;
   submittedBy?: { id: string; username: string };
+  potentialDuplicateIds?: string[];
   aiReview?: AiReview;
 }
 
@@ -75,6 +76,8 @@ export interface ApiResponse<T> {
   errors?: Record<string, string[]>;
 }
 
+export type QuotationSortBy = 'newest' | 'oldest' | 'author' | 'year';
+
 export interface QuotationFilters {
   page?: number;
   pageSize?: number;
@@ -83,4 +86,5 @@ export interface QuotationFilters {
   authorName?: string;
   sourceType?: SourceType;
   tags?: string[];
+  sortBy?: QuotationSortBy;
 }

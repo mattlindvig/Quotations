@@ -71,21 +71,31 @@ function applyAuthResponse(data: AuthResponse) {
   apiClient.setRefreshToken(data.refreshToken);
 }
 
+function getInitialUser(): User | null {
+  const accessToken = localStorage.getItem('authToken');
+  if (accessToken && !isTokenExpired(accessToken)) {
+    const payload = decodeJwtPayload(accessToken);
+    if (payload) return userFromPayload(payload);
+  }
+  return null;
+}
+
+function needsRefresh(): boolean {
+  const accessToken = localStorage.getItem('authToken');
+  if (accessToken && !isTokenExpired(accessToken)) return false;
+  return !!localStorage.getItem('refreshToken');
+}
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(getInitialUser);
+  const [isLoading, setIsLoading] = useState(needsRefresh);
 
   useEffect(() => {
-    const initAuth = async () => {
-      const accessToken = localStorage.getItem('authToken');
-      const refreshToken = localStorage.getItem('refreshToken');
+    if (!isLoading) return;
 
-      if (accessToken && !isTokenExpired(accessToken)) {
-        // Access token is still valid — restore user from it
-        const payload = decodeJwtPayload(accessToken);
-        if (payload) setUser(userFromPayload(payload));
-      } else if (refreshToken) {
-        // Access token missing or expired — silently refresh
+    const initAuth = async () => {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
         try {
           const response = await apiClient.post<ApiResponse<AuthResponse>>(
             '/auth/refresh',
@@ -93,16 +103,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           );
           if (response.success && response.data) {
             applyAuthResponse(response.data);
-            const payload = decodeJwtPayload(response.data.token);
-            if (payload) setUser(userFromPayload(payload));
+            setUser(response.data.user);
           } else {
             apiClient.clearTokens();
+            setUser(null);
           }
         } catch {
           apiClient.clearTokens();
+          setUser(null);
         }
       }
-
       setIsLoading(false);
     };
 

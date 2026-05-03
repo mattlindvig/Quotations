@@ -51,7 +51,8 @@ public class QuotationsController : ControllerBase
         [FromQuery] string? authorId = null,
         [FromQuery] string? authorName = null,
         [FromQuery] string? sourceType = null,
-        [FromQuery] string? tags = null)
+        [FromQuery] string? tags = null,
+        [FromQuery] string? sortBy = null)
     {
         // Parse status
         QuotationStatus? statusFilter = null;
@@ -75,7 +76,7 @@ public class QuotationsController : ControllerBase
         }
 
         var result = await _quotationService.GetQuotationsAsync(
-            page, pageSize, statusFilter, authorId, authorName, sourceTypeFilter, tagsList);
+            page, pageSize, statusFilter, authorId, authorName, sourceTypeFilter, tagsList, sortBy);
 
         return Ok(new ApiResponse<PaginatedQuotationsResponse>
         {

@@ -53,6 +53,30 @@
   background-color: #dbeafe;
 }
 
+.duplicate-toggle--flagged {
+  color: #b45309;
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+
+.duplicate-toggle--flagged:hover {
+  background-color: #fef3c7;
+}
+
+.duplicate-flag-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f59e0b;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-right: 6px;
+}
+
 .review-card-content {
   margin-bottom: 1.5rem;
 }

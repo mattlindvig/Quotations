@@ -55,6 +55,7 @@ export function useQuotations(initialFilters?: QuotationFilters): UseQuotationsR
       if (mergedFilters.tags && mergedFilters.tags.length > 0) {
         params.append('tags', mergedFilters.tags.join(','));
       }
+      if (mergedFilters.sortBy) params.append('sortBy', mergedFilters.sortBy);
 
       const response = await apiClient.get<ApiResponse<PaginatedQuotationsResponse>>(
         `/quotations?${params.toString()}`

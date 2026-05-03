@@ -82,6 +82,41 @@ public class AiReviewDashboardController : ControllerBase
         return Ok(new { success = true, data = items });
     }
 
+    [HttpGet("unreviewed")]
+    public async Task<IActionResult> GetUnreviewed([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (items, total) = await _quotations.GetUnreviewedForAiAsync(page, pageSize);
+
+        var rows = items.Select(q => new
+        {
+            quotationId = q.Id,
+            text = q.Text.Length > 140 ? q.Text[..140] + "…" : q.Text,
+            authorName = q.Author.Name,
+            sourcTitle = q.Source.Title,
+            submittedAt = q.SubmittedAt,
+            status = q.AiReview?.Status.ToString() ?? "NotReviewed"
+        });
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                items = rows,
+                pagination = new
+                {
+                    page,
+                    pageSize,
+                    totalCount = total,
+                    totalPages = (int)Math.Ceiling((double)total / pageSize),
+                    hasNext = page * pageSize < total,
+                    hasPrevious = page > 1
+                }
+            }
+        });
+    }
+
     [HttpGet("settings")]
     public IActionResult GetSettings()
     {
@@ -115,11 +150,11 @@ public class AiReviewDashboardController : ControllerBase
 
         // Clear any prior error record and reset so ReviewQuotationAsync starts fresh
         await _errors.DeleteByQuotationIdAsync(quotationId);
+        await _quotations.ResetAiReviewAsync(quotationId);
         quotation.AiReview ??= new AiReview();
         quotation.AiReview.Status = AiReviewStatus.NotReviewed;
         quotation.AiReview.RetryCount = 0;
         quotation.AiReview.FailureReason = null;
-        await _quotations.UpdateQuotationAsync(quotation);
 
         await _aiReviewService.ReviewQuotationAsync(quotation);
 

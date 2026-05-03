@@ -127,6 +127,13 @@ public class Quotation
     [BsonElement("aiReview")]
     public AiReview AiReview { get; set; } = new();
 
+    /// <summary>
+    /// IDs of similar quotations detected at submission time. Non-empty means the
+    /// reviewer should inspect for duplicates before approving.
+    /// </summary>
+    [BsonElement("potentialDuplicateIds")]
+    public List<string> PotentialDuplicateIds { get; set; } = new();
+
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
