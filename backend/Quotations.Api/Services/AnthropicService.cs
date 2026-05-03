@@ -105,6 +105,7 @@ public class AnthropicService : IAnthropicService
         };
 
         var json = JsonSerializer.Serialize(requestBody);
+
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
         request.Headers.Add("x-api-key", _apiKey);
         request.Headers.Add("anthropic-version", ApiVersion);
