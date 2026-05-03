@@ -51,6 +51,21 @@ public class UserRepository : IUserRepository
         return result.ModifiedCount > 0;
     }
 
+    public async Task<List<User>> GetAllAsync()
+    {
+        return await _users.Find(_ => true).SortBy(u => u.Username).ToListAsync();
+    }
+
+    public async Task<bool> UpdateRolesAsync(string userId, List<string> roles)
+    {
+        if (!ObjectId.TryParse(userId, out _))
+            return false;
+
+        var update = Builders<User>.Update.Set(u => u.Roles, roles);
+        var result = await _users.UpdateOneAsync(u => u.Id == userId, update);
+        return result.MatchedCount > 0;
+    }
+
     public async Task<List<string>> GetFavoriteIdsAsync(string userId)
     {
         if (!ObjectId.TryParse(userId, out _))

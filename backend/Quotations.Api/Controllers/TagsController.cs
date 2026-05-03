@@ -2,17 +2,21 @@ using Microsoft.AspNetCore.Mvc;
 using Quotations.Api.Models;
 using Quotations.Api.Repositories;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Quotations.Api.Controllers;
 
-/// <summary>
-/// DTO for tag with count
-/// </summary>
 public class TagDto
 {
     public string Tag { get; set; } = string.Empty;
     public int Count { get; set; }
+}
+
+public class CanonicalTagCategoryDto
+{
+    public string Category { get; set; } = string.Empty;
+    public List<string> Tags { get; set; } = new();
 }
 
 /// <summary>
@@ -56,6 +60,28 @@ public class TagsController : ControllerBase
         return Ok(new ApiResponse<List<TagDto>>
         {
             Data = tagDtos,
+            Success = true
+        });
+    }
+
+    /// <summary>
+    /// Get the canonical tag taxonomy grouped by category
+    /// </summary>
+    [HttpGet("canonical")]
+    [ProducesResponseType(typeof(ApiResponse<List<CanonicalTagCategoryDto>>), 200)]
+    public ActionResult<ApiResponse<List<CanonicalTagCategoryDto>>> GetCanonicalTags()
+    {
+        var categories = CanonicalTags.ByCategory
+            .Select(kv => new CanonicalTagCategoryDto
+            {
+                Category = kv.Key,
+                Tags = kv.Value.ToList()
+            })
+            .ToList();
+
+        return Ok(new ApiResponse<List<CanonicalTagCategoryDto>>
+        {
+            Data = categories,
             Success = true
         });
     }

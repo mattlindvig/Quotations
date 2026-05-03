@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Quotations.Api.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,9 +11,19 @@ using System.Threading.Tasks;
 
 namespace Quotations.Api.Services;
 
+public record AiAnalysisRequestPreview(string Model, int MaxTokens, string Prompt, string RequestJson);
+
 public interface IAnthropicService
 {
     Task<AiAnalysisResult?> AnalyzeQuotationAsync(
+        string text,
+        string authorName,
+        string? authorLifespan,
+        string sourceTitle,
+        string sourceType,
+        int? sourceYear);
+
+    AiAnalysisRequestPreview BuildRequestPreview(
         string text,
         string authorName,
         string? authorLifespan,
@@ -44,20 +55,31 @@ public class AnthropicService : IAnthropicService
     private const string Model = "claude-haiku-4-5-20251001";
     private const string ApiVersion = "2023-06-01";
 
-    private static readonly string[] AllowedTags =
-    {
-        "inspiration", "wisdom", "humor", "love", "friendship", "leadership",
-        "success", "failure", "philosophy", "science", "politics", "history",
-        "art", "literature", "courage", "justice", "nature", "faith",
-        "education", "change", "family", "peace", "ambition", "perseverance",
-        "fiction", "non-fiction"
-    };
 
     public AnthropicService(HttpClient httpClient, IConfiguration configuration, ILogger<AnthropicService> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
-        _apiKey = configuration["Anthropic:ApiKey"] ?? string.Empty;
+        _apiKey = (configuration["Anthropic:ApiKey"] ?? string.Empty).Trim();
+    }
+
+    public AiAnalysisRequestPreview BuildRequestPreview(
+        string text,
+        string authorName,
+        string? authorLifespan,
+        string sourceTitle,
+        string sourceType,
+        int? sourceYear)
+    {
+        var prompt = BuildPrompt(text, authorName, authorLifespan, sourceTitle, sourceType, sourceYear);
+        var requestBody = new
+        {
+            model = Model,
+            max_tokens = 1536,
+            messages = new[] { new { role = "user", content = prompt } }
+        };
+        var requestJson = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions { WriteIndented = true });
+        return new AiAnalysisRequestPreview(Model, 1536, prompt, requestJson);
     }
 
     public async Task<AiAnalysisResult?> AnalyzeQuotationAsync(
@@ -74,11 +96,61 @@ public class AnthropicService : IAnthropicService
             return null;
         }
 
+        var prompt = BuildPrompt(text, authorName, authorLifespan, sourceTitle, sourceType, sourceYear);
+        var requestBody = new
+        {
+            model = Model,
+            max_tokens = 1536,
+            messages = new[] { new { role = "user", content = prompt } }
+        };
+
+        var json = JsonSerializer.Serialize(requestBody);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
+        request.Headers.Add("x-api-key", _apiKey);
+        request.Headers.Add("anthropic-version", ApiVersion);
+        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = await _httpClient.SendAsync(request);
+
+        // Buffer the content before reading so the body is available regardless of the handler pipeline
+        await response.Content.LoadIntoBufferAsync();
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError(
+                "Anthropic API returned {StatusCode} (Content-Type: {ContentType}, Length: {Length}): {Body}",
+                (int)response.StatusCode,
+                response.Content.Headers.ContentType?.ToString() ?? "unknown",
+                response.Content.Headers.ContentLength?.ToString() ?? "unknown",
+                string.IsNullOrWhiteSpace(responseBody) ? "<empty body>" : responseBody);
+            throw new InvalidOperationException($"Anthropic API error {response.StatusCode}: {responseBody}");
+        }
+
+        using var doc = JsonDocument.Parse(responseBody);
+        var contentText = doc.RootElement
+            .GetProperty("content")[0]
+            .GetProperty("text")
+            .GetString() ?? string.Empty;
+
+        var modelUsed = doc.RootElement.GetProperty("model").GetString() ?? Model;
+
+        return ParseAnalysisResult(contentText, modelUsed);
+    }
+
+    private static string BuildPrompt(
+        string text,
+        string authorName,
+        string? authorLifespan,
+        string sourceTitle,
+        string sourceType,
+        int? sourceYear)
+    {
         var lifespanPart = !string.IsNullOrEmpty(authorLifespan) ? $" ({authorLifespan})" : string.Empty;
         var yearPart = sourceYear.HasValue ? $", {sourceYear}" : string.Empty;
-        var tagList = string.Join(", ", AllowedTags);
+        var tagList = string.Join(", ", CanonicalTags.All);
 
-        var prompt =
+        return
             "You are a quotation accuracy expert. Analyze the following quotation and respond ONLY with valid JSON.\n\n" +
             $"Quotation text: \"{text}\"\n" +
             $"Attributed to: {authorName}{lifespanPart}\n" +
@@ -126,38 +198,6 @@ public class AnthropicService : IAnthropicService
             "  \"suggestedTags\": [],\n" +
             "  \"summary\": \"\"\n" +
             "}";
-
-        var requestBody = new
-        {
-            model = Model,
-            max_tokens = 1536,
-            messages = new[] { new { role = "user", content = prompt } }
-        };
-
-        var json = JsonSerializer.Serialize(requestBody);
-        using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
-        request.Headers.Add("x-api-key", _apiKey);
-        request.Headers.Add("anthropic-version", ApiVersion);
-        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        var response = await _httpClient.SendAsync(request);
-        var responseBody = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError("Anthropic API returned {StatusCode}: {Body}", response.StatusCode, responseBody);
-            throw new InvalidOperationException($"Anthropic API error {response.StatusCode}: {responseBody}");
-        }
-
-        using var doc = JsonDocument.Parse(responseBody);
-        var contentText = doc.RootElement
-            .GetProperty("content")[0]
-            .GetProperty("text")
-            .GetString() ?? string.Empty;
-
-        var modelUsed = doc.RootElement.GetProperty("model").GetString() ?? Model;
-
-        return ParseAnalysisResult(contentText, modelUsed);
     }
 
     private AiAnalysisResult? ParseAnalysisResult(string contentText, string modelUsed)
@@ -173,7 +213,7 @@ public class AnthropicService : IAnthropicService
             var root = doc.RootElement;
 
             var suggestedTags = ParseStringArray(root, "suggestedTags")
-                .Where(t => AllowedTags.Contains(t))
+                .Where(t => CanonicalTags.All.Contains(t))
                 .ToList();
 
             var summary = root.TryGetProperty("summary", out var summaryEl)

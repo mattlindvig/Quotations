@@ -231,6 +231,111 @@
   background-color: #dbeafe;
 }
 
+/* Tag autocomplete */
+.tag-autocomplete-wrapper {
+  position: relative;
+}
+
+.tag-autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin: 2px 0 0;
+  padding: 0.25rem 0;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  list-style: none;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tag-autocomplete-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  background: none;
+  border: none;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+}
+
+.tag-autocomplete-item:hover {
+  background-color: #eff6ff;
+  color: #1e40af;
+}
+
+/* Tag category browser */
+.tag-category-browser {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.tag-browser-label {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tag-category {
+  margin-bottom: 0.75rem;
+}
+
+.tag-category:last-child {
+  margin-bottom: 0;
+}
+
+.tag-category-name {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.tag-category-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.tag-category-item {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.8125rem;
+  color: #374151;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.tag-category-item:hover:not(:disabled) {
+  background-color: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+
+.tag-category-item.selected,
+.tag-category-item:disabled {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e40af;
+  cursor: default;
+  opacity: 0.7;
+}
+
 /* Form Actions */
 .form-actions {
   display: flex;

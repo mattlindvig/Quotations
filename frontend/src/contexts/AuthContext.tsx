@@ -51,17 +51,23 @@ function isTokenExpired(token: string): boolean {
   return exp * 1000 < Date.now();
 }
 
+// ASP.NET's JWT handler may use either the short form or the full Microsoft claim URL
+const MS_ROLE_CLAIM = 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role';
+const MS_NAME_CLAIM = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name';
+const MS_SUB_CLAIM  = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier';
+
 function userFromPayload(payload: Record<string, unknown>): User {
-  const roles = Array.isArray(payload.role)
-    ? (payload.role as string[])
-    : typeof payload.role === 'string'
-    ? [payload.role]
+  const roleClaim = payload['role'] ?? payload[MS_ROLE_CLAIM];
+  const roles = Array.isArray(roleClaim)
+    ? (roleClaim as string[])
+    : typeof roleClaim === 'string'
+    ? [roleClaim]
     : [];
 
   return {
-    id: (payload.sub as string) ?? '',
-    username: (payload.unique_name as string) ?? '',
-    displayName: (payload.displayName as string) ?? (payload.unique_name as string) ?? '',
+    id: ((payload.sub ?? payload[MS_SUB_CLAIM]) as string) ?? '',
+    username: ((payload.unique_name ?? payload[MS_NAME_CLAIM]) as string) ?? '',
+    displayName: (payload.displayName as string) ?? ((payload.unique_name ?? payload[MS_NAME_CLAIM]) as string) ?? '',
     roles,
   };
 }
@@ -103,7 +109,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           );
           if (response.success && response.data) {
             applyAuthResponse(response.data);
-            setUser(response.data.user);
+            const newPayload = decodeJwtPayload(response.data.token);
+            setUser(newPayload ? userFromPayload(newPayload) : response.data.user);
           } else {
             apiClient.clearTokens();
             setUser(null);

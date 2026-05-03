@@ -40,7 +40,7 @@ public class ChatService
     {
         _httpClient = httpClient;
         _quotationRepository = quotationRepository;
-        _apiKey = configuration["Anthropic:ApiKey"] ?? string.Empty;
+        _apiKey = (configuration["Anthropic:ApiKey"] ?? string.Empty).Trim();
         _logger = logger;
     }
 
@@ -78,11 +78,16 @@ public class ChatService
             request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
             var httpResponse = await _httpClient.SendAsync(request);
+            await httpResponse.Content.LoadIntoBufferAsync();
             var body = await httpResponse.Content.ReadAsStringAsync();
 
             if (!httpResponse.IsSuccessStatusCode)
             {
-                _logger.LogError("Anthropic API returned {Status}: {Body}", httpResponse.StatusCode, body);
+                _logger.LogError(
+                    "Anthropic API returned {Status} (Content-Type: {ContentType}): {Body}",
+                    (int)httpResponse.StatusCode,
+                    httpResponse.Content.Headers.ContentType?.ToString() ?? "unknown",
+                    string.IsNullOrWhiteSpace(body) ? "<empty body>" : body);
                 return new ChatResult("I encountered an error. Please try again.", new List<QuotationDto>());
             }
 

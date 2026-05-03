@@ -16,17 +16,20 @@ public class AiReviewDashboardController : ControllerBase
     private readonly IAiReviewErrorRepository _errors;
     private readonly AiReviewRuntimeSettings _runtimeSettings;
     private readonly AiReviewService _aiReviewService;
+    private readonly IAiReviewQueueService _queueService;
 
     public AiReviewDashboardController(
         IQuotationRepository quotations,
         IAiReviewErrorRepository errors,
         AiReviewRuntimeSettings runtimeSettings,
-        AiReviewService aiReviewService)
+        AiReviewService aiReviewService,
+        IAiReviewQueueService queueService)
     {
         _quotations = quotations;
         _errors = errors;
         _runtimeSettings = runtimeSettings;
         _aiReviewService = aiReviewService;
+        _queueService = queueService;
     }
 
     [HttpGet("stats")]
@@ -136,6 +139,43 @@ public class AiReviewDashboardController : ControllerBase
             success = true,
             data = new { autoProcessingEnabled = _runtimeSettings.AutoProcessingEnabled }
         });
+    }
+
+    /// <summary>
+    /// Add a specific quotation to the AI review queue (sets it to Pending for background processing).
+    /// </summary>
+    [HttpPost("queue/{quotationId}")]
+    public async Task<IActionResult> EnqueueOne(string quotationId)
+    {
+        var result = await _queueService.EnqueueAsync(quotationId);
+        if (!result.Success)
+            return BadRequest(new { success = false, message = result.Message });
+
+        return Ok(new { success = true, message = result.Message, data = new { quotationId = result.QuotationId } });
+    }
+
+    /// <summary>
+    /// Queue all quotations that have not yet been AI reviewed (NotReviewed status).
+    /// </summary>
+    [HttpPost("queue/all-unreviewed")]
+    public async Task<IActionResult> EnqueueAllUnreviewed()
+    {
+        var result = await _queueService.EnqueueAllUnreviewedAsync();
+        return Ok(new { success = true, message = result.Message, data = new { enqueued = result.Enqueued, skipped = result.Skipped } });
+    }
+
+    /// <summary>
+    /// Preview the exact request that would be sent to Anthropic for a given quotation, without executing it.
+    /// Useful for testing and debugging the prompt before committing API calls.
+    /// </summary>
+    [HttpGet("request-preview/{quotationId}")]
+    public async Task<IActionResult> GetRequestPreview(string quotationId)
+    {
+        var preview = await _queueService.GetRequestPreviewAsync(quotationId);
+        if (preview == null)
+            return NotFound(new { success = false, message = "Quotation not found" });
+
+        return Ok(new { success = true, data = preview });
     }
 
     /// <summary>

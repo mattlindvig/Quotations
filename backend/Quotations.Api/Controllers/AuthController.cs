@@ -171,13 +171,13 @@ public class AuthController : ControllerBase
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, user.Id),
-            new(ClaimTypes.Name, user.Username),
+            new(JwtRegisteredClaimNames.Sub, user.Id),
+            new("unique_name", user.Username),
             new("displayName", user.DisplayName),
         };
 
         foreach (var role in user.Roles)
-            claims.Add(new Claim(ClaimTypes.Role, role));
+            claims.Add(new Claim("role", role));
 
         var expirationMinutes = int.TryParse(jwtSettings["ExpirationMinutes"], out var mins) ? mins : 60;
 

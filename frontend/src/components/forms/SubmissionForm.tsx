@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { apiClient } from '../../services/apiClient';
 import type { SourceType, ApiResponse } from '../../types/quotation';
 import './SubmissionForm.css';
+
+interface CanonicalTagCategory {
+  category: string;
+  tags: string[];
+}
 
 interface SubmissionFormData {
   text: string;
@@ -37,6 +42,36 @@ export const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onCan
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [canonicalCategories, setCanonicalCategories] = useState<CanonicalTagCategory[]>([]);
+  const [autocompleteOpen, setAutocompleteOpen] = useState(false);
+  const tagInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    apiClient
+      .get<ApiResponse<CanonicalTagCategory[]>>('/tags/canonical')
+      .then((res) => setCanonicalCategories(res.data ?? []))
+      .catch(() => {});
+  }, []);
+
+  const allCanonicalTags = canonicalCategories.flatMap((c) => c.tags);
+
+  const autocompleteMatches =
+    tagInput.trim().length > 0
+      ? allCanonicalTags.filter(
+          (t) =>
+            t.includes(tagInput.trim().toLowerCase()) &&
+            !formData.tags.includes(t)
+        )
+      : [];
+
+  const handleSelectCanonicalTag = (tag: string) => {
+    if (!formData.tags.includes(tag) && formData.tags.length < 20) {
+      setFormData((prev) => ({ ...prev, tags: [...prev.tags, tag] }));
+    }
+    setTagInput('');
+    setAutocompleteOpen(false);
+    tagInputRef.current?.focus();
+  };
 
   const sourceTypes: SourceType[] = ['book', 'movie', 'speech', 'interview', 'other'];
 
@@ -56,10 +91,11 @@ export const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onCan
   };
 
   const handleAddTag = () => {
-    const tag = tagInput.trim();
+    const tag = tagInput.trim().toLowerCase();
     if (tag && !formData.tags.includes(tag) && formData.tags.length < 20) {
       setFormData((prev) => ({ ...prev, tags: [...prev.tags, tag] }));
       setTagInput('');
+      setAutocompleteOpen(false);
     }
   };
 
@@ -334,25 +370,49 @@ export const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onCan
           <label htmlFor="tagInput" className="form-label">
             Add Tags (Optional)
           </label>
-          <div className="tag-input-container">
-            <input
-              type="text"
-              id="tagInput"
-              className="form-input"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a tag and press Enter"
-              disabled={formData.tags.length >= 20}
-            />
-            <button
-              type="button"
-              onClick={handleAddTag}
-              className="tag-add-button"
-              disabled={!tagInput.trim() || formData.tags.length >= 20}
-            >
-              Add
-            </button>
+          <div className="tag-autocomplete-wrapper">
+            <div className="tag-input-container">
+              <input
+                ref={tagInputRef}
+                type="text"
+                id="tagInput"
+                className="form-input"
+                value={tagInput}
+                onChange={(e) => {
+                  setTagInput(e.target.value);
+                  setAutocompleteOpen(true);
+                }}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setAutocompleteOpen(true)}
+                onBlur={() => setTimeout(() => setAutocompleteOpen(false), 150)}
+                placeholder="Type to search tags or enter a custom one"
+                disabled={formData.tags.length >= 20}
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                onClick={handleAddTag}
+                className="tag-add-button"
+                disabled={!tagInput.trim() || formData.tags.length >= 20}
+              >
+                Add
+              </button>
+            </div>
+            {autocompleteOpen && autocompleteMatches.length > 0 && (
+              <ul className="tag-autocomplete-dropdown">
+                {autocompleteMatches.slice(0, 8).map((tag) => (
+                  <li key={tag}>
+                    <button
+                      type="button"
+                      className="tag-autocomplete-item"
+                      onMouseDown={() => handleSelectCanonicalTag(tag)}
+                    >
+                      {tag}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <span className="form-hint">Maximum 20 tags, up to 50 characters each</span>
         </div>
@@ -371,6 +431,30 @@ export const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onCan
                   ×
                 </button>
               </span>
+            ))}
+          </div>
+        )}
+
+        {canonicalCategories.length > 0 && formData.tags.length < 20 && (
+          <div className="tag-category-browser">
+            <p className="tag-browser-label">Browse by category</p>
+            {canonicalCategories.map((cat) => (
+              <div key={cat.category} className="tag-category">
+                <span className="tag-category-name">{cat.category}</span>
+                <div className="tag-category-tags">
+                  {cat.tags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      className={`tag-category-item ${formData.tags.includes(tag) ? 'selected' : ''}`}
+                      onClick={() => handleSelectCanonicalTag(tag)}
+                      disabled={formData.tags.includes(tag)}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}

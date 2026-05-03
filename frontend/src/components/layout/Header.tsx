@@ -24,6 +24,9 @@ const Header = () => {
           {(hasRole('Reviewer') || hasRole('Admin')) && (
             <Link to="/ai-review" className="nav-link">AI Status</Link>
           )}
+          {hasRole('Admin') && (
+            <Link to="/admin/users" className="nav-link">Users</Link>
+          )}
         </div>
 
         <div className="nav-user">

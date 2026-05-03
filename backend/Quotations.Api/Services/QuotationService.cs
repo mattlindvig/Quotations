@@ -202,7 +202,7 @@ public class QuotationService
                 Title = source.Title,
                 Type = source.Type
             },
-            Tags = request.Tags.Select(t => t.Trim()).ToList(),
+            Tags = request.Tags.Select(t => t.Trim().ToLowerInvariant()).Where(t => t.Length > 0).Distinct().ToList(),
             Status = QuotationStatus.Pending,
             SubmittedAt = DateTime.UtcNow
         };

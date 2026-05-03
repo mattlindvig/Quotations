@@ -12,6 +12,7 @@ import { LoginPage } from './pages/Login/LoginPage';
 import AiReviewDashboardPage from './pages/AiReviewDashboard/AiReviewDashboardPage';
 import { QuoteDetailPage } from './pages/Quote/QuoteDetailPage';
 import { ChatWidget } from './components/chat/ChatWidget';
+import { UserManagementPage } from './pages/Admin/UserManagementPage';
 import './App.css';
 
 function BrowsePageWrapper() {
@@ -36,6 +37,7 @@ function App() {
                 <Route path="/favorites" element={<FavoritesPage />} />
                 <Route path="/review" element={<ReviewQueuePage />} />
                 <Route path="/ai-review" element={<AiReviewDashboardPage />} />
+                <Route path="/admin/users" element={<UserManagementPage />} />
               </Routes>
             </main>
             <Footer />
