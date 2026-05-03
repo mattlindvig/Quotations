@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import type { SourceType } from '../types/quotation';
 
 export interface QuotationFilters {
-  authorId?: string;
+  authorName?: string;
   sourceType?: SourceType;
   tags?: string[];
 }

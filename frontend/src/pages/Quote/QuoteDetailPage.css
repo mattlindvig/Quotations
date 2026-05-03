@@ -1,0 +1,39 @@
+.quote-detail-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 16px;
+}
+
+.quote-detail-nav {
+  margin-bottom: 24px;
+}
+
+.back-link {
+  color: #1976d2;
+  text-decoration: none;
+  font-size: 0.9375rem;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.quote-detail-loading {
+  display: flex;
+  justify-content: center;
+  padding: 64px 0;
+}
+
+.quote-detail-error {
+  text-align: center;
+  padding: 64px 0;
+  color: #616161;
+}
+
+.quote-detail-error p {
+  margin-bottom: 16px;
+}
+
+.quote-detail-content {
+  max-width: 720px;
+}

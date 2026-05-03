@@ -31,6 +31,17 @@ public class QuotationsController : ControllerBase
     /// <param name="sourceType">Filter by source type (optional)</param>
     /// <param name="tags">Filter by tags (comma-separated, optional)</param>
     /// <returns>Paginated list of quotations</returns>
+    /// <summary>
+    /// Get distinct author names from quotations (ordered by usage count)
+    /// </summary>
+    [HttpGet("authors")]
+    [ProducesResponseType(typeof(ApiResponse<List<string>>), 200)]
+    public async Task<ActionResult<ApiResponse<List<string>>>> GetAuthorNames([FromQuery] int limit = 500)
+    {
+        var names = await _quotationService.GetDistinctAuthorNamesAsync(limit);
+        return Ok(new ApiResponse<List<string>> { Data = names, Success = true });
+    }
+
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PaginatedQuotationsResponse>), 200)]
     public async Task<ActionResult<ApiResponse<PaginatedQuotationsResponse>>> GetQuotations(
@@ -38,6 +49,7 @@ public class QuotationsController : ControllerBase
         [FromQuery] int pageSize = 20,
         [FromQuery] string? status = null,
         [FromQuery] string? authorId = null,
+        [FromQuery] string? authorName = null,
         [FromQuery] string? sourceType = null,
         [FromQuery] string? tags = null)
     {
@@ -63,7 +75,7 @@ public class QuotationsController : ControllerBase
         }
 
         var result = await _quotationService.GetQuotationsAsync(
-            page, pageSize, statusFilter, authorId, sourceTypeFilter, tagsList);
+            page, pageSize, statusFilter, authorId, authorName, sourceTypeFilter, tagsList);
 
         return Ok(new ApiResponse<PaginatedQuotationsResponse>
         {

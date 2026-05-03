@@ -128,6 +128,7 @@ builder.Services.AddScoped<IAuthorRepository, AuthorRepository>();
 builder.Services.AddScoped<ISourceRepository, SourceRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAiReviewErrorRepository, AiReviewErrorRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<QuotationService>();
 
@@ -135,6 +136,7 @@ builder.Services.AddScoped<QuotationService>();
 builder.Services.Configure<AiReviewOptions>(builder.Configuration.GetSection("AiReview"));
 builder.Services.AddHttpClient<IAnthropicService, AnthropicService>();
 builder.Services.AddScoped<AiReviewService>();
+builder.Services.AddSingleton(new AiReviewRuntimeSettings());
 builder.Services.AddHostedService<AiReviewBackgroundService>();
 
 // Configure JWT Authentication (using custom implementation, not ASP.NET Identity)

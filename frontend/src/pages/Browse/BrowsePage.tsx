@@ -1,10 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuotations } from '../../hooks/useQuotations';
 import { useSearch } from '../../hooks/useSearch';
 import { useFilters, type QuotationFilters } from '../../hooks/useFilters';
 import { QuotationList } from '../../components/quotations/QuotationList';
-import { PaginationControls } from '../../components/quotations/PaginationControls';
 import { SearchBar } from '../../components/quotations/SearchBar';
 import { FilterPanel } from '../../components/quotations/FilterPanel';
 import { SurpriseModal } from '../../components/quotations/SurpriseModal';
@@ -21,12 +20,12 @@ export const BrowsePage: React.FC = () => {
 
   const initialQuery = searchParams.get('q') || '';
   const initialPage = parseInt(searchParams.get('page') || '1');
-  const initialAuthorId = searchParams.get('authorId') || undefined;
+  const initialAuthorName = searchParams.get('authorName') || undefined;
   const initialSourceType = searchParams.get('sourceType') as SourceType | undefined;
   const initialTags = searchParams.get('tags')?.split(',').filter(Boolean) || undefined;
 
   const initialFilters: QuotationFilters = {
-    authorId: initialAuthorId,
+    authorName: initialAuthorName,
     sourceType: initialSourceType,
     tags: initialTags,
   };
@@ -38,9 +37,7 @@ export const BrowsePage: React.FC = () => {
     error: browseError,
     pagination: browsePagination,
     fetchQuotations,
-    goToPage: browsePage,
     nextPage: browseNextPage,
-    previousPage: browsePreviousPage,
   } = useQuotations({ status: 'approved', page: initialPage, pageSize: 20, ...filters });
 
   const {
@@ -59,6 +56,38 @@ export const BrowsePage: React.FC = () => {
   const error = activeMode === 'search' ? searchError : browseError;
   const pagination = activeMode === 'search' ? searchPagination : browsePagination;
   const hasResults = quotations.length > 0;
+
+  // Refs so the IntersectionObserver callback always reads current values
+  // without needing to reconnect the observer on every render.
+  const loadingRef = useRef(loading);
+  const paginationRef = useRef(pagination);
+  loadingRef.current = loading;
+  paginationRef.current = pagination;
+
+  const handleNextPage = useCallback(() => {
+    if (activeMode === 'browse') browseNextPage();
+    else if (paginationRef.current?.hasNext)
+      searchPage((paginationRef.current.page ?? 1) + 1);
+  }, [activeMode, browseNextPage, searchPage]);
+
+  // Infinite scroll sentinel
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !loadingRef.current && paginationRef.current?.hasNext) {
+          handleNextPage();
+        }
+      },
+      { rootMargin: '400px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [handleNextPage]);
 
   useEffect(() => {
     if (initialQuery) {
@@ -85,13 +114,11 @@ export const BrowsePage: React.FC = () => {
     (newFilters: QuotationFilters) => {
       setFilters(newFilters);
       if (activeMode === 'browse') {
-        // Explicitly reset every filter field first so cleared selections don't
-        // persist in the ref that useQuotations merges against.
         fetchQuotations({
           status: 'approved',
           page: 1,
           pageSize: 20,
-          authorId: undefined,
+          authorName: undefined,
           sourceType: undefined,
           tags: undefined,
           ...newFilters,
@@ -100,24 +127,6 @@ export const BrowsePage: React.FC = () => {
     },
     [setFilters, fetchQuotations, activeMode]
   );
-
-  const handlePageChange = useCallback(
-    (page: number) => {
-      if (activeMode === 'search') searchPage(page);
-      else browsePage(page);
-    },
-    [activeMode, searchPage, browsePage]
-  );
-
-  const handleNextPage = useCallback(() => {
-    if (activeMode === 'browse') browseNextPage();
-    else if (pagination?.hasNext) searchPage(pagination.page + 1);
-  }, [activeMode, browseNextPage, searchPage, pagination]);
-
-  const handlePreviousPage = useCallback(() => {
-    if (activeMode === 'browse') browsePreviousPage();
-    else if (pagination?.hasPrevious) searchPage(pagination.page - 1);
-  }, [activeMode, browsePreviousPage, searchPage, pagination]);
 
   const fetchSurprise = useCallback(async () => {
     setSurpriseLoading(true);
@@ -173,7 +182,7 @@ export const BrowsePage: React.FC = () => {
           {!loading && !hasResults && !error && (
             <div className="empty-state" role="status">
               <p>No quotations found matching your criteria.</p>
-              {(searchQuery || filters.authorId || filters.sourceType || filters.tags?.length) && (
+              {(searchQuery || filters.authorName || filters.sourceType || filters.tags?.length) && (
                 <button
                   className="clear-all-button"
                   onClick={() => {
@@ -201,16 +210,23 @@ export const BrowsePage: React.FC = () => {
             </div>
           )}
 
-          {!error && hasResults && (
+          {!error && (
             <>
-              <QuotationList quotations={quotations} loading={loading} />
-              {!loading && pagination && (
-                <PaginationControls
-                  pagination={pagination}
-                  onPageChange={handlePageChange}
-                  onPrevious={handlePreviousPage}
-                  onNext={handleNextPage}
-                />
+              {/* Show initial-load spinner before any results arrive */}
+              <QuotationList quotations={quotations} loading={loading && !hasResults} />
+
+              {/* Load-more spinner shown while fetching additional pages */}
+              {loading && hasResults && (
+                <div className="load-more-spinner" aria-label="Loading more quotations">
+                  <div className="loading-spinner" />
+                </div>
+              )}
+
+              {/* Sentinel — IntersectionObserver watches this to trigger next page */}
+              <div ref={sentinelRef} style={{ height: 1 }} />
+
+              {!loading && pagination && !pagination.hasNext && hasResults && (
+                <p className="end-of-results">All {pagination.totalCount.toLocaleString()} quotations loaded</p>
               )}
             </>
           )}

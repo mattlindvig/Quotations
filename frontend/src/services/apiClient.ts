@@ -1,9 +1,17 @@
-import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
+import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
 
+interface RefreshResponse {
+  success: boolean;
+  data?: { token: string; refreshToken: string };
+}
+
 class ApiClient {
   private client: AxiosInstance;
+  private isRefreshing = false;
+  private refreshSubscribers: Array<(token: string) => void> = [];
+  private failSubscribers: Array<() => void> = [];
 
   constructor() {
     this.client = axios.create({
@@ -26,18 +34,79 @@ class ApiClient {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor for error handling
+    // Response interceptor: silently refresh on 401, retry, redirect only if refresh fails
     this.client.interceptors.response.use(
       (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          // Clear token and redirect to login
-          localStorage.removeItem('authToken');
-          window.location.href = '/login';
+      async (error) => {
+        const originalRequest: InternalAxiosRequestConfig & { _retry?: boolean } = error.config;
+
+        // Don't retry refresh or login endpoints to avoid infinite loops
+        const isAuthEndpoint =
+          originalRequest?.url?.includes('/auth/refresh') ||
+          originalRequest?.url?.includes('/auth/login') ||
+          originalRequest?.url?.includes('/auth/register');
+
+        if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+          originalRequest._retry = true;
+
+          const refreshToken = localStorage.getItem('refreshToken');
+          if (!refreshToken) {
+            this.redirectToLogin();
+            return Promise.reject(error);
+          }
+
+          if (this.isRefreshing) {
+            // Queue this request until the ongoing refresh completes
+            return new Promise((resolve, reject) => {
+              this.refreshSubscribers.push((newToken) => {
+                originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                resolve(this.client(originalRequest));
+              });
+              this.failSubscribers.push(() => reject(error));
+            });
+          }
+
+          this.isRefreshing = true;
+
+          try {
+            const response = await axios.post<RefreshResponse>(
+              `${API_BASE_URL}/auth/refresh`,
+              { refreshToken },
+              { headers: { 'Content-Type': 'application/json' } }
+            );
+
+            const data = response.data?.data;
+            if (!data?.token) throw new Error('No token in refresh response');
+
+            localStorage.setItem('authToken', data.token);
+            localStorage.setItem('refreshToken', data.refreshToken);
+
+            this.refreshSubscribers.forEach((cb) => cb(data.token));
+            this.refreshSubscribers = [];
+            this.failSubscribers = [];
+            this.isRefreshing = false;
+
+            originalRequest.headers.Authorization = `Bearer ${data.token}`;
+            return this.client(originalRequest);
+          } catch {
+            this.failSubscribers.forEach((cb) => cb());
+            this.refreshSubscribers = [];
+            this.failSubscribers = [];
+            this.isRefreshing = false;
+            this.redirectToLogin();
+            return Promise.reject(error);
+          }
         }
+
         return Promise.reject(error);
       }
     );
+  }
+
+  private redirectToLogin() {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
+    window.location.href = '/login';
   }
 
   async get<T>(url: string, config?: any): Promise<T> {
@@ -64,8 +133,18 @@ class ApiClient {
     localStorage.setItem('authToken', token);
   }
 
-  clearAuthToken(): void {
+  setRefreshToken(token: string): void {
+    localStorage.setItem('refreshToken', token);
+  }
+
+  clearTokens(): void {
     localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
+  }
+
+  /** @deprecated Use clearTokens() */
+  clearAuthToken(): void {
+    this.clearTokens();
   }
 }
 

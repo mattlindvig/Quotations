@@ -24,8 +24,14 @@ public interface IQuotationRepository
         int pageSize = 20,
         QuotationStatus? status = null,
         string? authorId = null,
+        string? authorName = null,
         SourceType? sourceType = null,
         List<string>? tags = null);
+
+    /// <summary>
+    /// Get distinct author names from quotations, ordered by usage count descending
+    /// </summary>
+    Task<List<string>> GetDistinctAuthorNamesAsync(int limit = 500);
 
     /// <summary>
     /// Get a single quotation by ID
@@ -83,7 +89,7 @@ public interface IQuotationRepository
     /// </summary>
     /// <param name="limit">Maximum number of tags to return (optional)</param>
     /// <returns>List of tags with their usage counts</returns>
-    Task<List<(string Tag, int Count)>> GetTagsWithCountsAsync(int? limit = null);
+    Task<List<(string Tag, int Count)>> GetTagsWithCountsAsync(int? limit = null, string? authorName = null, SourceType? sourceType = null);
 
     /// <summary>
     /// Find potential duplicate quotations

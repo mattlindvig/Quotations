@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -10,8 +11,11 @@ using Quotations.Api.Repositories;
 
 namespace Quotations.Api.Controllers;
 
+public record RefreshRequest(string RefreshToken);
+public record LogoutRequest(string? RefreshToken);
+
 /// <summary>
-/// Handles user registration and login, issuing JWT tokens on success.
+/// Handles user registration, login, token refresh, and logout.
 /// </summary>
 [ApiController]
 [Route("api/v1/auth")]
@@ -20,15 +24,18 @@ public class AuthController : ControllerBase
     private readonly IUserRepository _userRepository;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly IConfiguration _configuration;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
 
     public AuthController(
         IUserRepository userRepository,
         IPasswordHasher<User> passwordHasher,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IRefreshTokenRepository refreshTokenRepository)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _configuration = configuration;
+        _refreshTokenRepository = refreshTokenRepository;
     }
 
     /// <summary>
@@ -70,9 +77,10 @@ public class AuthController : ControllerBase
         await _userRepository.CreateAsync(user);
 
         var token = GenerateJwtToken(user);
+        var refreshToken = await IssueRefreshTokenAsync(user.Id);
         return CreatedAtAction(
             nameof(Register),
-            ApiResponse<AuthResponse>.SuccessResponse(BuildAuthResponse(token, user), "Registration successful."));
+            ApiResponse<AuthResponse>.SuccessResponse(BuildAuthResponse(token, refreshToken, user), "Registration successful."));
     }
 
     /// <summary>
@@ -95,7 +103,61 @@ public class AuthController : ControllerBase
             return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid username or password."));
 
         var token = GenerateJwtToken(user);
-        return Ok(ApiResponse<AuthResponse>.SuccessResponse(BuildAuthResponse(token, user)));
+        var refreshToken = await IssueRefreshTokenAsync(user.Id);
+        return Ok(ApiResponse<AuthResponse>.SuccessResponse(BuildAuthResponse(token, refreshToken, user)));
+    }
+
+    /// <summary>
+    /// Exchange a valid refresh token for a new access token and rotated refresh token.
+    /// </summary>
+    [HttpPost("refresh")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 401)]
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> Refresh([FromBody] RefreshRequest request)
+    {
+        var existing = await _refreshTokenRepository.FindByTokenAsync(request.RefreshToken);
+        if (existing is null)
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or expired refresh token."));
+
+        var user = await _userRepository.GetByIdAsync(existing.UserId);
+        if (user is null || !user.IsActive)
+            return Unauthorized(ApiResponse<object>.ErrorResponse("User not found or inactive."));
+
+        await _refreshTokenRepository.RevokeAsync(existing.Token);
+
+        var newAccessToken = GenerateJwtToken(user);
+        var newRefreshToken = await IssueRefreshTokenAsync(user.Id);
+        return Ok(ApiResponse<AuthResponse>.SuccessResponse(BuildAuthResponse(newAccessToken, newRefreshToken, user)));
+    }
+
+    /// <summary>
+    /// Revoke the current refresh token, ending the persistent session on this device.
+    /// </summary>
+    [HttpPost("logout")]
+    [ProducesResponseType(typeof(ApiResponse<object>), 200)]
+    public async Task<ActionResult<ApiResponse<object>>> Logout([FromBody] LogoutRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.RefreshToken))
+            await _refreshTokenRepository.RevokeAsync(request.RefreshToken);
+
+        return Ok(ApiResponse<object>.SuccessResponse(null, "Logged out successfully."));
+    }
+
+    private async Task<string> IssueRefreshTokenAsync(string userId)
+    {
+        var tokenBytes = new byte[64];
+        RandomNumberGenerator.Fill(tokenBytes);
+        var tokenValue = Convert.ToBase64String(tokenBytes);
+
+        var refreshToken = new RefreshToken
+        {
+            Token = tokenValue,
+            UserId = userId,
+            ExpiresAt = DateTime.UtcNow.AddDays(30),
+        };
+
+        await _refreshTokenRepository.CreateAsync(refreshToken);
+        return tokenValue;
     }
 
     private string GenerateJwtToken(User user)
@@ -129,9 +191,10 @@ public class AuthController : ControllerBase
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private static AuthResponse BuildAuthResponse(string token, User user) => new()
+    private static AuthResponse BuildAuthResponse(string token, string refreshToken, User user) => new()
     {
         Token = token,
+        RefreshToken = refreshToken,
         User = new UserDto
         {
             Id = user.Id,

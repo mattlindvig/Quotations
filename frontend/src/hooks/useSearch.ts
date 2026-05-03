@@ -38,6 +38,7 @@ export function useSearch(): UseSearchResult {
       return;
     }
 
+    const isNewQuery = page <= 1;
     setSearchQuery(query);
     setSearchLoading(true);
     setSearchError(null);
@@ -55,18 +56,20 @@ export function useSearch(): UseSearchResult {
       );
 
       if (response.success && response.data) {
-        setSearchResults(response.data.items);
+        setSearchResults((prev) =>
+          isNewQuery ? response.data!.items : [...prev, ...response.data!.items]
+        );
         setPagination(response.data.pagination);
       } else {
         setSearchError('Failed to search quotations');
-        setSearchResults([]);
+        if (isNewQuery) setSearchResults([]);
         setPagination(null);
       }
     } catch (err) {
       setSearchError(
         err instanceof Error ? err.message : 'An error occurred while searching quotations'
       );
-      setSearchResults([]);
+      if (isNewQuery) setSearchResults([]);
       setPagination(null);
     } finally {
       setSearchLoading(false);

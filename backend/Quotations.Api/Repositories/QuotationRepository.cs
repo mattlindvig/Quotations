@@ -28,6 +28,7 @@ public class QuotationRepository : IQuotationRepository
         int pageSize = 20,
         QuotationStatus? status = null,
         string? authorId = null,
+        string? authorName = null,
         SourceType? sourceType = null,
         List<string>? tags = null)
     {
@@ -44,8 +45,12 @@ public class QuotationRepository : IQuotationRepository
             filters.Add(filterBuilder.Eq(q => q.Status, QuotationStatus.Approved));
         }
 
-        // Apply author filter
-        if (!string.IsNullOrEmpty(authorId))
+        // Apply author filter — prefer name (works for imported quotes with empty id)
+        if (!string.IsNullOrEmpty(authorName))
+        {
+            filters.Add(filterBuilder.Eq(q => q.Author.Name, authorName));
+        }
+        else if (!string.IsNullOrEmpty(authorId))
         {
             filters.Add(filterBuilder.Eq(q => q.Author.Id, authorId));
         }
@@ -177,12 +182,17 @@ public class QuotationRepository : IQuotationRepository
         return count > 0;
     }
 
-    public async Task<List<(string Tag, int Count)>> GetTagsWithCountsAsync(int? limit = null)
+    public async Task<List<(string Tag, int Count)>> GetTagsWithCountsAsync(int? limit = null, string? authorName = null, SourceType? sourceType = null)
     {
+        var matchDoc = new BsonDocument("status", "Approved");
+        if (!string.IsNullOrEmpty(authorName))
+            matchDoc.Add("author.name", authorName);
+        if (sourceType.HasValue)
+            matchDoc.Add("source.type", sourceType.Value.ToString().ToLowerInvariant());
+
         var pipelineStages = new List<BsonDocument>
         {
-            // Match only approved quotations
-            new BsonDocument("$match", new BsonDocument("status", "Approved")),
+            new BsonDocument("$match", matchDoc),
             // Unwind tags array
             new BsonDocument("$unwind", "$tags"),
             // Group by tag and count
@@ -356,6 +366,28 @@ public class QuotationRepository : IQuotationRepository
 
         var result = await _quotations.UpdateManyAsync(filter, update);
         return result.ModifiedCount;
+    }
+
+    public async Task<List<string>> GetDistinctAuthorNamesAsync(int limit = 500)
+    {
+        var pipeline = new[]
+        {
+            new BsonDocument("$match", new BsonDocument("author.name", new BsonDocument("$ne", ""))),
+            new BsonDocument("$group", new BsonDocument
+            {
+                { "_id", "$author.name" },
+                { "count", new BsonDocument("$sum", 1) }
+            }),
+            new BsonDocument("$sort", new BsonDocument("count", -1)),
+            new BsonDocument("$limit", limit),
+            new BsonDocument("$project", new BsonDocument { { "_id", 0 }, { "name", "$_id" } })
+        };
+
+        var results = await _quotations.Aggregate<BsonDocument>(pipeline).ToListAsync();
+        return results
+            .Where(doc => doc.Contains("name") && doc["name"] != BsonNull.Value)
+            .Select(doc => doc["name"].AsString)
+            .ToList();
     }
 
     /// <summary>

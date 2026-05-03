@@ -37,11 +37,17 @@ public class QuotationService
     /// <summary>
     /// Get paginated list of quotations with optional filters
     /// </summary>
+    public async Task<List<string>> GetDistinctAuthorNamesAsync(int limit = 500)
+    {
+        return await _quotationRepository.GetDistinctAuthorNamesAsync(limit);
+    }
+
     public async Task<PaginatedQuotationsResponse> GetQuotationsAsync(
         int page = 1,
         int pageSize = 20,
         QuotationStatus? status = null,
         string? authorId = null,
+        string? authorName = null,
         SourceType? sourceType = null,
         List<string>? tags = null)
     {
@@ -51,7 +57,7 @@ public class QuotationService
         if (pageSize > 100) pageSize = 100; // Max page size limit
 
         var (items, totalCount) = await _quotationRepository.GetQuotationsAsync(
-            page, pageSize, status, authorId, sourceType, tags);
+            page, pageSize, status, authorId, authorName, sourceType, tags);
 
         return new PaginatedQuotationsResponse
         {
@@ -285,7 +291,7 @@ public class QuotationService
         if (pageSize > 100) pageSize = 100;
 
         var (items, totalCount) = await _quotationRepository.GetQuotationsAsync(
-            page, pageSize, QuotationStatus.Pending, null, null, null);
+            page, pageSize, QuotationStatus.Pending, null, null, null, null);
 
         return new PaginatedQuotationsResponse
         {

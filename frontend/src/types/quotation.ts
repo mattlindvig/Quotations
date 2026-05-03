@@ -80,6 +80,7 @@ export interface QuotationFilters {
   pageSize?: number;
   status?: QuotationStatus;
   authorId?: string;
+  authorName?: string;
   sourceType?: SourceType;
   tags?: string[];
 }

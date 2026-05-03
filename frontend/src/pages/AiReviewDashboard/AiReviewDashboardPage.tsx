@@ -59,20 +59,24 @@ export default function AiReviewDashboardPage() {
   const [errors, setErrors] = useState<AiReviewError[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [requeueing, setRequeueing] = useState<string | null>(null);
+  const [autoProcessing, setAutoProcessing] = useState(true);
+  const [togglingAuto, setTogglingAuto] = useState(false);
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [statsRes, recentRes, errorsRes] = await Promise.all([
+      const [statsRes, recentRes, errorsRes, settingsRes] = await Promise.all([
         apiClient.get<any>('/ai-review/stats'),
         apiClient.get<any>('/ai-review/recent?limit=20'),
         apiClient.get<any>('/ai-review/errors?page=1&pageSize=20'),
+        apiClient.get<any>('/ai-review/settings'),
       ]);
       setStats(statsRes.data);
       setRecent(recentRes.data);
       setErrors(errorsRes.data.items);
+      setAutoProcessing(settingsRes.data.autoProcessingEnabled);
     } catch (e: any) {
       setError(e.message || 'Failed to load AI review data');
     } finally {
@@ -82,23 +86,45 @@ export default function AiReviewDashboardPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const toggleAutoProcessing = useCallback(async () => {
+    setTogglingAuto(true);
+    try {
+      const res = await apiClient.post<any>('/ai-review/settings/auto-processing', {
+        enabled: !autoProcessing,
+      });
+      setAutoProcessing(res.data.autoProcessingEnabled);
+    } finally {
+      setTogglingAuto(false);
+    }
+  }, [autoProcessing]);
+
+  const processNow = useCallback(async (quotationId: string) => {
+    setActionInProgress(quotationId);
+    try {
+      await apiClient.post(`/ai-review/process/${quotationId}`);
+      await load();
+    } finally {
+      setActionInProgress(null);
+    }
+  }, [load]);
+
   const requeueOne = useCallback(async (quotationId: string) => {
-    setRequeueing(quotationId);
+    setActionInProgress(`requeue-${quotationId}`);
     try {
       await apiClient.post(`/ai-review/errors/${quotationId}/requeue`);
       await load();
     } finally {
-      setRequeueing(null);
+      setActionInProgress(null);
     }
   }, [load]);
 
   const requeueAll = useCallback(async () => {
-    setRequeueing('all');
+    setActionInProgress('all');
     try {
       await apiClient.post('/ai-review/errors/requeue-all');
       await load();
     } finally {
-      setRequeueing(null);
+      setActionInProgress(null);
     }
   }, [load]);
 
@@ -108,22 +134,74 @@ export default function AiReviewDashboardPage() {
 
   const reviewed = stats.counts['Reviewed'] ?? 0;
   const progressPct = stats.total > 0 ? Math.round((reviewed / stats.total) * 100) : 0;
+  const busy = actionInProgress !== null || togglingAuto;
 
   return (
     <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0 }}>AI Review Dashboard</h1>
           <p style={{ margin: '0.25rem 0 0', color: '#6c757d' }}>
             Background AI review status and activity log
           </p>
         </div>
-        <button
-          onClick={load}
-          style={{ padding: '0.5rem 1rem', cursor: 'pointer' }}
-        >
-          Refresh
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          {/* Auto-processing toggle */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.6rem',
+            padding: '0.5rem 0.85rem',
+            border: '1px solid #dee2e6',
+            borderRadius: '6px',
+            background: '#fff',
+          }}>
+            <span style={{ fontSize: '0.85rem', color: '#495057', whiteSpace: 'nowrap' }}>
+              Auto-processing
+            </span>
+            <button
+              onClick={toggleAutoProcessing}
+              disabled={togglingAuto}
+              title={autoProcessing ? 'Click to disable auto-processing' : 'Click to enable auto-processing'}
+              style={{
+                position: 'relative',
+                width: '40px',
+                height: '22px',
+                borderRadius: '11px',
+                border: 'none',
+                background: autoProcessing ? '#198754' : '#adb5bd',
+                cursor: togglingAuto ? 'not-allowed' : 'pointer',
+                transition: 'background 0.2s',
+                padding: 0,
+                flexShrink: 0,
+              }}
+            >
+              <span style={{
+                position: 'absolute',
+                top: '3px',
+                left: autoProcessing ? '21px' : '3px',
+                width: '16px',
+                height: '16px',
+                borderRadius: '50%',
+                background: '#fff',
+                transition: 'left 0.2s',
+              }} />
+            </button>
+            <span style={{
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              color: autoProcessing ? '#198754' : '#6c757d',
+              minWidth: '36px',
+            }}>
+              {autoProcessing ? 'On' : 'Off'}
+            </span>
+          </div>
+
+          <button onClick={load} disabled={busy} style={{ padding: '0.5rem 1rem', cursor: busy ? 'not-allowed' : 'pointer' }}>
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Status cards */}
@@ -209,6 +287,7 @@ export default function AiReviewDashboardPage() {
                 <th style={{ ...th, textAlign: 'center' }}>Attr.</th>
                 <th style={{ ...th, textAlign: 'center' }}>Source</th>
                 <th style={th}>Reviewed At</th>
+                <th style={th}></th>
               </tr>
             </thead>
             <tbody>
@@ -220,6 +299,16 @@ export default function AiReviewDashboardPage() {
                   <td style={{ ...td, textAlign: 'center' }}><ScoreBadge score={r.scores.attribution} /></td>
                   <td style={{ ...td, textAlign: 'center' }}><ScoreBadge score={r.scores.source} /></td>
                   <td style={{ ...td, whiteSpace: 'nowrap', color: '#6c757d' }}>{formatDate(r.reviewedAt)}</td>
+                  <td style={td}>
+                    <button
+                      onClick={() => processNow(r.quotationId)}
+                      disabled={busy}
+                      title="Re-run AI review immediately"
+                      style={smallBtn('#0d6efd', busy)}
+                    >
+                      {actionInProgress === r.quotationId ? '…' : 'Re-run'}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -247,19 +336,10 @@ export default function AiReviewDashboardPage() {
         {errors.length > 0 && (
           <button
             onClick={requeueAll}
-            disabled={requeueing !== null}
-            style={{
-              padding: '0.35rem 0.9rem',
-              background: '#dc3545',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: requeueing !== null ? 'not-allowed' : 'pointer',
-              fontSize: '0.85rem',
-              opacity: requeueing !== null ? 0.7 : 1,
-            }}
+            disabled={busy}
+            style={smallBtn('#dc3545', busy)}
           >
-            {requeueing === 'all' ? 'Requeueing…' : 'Requeue All'}
+            {actionInProgress === 'all' ? 'Requeueing…' : 'Requeue All'}
           </button>
         )}
       </div>
@@ -286,19 +366,25 @@ export default function AiReviewDashboardPage() {
                   <td style={{ ...td, color: '#dc3545', maxWidth: '300px', fontFamily: 'monospace', fontSize: '0.8rem' }}>{e.lastError}</td>
                   <td style={{ ...td, textAlign: 'center' }}>{e.retryCount}</td>
                   <td style={{ ...td, whiteSpace: 'nowrap', color: '#6c757d' }}>{formatDate(e.failedAt)}</td>
-                  <td style={td}>
-                    <button
-                      onClick={() => requeueOne(e.quotationId)}
-                      disabled={requeueing !== null}
-                      style={{
-                        padding: '0.25rem 0.6rem',
-                        fontSize: '0.8rem',
-                        cursor: requeueing !== null ? 'not-allowed' : 'pointer',
-                        opacity: requeueing !== null ? 0.7 : 1,
-                      }}
-                    >
-                      {requeueing === e.quotationId ? '…' : 'Requeue'}
-                    </button>
+                  <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button
+                        onClick={() => processNow(e.quotationId)}
+                        disabled={busy}
+                        title="Process this quotation immediately"
+                        style={smallBtn('#198754', busy)}
+                      >
+                        {actionInProgress === e.quotationId ? '…' : 'Process Now'}
+                      </button>
+                      <button
+                        onClick={() => requeueOne(e.quotationId)}
+                        disabled={busy}
+                        title="Reset and add back to the automatic queue"
+                        style={smallBtn('#6c757d', busy)}
+                      >
+                        {actionInProgress === `requeue-${e.quotationId}` ? '…' : 'Requeue'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -309,6 +395,18 @@ export default function AiReviewDashboardPage() {
     </div>
   );
 }
+
+const smallBtn = (color: string, disabled: boolean): React.CSSProperties => ({
+  padding: '0.25rem 0.6rem',
+  fontSize: '0.8rem',
+  background: color,
+  color: '#fff',
+  border: 'none',
+  borderRadius: '4px',
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  opacity: disabled ? 0.65 : 1,
+  whiteSpace: 'nowrap',
+});
 
 const th: React.CSSProperties = {
   padding: '0.6rem 0.75rem',

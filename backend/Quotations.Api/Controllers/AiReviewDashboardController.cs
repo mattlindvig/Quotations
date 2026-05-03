@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Quotations.Api.Configuration;
 using Quotations.Api.Models;
 using Quotations.Api.Repositories;
+using Quotations.Api.Services;
 
 namespace Quotations.Api.Controllers;
 
@@ -12,13 +14,19 @@ public class AiReviewDashboardController : ControllerBase
 {
     private readonly IQuotationRepository _quotations;
     private readonly IAiReviewErrorRepository _errors;
+    private readonly AiReviewRuntimeSettings _runtimeSettings;
+    private readonly AiReviewService _aiReviewService;
 
     public AiReviewDashboardController(
         IQuotationRepository quotations,
-        IAiReviewErrorRepository errors)
+        IAiReviewErrorRepository errors,
+        AiReviewRuntimeSettings runtimeSettings,
+        AiReviewService aiReviewService)
     {
         _quotations = quotations;
         _errors = errors;
+        _runtimeSettings = runtimeSettings;
+        _aiReviewService = aiReviewService;
     }
 
     [HttpGet("stats")]
@@ -74,6 +82,64 @@ public class AiReviewDashboardController : ControllerBase
         return Ok(new { success = true, data = items });
     }
 
+    [HttpGet("settings")]
+    public IActionResult GetSettings()
+    {
+        return Ok(new
+        {
+            success = true,
+            data = new { autoProcessingEnabled = _runtimeSettings.AutoProcessingEnabled }
+        });
+    }
+
+    [HttpPost("settings/auto-processing")]
+    public IActionResult SetAutoProcessing([FromBody] SetAutoProcessingRequest request)
+    {
+        _runtimeSettings.AutoProcessingEnabled = request.Enabled;
+        return Ok(new
+        {
+            success = true,
+            data = new { autoProcessingEnabled = _runtimeSettings.AutoProcessingEnabled }
+        });
+    }
+
+    /// <summary>
+    /// Immediately run AI review on a specific quotation (resets + processes synchronously).
+    /// </summary>
+    [HttpPost("process/{quotationId}")]
+    public async Task<IActionResult> ProcessNow(string quotationId)
+    {
+        var quotation = await _quotations.GetQuotationByIdAsync(quotationId);
+        if (quotation == null)
+            return NotFound(new { success = false, message = "Quotation not found" });
+
+        // Clear any prior error record and reset so ReviewQuotationAsync starts fresh
+        await _errors.DeleteByQuotationIdAsync(quotationId);
+        quotation.AiReview ??= new AiReview();
+        quotation.AiReview.Status = AiReviewStatus.NotReviewed;
+        quotation.AiReview.RetryCount = 0;
+        quotation.AiReview.FailureReason = null;
+        await _quotations.UpdateQuotationAsync(quotation);
+
+        await _aiReviewService.ReviewQuotationAsync(quotation);
+
+        var updated = await _quotations.GetQuotationByIdAsync(quotationId);
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                status = updated?.AiReview?.Status.ToString(),
+                scores = updated?.AiReview == null ? null : new
+                {
+                    quoteAccuracy = updated.AiReview.QuoteAccuracy?.Score,
+                    attribution = updated.AiReview.AttributionAccuracy?.Score,
+                    source = updated.AiReview.SourceAccuracy?.Score,
+                }
+            }
+        });
+    }
+
     [HttpPost("errors/{quotationId}/requeue")]
     public async Task<IActionResult> RequeueOne(string quotationId)
     {
@@ -125,3 +191,5 @@ public class AiReviewDashboardController : ControllerBase
         });
     }
 }
+
+public record SetAutoProcessingRequest(bool Enabled);

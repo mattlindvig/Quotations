@@ -12,6 +12,7 @@ interface User {
 
 interface AuthResponse {
   token: string;
+  refreshToken: string;
   user: User;
 }
 
@@ -33,8 +34,6 @@ export const useAuth = () => {
   return context;
 };
 
-// Decode a JWT payload without verifying the signature.
-// Verification still happens on the backend for every protected request.
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const base64Payload = token.split('.')[1];
@@ -45,10 +44,14 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
-function userFromPayload(payload: Record<string, unknown>): User | null {
+function isTokenExpired(token: string): boolean {
+  const payload = decodeJwtPayload(token);
+  if (!payload) return true;
   const exp = typeof payload.exp === 'number' ? payload.exp : 0;
-  if (exp * 1000 < Date.now()) return null;
+  return exp * 1000 < Date.now();
+}
 
+function userFromPayload(payload: Record<string, unknown>): User {
   const roles = Array.isArray(payload.role)
     ? (payload.role as string[])
     : typeof payload.role === 'string'
@@ -63,22 +66,47 @@ function userFromPayload(payload: Record<string, unknown>): User | null {
   };
 }
 
+function applyAuthResponse(data: AuthResponse) {
+  apiClient.setAuthToken(data.token);
+  apiClient.setRefreshToken(data.refreshToken);
+}
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      const payload = decodeJwtPayload(token);
-      const restored = payload ? userFromPayload(payload) : null;
-      if (restored) {
-        setUser(restored);
-      } else {
-        localStorage.removeItem('authToken');
+    const initAuth = async () => {
+      const accessToken = localStorage.getItem('authToken');
+      const refreshToken = localStorage.getItem('refreshToken');
+
+      if (accessToken && !isTokenExpired(accessToken)) {
+        // Access token is still valid — restore user from it
+        const payload = decodeJwtPayload(accessToken);
+        if (payload) setUser(userFromPayload(payload));
+      } else if (refreshToken) {
+        // Access token missing or expired — silently refresh
+        try {
+          const response = await apiClient.post<ApiResponse<AuthResponse>>(
+            '/auth/refresh',
+            { refreshToken }
+          );
+          if (response.success && response.data) {
+            applyAuthResponse(response.data);
+            const payload = decodeJwtPayload(response.data.token);
+            if (payload) setUser(userFromPayload(payload));
+          } else {
+            apiClient.clearTokens();
+          }
+        } catch {
+          apiClient.clearTokens();
+        }
       }
-    }
-    setIsLoading(false);
+
+      setIsLoading(false);
+    };
+
+    initAuth();
   }, []);
 
   const login = async (username: string, password: string) => {
@@ -91,7 +119,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error('Login failed');
     }
 
-    apiClient.setAuthToken(response.data.token);
+    applyAuthResponse(response.data);
     setUser(response.data.user);
   };
 
@@ -110,16 +138,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error('Registration failed');
     }
 
-    apiClient.setAuthToken(response.data.token);
+    applyAuthResponse(response.data);
     setUser(response.data.user);
   };
 
   const logout = () => {
-    apiClient.clearAuthToken();
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) {
+      // Fire-and-forget: revoke the refresh token server-side
+      apiClient.post('/auth/logout', { refreshToken }).catch(() => {});
+    }
+    apiClient.clearTokens();
     setUser(null);
   };
 
-  const hasRole = (role: string) => user?.roles.includes(role) ?? false;
+  const hasRole = (role: string) =>
+    user?.roles.some((r) => r.toLowerCase() === role.toLowerCase()) ?? false;
 
   return (
     <AuthContext.Provider

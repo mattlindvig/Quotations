@@ -37,6 +37,7 @@ export function useQuotations(initialFilters?: QuotationFilters): UseQuotationsR
 
   const fetchQuotations = useCallback(async (filters?: QuotationFilters) => {
     const mergedFilters = { ...currentFiltersRef.current, ...filters };
+    const isNewQuery = (filters?.page ?? mergedFilters.page ?? 1) <= 1;
     currentFiltersRef.current = mergedFilters;
 
     setLoading(true);
@@ -48,7 +49,8 @@ export function useQuotations(initialFilters?: QuotationFilters): UseQuotationsR
       if (mergedFilters.page) params.append('page', mergedFilters.page.toString());
       if (mergedFilters.pageSize) params.append('pageSize', mergedFilters.pageSize.toString());
       if (mergedFilters.status) params.append('status', mergedFilters.status);
-      if (mergedFilters.authorId) params.append('authorId', mergedFilters.authorId);
+      if (mergedFilters.authorName) params.append('authorName', mergedFilters.authorName);
+      else if (mergedFilters.authorId) params.append('authorId', mergedFilters.authorId);
       if (mergedFilters.sourceType) params.append('sourceType', mergedFilters.sourceType);
       if (mergedFilters.tags && mergedFilters.tags.length > 0) {
         params.append('tags', mergedFilters.tags.join(','));
@@ -59,14 +61,16 @@ export function useQuotations(initialFilters?: QuotationFilters): UseQuotationsR
       );
 
       if (response.success && response.data) {
-        setQuotations(response.data.items);
+        setQuotations((prev) =>
+          isNewQuery ? response.data!.items : [...prev, ...response.data!.items]
+        );
         setPagination(response.data.pagination);
       } else {
         setError('Failed to fetch quotations');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while fetching quotations');
-      setQuotations([]);
+      if (isNewQuery) setQuotations([]);
       setPagination(null);
     } finally {
       setLoading(false);

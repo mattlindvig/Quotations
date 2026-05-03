@@ -1,12 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiClient } from '../../services/apiClient';
 import type { SourceType, ApiResponse } from '../../types/quotation';
 import './FilterPanel.css';
-
-interface Author {
-  id: string;
-  name: string;
-}
 
 interface Tag {
   tag: string;
@@ -15,68 +10,126 @@ interface Tag {
 
 interface FilterPanelProps {
   onFilterChange: (filters: {
-    authorId?: string;
+    authorName?: string;
     sourceType?: SourceType;
     tags?: string[];
   }) => void;
   initialFilters?: {
-    authorId?: string;
+    authorName?: string;
     sourceType?: SourceType;
     tags?: string[];
   };
 }
 
-/**
- * Filter panel component for quotations
- * Allows filtering by author, source type, and tags
- */
+const MAX_SUGGESTIONS = 8;
+
 export const FilterPanel: React.FC<FilterPanelProps> = ({
   onFilterChange,
   initialFilters = {},
 }) => {
-  const [authors, setAuthors] = useState<Author[]>([]);
+  const [authorNames, setAuthorNames] = useState<string[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
-  const [selectedAuthorId, setSelectedAuthorId] = useState(initialFilters.authorId || '');
+
+  // Autocomplete state
+  const [inputValue, setInputValue] = useState(initialFilters.authorName || '');
+  const [selectedAuthorName, setSelectedAuthorName] = useState(initialFilters.authorName || '');
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const autocompleteRef = useRef<HTMLDivElement>(null);
+
   const [selectedSourceType, setSelectedSourceType] = useState(initialFilters.sourceType || '');
   const [selectedTags, setSelectedTags] = useState<string[]>(initialFilters.tags || []);
   const [isExpanded, setIsExpanded] = useState(false);
 
   const sourceTypes: SourceType[] = ['book', 'movie', 'speech', 'interview', 'other'];
 
-  // Fetch authors and tags on mount
+  const suggestions = inputValue.trim().length > 0
+    ? authorNames
+        .filter((n) => n.toLowerCase().includes(inputValue.toLowerCase()))
+        .slice(0, MAX_SUGGESTIONS)
+    : [];
+
+  // Fetch author names once on mount
   useEffect(() => {
-    const fetchMetadata = async () => {
-      try {
-        const [authorsResponse, tagsResponse] = await Promise.all([
-          apiClient.get<ApiResponse<Author[]>>('/authors?limit=100'),
-          apiClient.get<ApiResponse<Tag[]>>('/tags?limit=50'),
-        ]);
-
-        if (authorsResponse.success && authorsResponse.data) {
-          setAuthors(authorsResponse.data);
-        }
-
-        if (tagsResponse.success && tagsResponse.data) {
-          setTags(tagsResponse.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch metadata:', error);
-      }
-    };
-
-    fetchMetadata();
+    apiClient.get<ApiResponse<string[]>>('/quotations/authors?limit=500')
+      .then((res) => { if (res.success && res.data) setAuthorNames(res.data); })
+      .catch(console.error);
   }, []);
 
-  // Apply filters when selections change
+  // Re-fetch tags whenever the author or source type selection changes
   useEffect(() => {
-    const filters: { authorId?: string; sourceType?: SourceType; tags?: string[] } = {};
+    const params = new URLSearchParams({ limit: '50' });
+    if (selectedAuthorName) params.append('authorName', selectedAuthorName);
+    if (selectedSourceType) params.append('sourceType', selectedSourceType);
 
-    if (selectedAuthorId) filters.authorId = selectedAuthorId;
+    apiClient.get<ApiResponse<Tag[]>>(`/tags?${params.toString()}`)
+      .then((res) => { if (res.success && res.data) setTags(res.data); })
+      .catch(console.error);
+  }, [selectedAuthorName, selectedSourceType]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (autocompleteRef.current && !autocompleteRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        // If user typed but didn't select, revert input to last confirmed selection
+        setInputValue(selectedAuthorName);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [selectedAuthorName]);
+
+  // Apply filters when confirmed selections change
+  useEffect(() => {
+    const filters: { authorName?: string; sourceType?: SourceType; tags?: string[] } = {};
+    if (selectedAuthorName) filters.authorName = selectedAuthorName;
     if (selectedSourceType) filters.sourceType = selectedSourceType as SourceType;
     if (selectedTags.length > 0) filters.tags = selectedTags;
-
     onFilterChange(filters);
-  }, [selectedAuthorId, selectedSourceType, selectedTags, onFilterChange]);
+  }, [selectedAuthorName, selectedSourceType, selectedTags, onFilterChange]);
+
+  const selectAuthor = useCallback((name: string) => {
+    setSelectedAuthorName(name);
+    setInputValue(name);
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+  }, []);
+
+  const clearAuthor = useCallback(() => {
+    setSelectedAuthorName('');
+    setInputValue('');
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+  }, []);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputValue(val);
+    setSelectedAuthorName(''); // clear confirmed selection while typing
+    setHighlightedIndex(-1);
+    setIsOpen(val.trim().length > 0);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen || suggestions.length === 0) {
+      if (e.key === 'Escape') clearAuthor();
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (highlightedIndex >= 0) selectAuthor(suggestions[highlightedIndex]);
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+      setInputValue(selectedAuthorName);
+    }
+  };
 
   const handleTagToggle = (tag: string) => {
     setSelectedTags((prev) =>
@@ -85,12 +138,12 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   };
 
   const handleClearFilters = () => {
-    setSelectedAuthorId('');
+    clearAuthor();
     setSelectedSourceType('');
     setSelectedTags([]);
   };
 
-  const hasActiveFilters = selectedAuthorId || selectedSourceType || selectedTags.length > 0;
+  const hasActiveFilters = selectedAuthorName || selectedSourceType || selectedTags.length > 0;
 
   return (
     <div className="filter-panel">
@@ -114,7 +167,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
           </svg>
           <span>Filters</span>
-          {hasActiveFilters && <span className="filter-badge">{[selectedAuthorId, selectedSourceType, ...selectedTags].filter(Boolean).length}</span>}
+          {hasActiveFilters && (
+            <span className="filter-badge">
+              {[selectedAuthorName, selectedSourceType, ...selectedTags].filter(Boolean).length}
+            </span>
+          )}
         </button>
 
         {hasActiveFilters && (
@@ -128,65 +185,108 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         id="filter-content"
         className={`filter-content${isExpanded ? '' : ' filter-content--collapsed'}`}
       >
-          {/* Author filter */}
-          <div className="filter-group">
-            <label htmlFor="author-filter" className="filter-label">
-              Author
-            </label>
-            <select
-              id="author-filter"
-              className="filter-select"
-              value={selectedAuthorId}
-              onChange={(e) => setSelectedAuthorId(e.target.value)}
-            >
-              <option value="">All authors</option>
-              {authors.map((author) => (
-                <option key={author.id} value={author.id}>
-                  {author.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Source type filter */}
-          <div className="filter-group">
-            <label htmlFor="source-type-filter" className="filter-label">
-              Source Type
-            </label>
-            <select
-              id="source-type-filter"
-              className="filter-select"
-              value={selectedSourceType}
-              onChange={(e) => setSelectedSourceType(e.target.value)}
-            >
-              <option value="">All types</option>
-              {sourceTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Tags filter */}
-          {tags.length > 0 && (
-            <div className="filter-group">
-              <label className="filter-label">Tags</label>
-              <div className="tags-container">
-                {tags.slice(0, 15).map(({ tag, count }) => (
-                  <button
-                    key={tag}
-                    className={`tag-filter-button ${selectedTags.includes(tag) ? 'active' : ''}`}
-                    onClick={() => handleTagToggle(tag)}
-                    aria-pressed={selectedTags.includes(tag)}
-                  >
-                    {tag} <span className="tag-count">({count})</span>
-                  </button>
-                ))}
-              </div>
+        {/* Author autocomplete */}
+        <div className="filter-group">
+          <label htmlFor="author-filter" className="filter-label">Author</label>
+          <div className="author-autocomplete" ref={autocompleteRef}>
+            <div className="author-input-wrap">
+              <input
+                id="author-filter"
+                type="text"
+                className="author-input"
+                placeholder="Search authors…"
+                value={inputValue}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                onFocus={() => {
+                  if (inputValue.trim().length > 0 && suggestions.length > 0) setIsOpen(true);
+                }}
+                autoComplete="off"
+                role="combobox"
+                aria-expanded={isOpen}
+                aria-autocomplete="list"
+                aria-controls="author-listbox"
+                aria-activedescendant={
+                  highlightedIndex >= 0 ? `author-option-${highlightedIndex}` : undefined
+                }
+              />
+              {inputValue && (
+                <button
+                  className="author-clear-btn"
+                  onClick={clearAuthor}
+                  aria-label="Clear author"
+                  tabIndex={-1}
+                >
+                  ×
+                </button>
+              )}
             </div>
-          )}
+
+            {isOpen && suggestions.length > 0 && (
+              <ul
+                id="author-listbox"
+                className="author-suggestions"
+                role="listbox"
+                aria-label="Author suggestions"
+              >
+                {suggestions.map((name, i) => (
+                  <li
+                    key={name}
+                    id={`author-option-${i}`}
+                    className={`author-suggestion-item${i === highlightedIndex ? ' highlighted' : ''}`}
+                    role="option"
+                    aria-selected={i === highlightedIndex}
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // keep focus on input
+                      selectAuthor(name);
+                    }}
+                    onMouseEnter={() => setHighlightedIndex(i)}
+                  >
+                    {name}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
+
+        {/* Source type filter */}
+        <div className="filter-group">
+          <label htmlFor="source-type-filter" className="filter-label">Source Type</label>
+          <select
+            id="source-type-filter"
+            className="filter-select"
+            value={selectedSourceType}
+            onChange={(e) => setSelectedSourceType(e.target.value)}
+          >
+            <option value="">All types</option>
+            {sourceTypes.map((type) => (
+              <option key={type} value={type}>
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Tags filter */}
+        {tags.length > 0 && (
+          <div className="filter-group">
+            <label className="filter-label">Tags</label>
+            <div className="tags-container">
+              {tags.slice(0, 15).map(({ tag, count }) => (
+                <button
+                  key={tag}
+                  className={`tag-filter-button ${selectedTags.includes(tag) ? 'active' : ''}`}
+                  onClick={() => handleTagToggle(tag)}
+                  aria-pressed={selectedTags.includes(tag)}
+                >
+                  {tag} <span className="tag-count">({count})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

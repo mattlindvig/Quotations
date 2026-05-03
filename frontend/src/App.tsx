@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
@@ -8,7 +8,15 @@ import { MySubmissionsPage } from './pages/MySubmissions/MySubmissionsPage';
 import { ReviewQueuePage } from './pages/Review/ReviewQueuePage';
 import { LoginPage } from './pages/Login/LoginPage';
 import AiReviewDashboardPage from './pages/AiReviewDashboard/AiReviewDashboardPage';
+import { QuoteDetailPage } from './pages/Quote/QuoteDetailPage';
 import './App.css';
+
+// Force BrowsePage to remount when the URL changes so initial filters
+// (read from query params) are re-evaluated on each navigation.
+function BrowsePageWrapper() {
+  const location = useLocation();
+  return <BrowsePage key={location.key} />;
+}
 
 function App() {
   return (
@@ -18,8 +26,9 @@ function App() {
           <Header />
           <main>
             <Routes>
-              <Route path="/" element={<BrowsePage />} />
-              <Route path="/browse" element={<BrowsePage />} />
+              <Route path="/" element={<BrowsePageWrapper />} />
+              <Route path="/browse" element={<BrowsePageWrapper />} />
+              <Route path="/quote/:id" element={<QuoteDetailPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/submit" element={<SubmitPage />} />
               <Route path="/my-submissions" element={<MySubmissionsPage />} />

@@ -17,35 +17,44 @@ public class AiReviewBackgroundService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AiReviewBackgroundService> _logger;
     private readonly AiReviewOptions _options;
+    private readonly AiReviewRuntimeSettings _runtimeSettings;
 
     public AiReviewBackgroundService(
         IServiceScopeFactory scopeFactory,
         IOptions<AiReviewOptions> options,
+        AiReviewRuntimeSettings runtimeSettings,
         ILogger<AiReviewBackgroundService> logger)
     {
         _scopeFactory = scopeFactory;
         _options = options.Value;
+        _runtimeSettings = runtimeSettings;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("AI Review background service started. Polling every {Interval}s when idle.",
-            _options.PollingIntervalSeconds);
+        _logger.LogInformation(
+            "AI Review background service started. Auto-processing: {Enabled}. Polling every {Interval}s when idle.",
+            _runtimeSettings.AutoProcessingEnabled, _options.PollingIntervalSeconds);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                if (!_runtimeSettings.AutoProcessingEnabled)
+                {
+                    _logger.LogDebug("Auto-processing is disabled. Sleeping for {Interval}s.", _options.PollingIntervalSeconds);
+                    await Task.Delay(TimeSpan.FromSeconds(_options.PollingIntervalSeconds), stoppingToken);
+                    continue;
+                }
+
                 var processed = await ProcessBatchAsync(stoppingToken);
 
                 if (processed == 0)
                 {
-                    // Queue is empty — enter idle mode
                     _logger.LogDebug("No pending AI reviews found. Sleeping for {Interval}s.", _options.PollingIntervalSeconds);
                     await Task.Delay(TimeSpan.FromSeconds(_options.PollingIntervalSeconds), stoppingToken);
                 }
-                // If we processed a full batch, loop immediately to check for more
             }
             catch (OperationCanceledException)
             {
