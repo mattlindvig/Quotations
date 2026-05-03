@@ -172,6 +172,22 @@
   background: #f1f8e9;
 }
 
+.favorite-btn {
+  color: #9e9e9e;
+}
+
+.favorite-btn:hover {
+  color: #e53935;
+  border-color: #ef9a9a;
+  background: #fff5f5;
+}
+
+.favorite-btn.favorited {
+  color: #e53935;
+  border-color: #ef9a9a;
+  background: #fff5f5;
+}
+
 @media (max-width: 640px) {
   .quotation-card {
     padding: 16px;

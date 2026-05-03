@@ -50,4 +50,37 @@ public class UserRepository : IUserRepository
         var result = await _users.ReplaceOneAsync(u => u.Id == user.Id, user);
         return result.ModifiedCount > 0;
     }
+
+    public async Task<List<string>> GetFavoriteIdsAsync(string userId)
+    {
+        if (!ObjectId.TryParse(userId, out _))
+            return new List<string>();
+
+        var user = await _users
+            .Find(u => u.Id == userId)
+            .Project(u => u.FavoriteQuotationIds)
+            .FirstOrDefaultAsync();
+
+        return user ?? new List<string>();
+    }
+
+    public async Task<bool> AddFavoriteAsync(string userId, string quotationId)
+    {
+        if (!ObjectId.TryParse(userId, out _))
+            return false;
+
+        var update = Builders<User>.Update.AddToSet(u => u.FavoriteQuotationIds, quotationId);
+        var result = await _users.UpdateOneAsync(u => u.Id == userId, update);
+        return result.ModifiedCount > 0 || result.MatchedCount > 0;
+    }
+
+    public async Task<bool> RemoveFavoriteAsync(string userId, string quotationId)
+    {
+        if (!ObjectId.TryParse(userId, out _))
+            return false;
+
+        var update = Builders<User>.Update.Pull(u => u.FavoriteQuotationIds, quotationId);
+        var result = await _users.UpdateOneAsync(u => u.Id == userId, update);
+        return result.ModifiedCount > 0 || result.MatchedCount > 0;
+    }
 }

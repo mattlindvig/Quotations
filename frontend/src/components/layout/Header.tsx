@@ -15,6 +15,9 @@ const Header = () => {
           {isAuthenticated && (
             <Link to="/my-submissions" className="nav-link">My Submissions</Link>
           )}
+          {isAuthenticated && (
+            <Link to="/favorites" className="nav-link">Favorites</Link>
+          )}
           {(hasRole('Reviewer') || hasRole('Admin')) && (
             <Link to="/review" className="nav-link">Review</Link>
           )}

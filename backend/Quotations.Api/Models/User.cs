@@ -31,6 +31,9 @@ public class User
     [BsonElement("submissionCount")]
     public int SubmissionCount { get; set; } = 0;
 
+    [BsonElement("favoriteQuotationIds")]
+    public List<string> FavoriteQuotationIds { get; set; } = new();
+
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -87,6 +87,12 @@ public class QuotationService
         return quotation != null ? MapToDto(quotation) : null;
     }
 
+    public async Task<List<QuotationDto>> GetByIdsAsync(IEnumerable<string> ids)
+    {
+        var quotations = await _quotationRepository.GetByIdsAsync(ids);
+        return quotations.Select(MapToDto).ToList();
+    }
+
     /// <summary>
     /// Search quotations by text
     /// </summary>

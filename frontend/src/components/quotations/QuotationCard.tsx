@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Quotation } from '../../types/quotation';
+import { useAuth } from '../../contexts/AuthContext';
+import { useFavorites } from '../../contexts/FavoritesContext';
 import './QuotationCard.css';
 
 interface QuotationCardProps {
@@ -9,6 +11,8 @@ interface QuotationCardProps {
 
 export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const { isFavorited, toggleFavorite } = useFavorites();
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -134,6 +138,16 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
           </time>
 
           <div className="card-actions">
+            {isAuthenticated && (
+              <button
+                className={`card-action-btn favorite-btn${isFavorited(quotation.id) ? ' favorited' : ''}`}
+                onClick={() => toggleFavorite(quotation.id)}
+                title={isFavorited(quotation.id) ? 'Remove from favorites' : 'Add to favorites'}
+                aria-pressed={isFavorited(quotation.id)}
+              >
+                {isFavorited(quotation.id) ? '♥ Saved' : '♡ Save'}
+              </button>
+            )}
             <button
               className="card-action-btn share-btn"
               onClick={handleShare}

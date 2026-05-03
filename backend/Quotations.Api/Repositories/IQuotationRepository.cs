@@ -139,4 +139,9 @@ public interface IQuotationRepository
     /// Return a single random approved quotation
     /// </summary>
     Task<Quotation?> GetRandomQuotationAsync();
+
+    /// <summary>
+    /// Get quotations by a list of IDs, preserving insertion order
+    /// </summary>
+    Task<List<Quotation>> GetByIdsAsync(IEnumerable<string> ids);
 }

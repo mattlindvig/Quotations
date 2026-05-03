@@ -136,6 +136,10 @@ builder.Services.AddScoped<QuotationService>();
 builder.Services.Configure<AiReviewOptions>(builder.Configuration.GetSection("AiReview"));
 builder.Services.AddHttpClient<IAnthropicService, AnthropicService>();
 builder.Services.AddScoped<AiReviewService>();
+
+// Chat service
+builder.Services.AddHttpClient<ChatService>();
+builder.Services.AddScoped<ChatService>();
 builder.Services.AddSingleton(new AiReviewRuntimeSettings());
 builder.Services.AddHostedService<AiReviewBackgroundService>();
 

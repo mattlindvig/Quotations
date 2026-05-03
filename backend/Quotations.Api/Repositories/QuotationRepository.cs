@@ -471,4 +471,21 @@ public class QuotationRepository : IQuotationRepository
         int distance = prev[s2.Length];
         return 1.0 - (double)distance / Math.Max(s1.Length, s2.Length);
     }
+
+    public async Task<List<Quotation>> GetByIdsAsync(IEnumerable<string> ids)
+    {
+        var idList = ids.ToList();
+        if (idList.Count == 0)
+            return new List<Quotation>();
+
+        var filter = Builders<Quotation>.Filter.In(q => q.Id, idList);
+        var quotations = await _quotations.Find(filter).ToListAsync();
+
+        // Preserve the order of the input IDs
+        var orderMap = idList.Select((id, index) => (id, index))
+            .ToDictionary(x => x.id, x => x.index);
+        return quotations
+            .OrderBy(q => orderMap.TryGetValue(q.Id, out var i) ? i : int.MaxValue)
+            .ToList();
+    }
 }
