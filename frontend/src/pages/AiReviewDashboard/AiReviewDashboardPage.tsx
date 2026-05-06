@@ -19,6 +19,7 @@ interface RecentReview {
   reviewedAt: string;
   modelUsed: string;
   summary: string | null;
+  aiChangesApplied: boolean;
   scores: {
     quoteAccuracy: number | null;
     attribution: number | null;
@@ -33,6 +34,56 @@ interface UnreviewedItem {
   sourcTitle: string;
   submittedAt: string;
   status: string;
+}
+
+interface ScoreDetail {
+  score: number;
+  reasoning: string;
+  suggestedValue: string | null;
+  suggestionConfidence: number | null;
+}
+
+interface AiRevisionChange {
+  field: string;
+  previousValue: string;
+  newValue: string;
+  reasoning: string;
+  confidence: number;
+}
+
+interface AiRevision {
+  appliedAt: string;
+  modelUsed: string;
+  changes: AiRevisionChange[];
+}
+
+interface AuthenticityMeta {
+  isLikelyAuthentic: boolean | null;
+  reasoning: string | null;
+  approximateEra: string | null;
+  knownVariants: string[];
+}
+
+interface ReviewDetail {
+  quotationId: string;
+  text: string;
+  authorName: string;
+  sourceTitle: string;
+  originalText: string | null;
+  originalAuthorName: string | null;
+  originalSourceTitle: string | null;
+  tags: string[];
+  modelUsed: string | null;
+  reviewedAt: string | null;
+  summary: string | null;
+  suggestedTags: string[];
+  authenticity: AuthenticityMeta | null;
+  scores: {
+    quoteAccuracy: ScoreDetail | null;
+    attribution: ScoreDetail | null;
+    source: ScoreDetail | null;
+  } | null;
+  revisions: AiRevision[];
 }
 
 interface AiReviewError {
@@ -112,6 +163,9 @@ export default function AiReviewDashboardPage() {
   const [autoProcessing, setAutoProcessing] = useState(false);
   const [togglingAuto, setTogglingAuto] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailCache, setDetailCache] = useState<Record<string, ReviewDetail>>({});
+  const [detailLoading, setDetailLoading] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
     const [statsRes, settingsRes] = await Promise.all([
@@ -194,6 +248,33 @@ export default function AiReviewDashboardPage() {
       setActionInProgress(null);
     }
   }, [loadStats, loadErrors, errorPage]);
+
+  const toggleDetail = useCallback(async (quotationId: string) => {
+    if (expandedId === quotationId) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(quotationId);
+    if (detailCache[quotationId]) return;
+    setDetailLoading(quotationId);
+    try {
+      const res = await apiClient.get<any>(`/ai-review/detail/${quotationId}`);
+      setDetailCache(prev => ({ ...prev, [quotationId]: res.data }));
+    } finally {
+      setDetailLoading(null);
+    }
+  }, [expandedId, detailCache]);
+
+  const revertLast = useCallback(async (quotationId: string) => {
+    setActionInProgress(`revert-${quotationId}`);
+    try {
+      await apiClient.post(`/ai-review/revisions/${quotationId}/revert-last`);
+      setDetailCache(prev => { const next = { ...prev }; delete next[quotationId]; return next; });
+      await Promise.all([loadRecent(), loadStats()]);
+    } finally {
+      setActionInProgress(null);
+    }
+  }, [loadRecent, loadStats]);
 
   const requeueAll = useCallback(async () => {
     setActionInProgress('all');
@@ -396,26 +477,73 @@ export default function AiReviewDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recent.map((r) => (
-                    <tr key={r.quotationId} style={{ borderBottom: '1px solid #dee2e6' }}>
-                      <td style={{ ...td, maxWidth: '300px', color: '#495057' }}>{r.text}</td>
-                      <td style={td}>{r.authorName}</td>
-                      <td style={{ ...td, textAlign: 'center' }}><ScoreBadge score={r.scores.quoteAccuracy} /></td>
-                      <td style={{ ...td, textAlign: 'center' }}><ScoreBadge score={r.scores.attribution} /></td>
-                      <td style={{ ...td, textAlign: 'center' }}><ScoreBadge score={r.scores.source} /></td>
-                      <td style={{ ...td, whiteSpace: 'nowrap', color: '#6c757d' }}>{formatDate(r.reviewedAt)}</td>
-                      <td style={td}>
-                        <button
-                          onClick={() => processNow(r.quotationId)}
-                          disabled={busy}
-                          title="Re-run AI review immediately"
-                          style={smallBtn('#0d6efd', busy)}
+                  {recent.map((r) => {
+                    const isExpanded = expandedId === r.quotationId;
+                    const detail = detailCache[r.quotationId];
+                    const isLoadingDetail = detailLoading === r.quotationId;
+                    return (
+                      <>
+                        <tr
+                          key={r.quotationId}
+                          style={{ borderBottom: isExpanded ? 'none' : '1px solid #dee2e6', background: isExpanded ? '#f0f4ff' : undefined, cursor: 'pointer' }}
+                          onClick={() => toggleDetail(r.quotationId)}
                         >
-                          {actionInProgress === r.quotationId ? '…' : 'Re-run'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                          <td style={{ ...td, maxWidth: '300px', color: '#495057' }}>{r.text}</td>
+                          <td style={td}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                              {r.authorName}
+                              {r.aiChangesApplied && (
+                                <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.1rem 0.4rem', borderRadius: '10px', background: '#fff3cd', color: '#856404', border: '1px solid #ffc107', whiteSpace: 'nowrap' }}>
+                                  AI Modified
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ ...td, textAlign: 'center' }}><ScoreBadge score={r.scores.quoteAccuracy} /></td>
+                          <td style={{ ...td, textAlign: 'center' }}><ScoreBadge score={r.scores.attribution} /></td>
+                          <td style={{ ...td, textAlign: 'center' }}><ScoreBadge score={r.scores.source} /></td>
+                          <td style={{ ...td, whiteSpace: 'nowrap', color: '#6c757d' }}>{formatDate(r.reviewedAt)}</td>
+                          <td style={td} onClick={e => e.stopPropagation()}>
+                            <div style={{ display: 'flex', gap: '0.4rem' }}>
+                              <button
+                                onClick={() => toggleDetail(r.quotationId)}
+                                style={smallBtn(isExpanded ? '#6c757d' : '#495057', false)}
+                                title={isExpanded ? 'Collapse' : 'Expand details'}
+                              >
+                                {isExpanded ? '▲' : '▼'}
+                              </button>
+                              <button
+                                onClick={() => processNow(r.quotationId)}
+                                disabled={busy}
+                                title="Re-run AI review immediately"
+                                style={smallBtn('#0d6efd', busy)}
+                              >
+                                {actionInProgress === r.quotationId ? '…' : 'Re-run'}
+                              </button>
+                              {r.aiChangesApplied && (
+                                <button
+                                  onClick={() => revertLast(r.quotationId)}
+                                  disabled={busy}
+                                  title="Revert last AI-applied changes"
+                                  style={smallBtn('#dc3545', busy)}
+                                >
+                                  {actionInProgress === `revert-${r.quotationId}` ? '…' : 'Revert'}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr key={`${r.quotationId}-detail`} style={{ borderBottom: '1px solid #dee2e6' }}>
+                            <td colSpan={7} style={{ padding: '1rem 1.25rem', background: '#f8f9ff' }}>
+                              {isLoadingDetail && <p style={{ color: '#6c757d', margin: 0 }}>Loading…</p>}
+                              {detail && <ReviewDetailPanel detail={detail} />}
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -485,6 +613,208 @@ export default function AiReviewDashboardPage() {
     </div>
   );
 }
+
+function ReviewDetailPanel({ detail }: { detail: ReviewDetail }) {
+  const scoreItems = [
+    { label: 'Quote Accuracy', data: detail.scores?.quoteAccuracy },
+    { label: 'Attribution',    data: detail.scores?.attribution },
+    { label: 'Source',         data: detail.scores?.source },
+  ];
+
+  const hasOriginalText   = detail.originalText        && detail.originalText        !== detail.text;
+  const hasOriginalAuthor = detail.originalAuthorName  && detail.originalAuthorName  !== detail.authorName;
+  const hasOriginalSource = detail.originalSourceTitle && detail.originalSourceTitle !== detail.sourceTitle;
+  const showOriginals     = hasOriginalText || hasOriginalAuthor || hasOriginalSource;
+
+  const auth = detail.authenticity;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+      {/* Summary */}
+      {detail.summary && (
+        <div>
+          <div style={detailLabel}>Summary</div>
+          <p style={{ margin: 0, color: '#495057', fontSize: '0.88rem' }}>{detail.summary}</p>
+        </div>
+      )}
+
+      {/* Authenticity */}
+      {auth && (
+        <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: '6px', padding: '0.75rem' }}>
+          <div style={detailLabel}>Authenticity Assessment</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-start' }}>
+            {auth.isLikelyAuthentic !== null && (
+              <span style={{
+                padding: '0.2rem 0.65rem',
+                borderRadius: '12px',
+                fontWeight: 600,
+                fontSize: '0.82rem',
+                background: auth.isLikelyAuthentic ? '#d1e7dd' : '#f8d7da',
+                color: auth.isLikelyAuthentic ? '#0f5132' : '#842029',
+                border: `1px solid ${auth.isLikelyAuthentic ? '#a3cfbb' : '#f1aeb5'}`,
+                whiteSpace: 'nowrap',
+                alignSelf: 'center',
+              }}>
+                {auth.isLikelyAuthentic ? 'Likely Authentic' : 'Possibly Misattributed'}
+              </span>
+            )}
+            {auth.approximateEra && (
+              <span style={{ fontSize: '0.82rem', color: '#495057', alignSelf: 'center' }}>
+                <span style={{ fontWeight: 600, color: '#6c757d' }}>Era: </span>{auth.approximateEra}
+              </span>
+            )}
+          </div>
+          {auth.reasoning && (
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.82rem', color: '#6c757d' }}>{auth.reasoning}</p>
+          )}
+          {auth.knownVariants.length > 0 && (
+            <div style={{ marginTop: '0.6rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6c757d', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Known Variants</div>
+              <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+                {auth.knownVariants.map((v, i) => (
+                  <li key={i} style={{ fontSize: '0.82rem', color: '#495057', fontStyle: 'italic', marginBottom: '0.15rem' }}>"{v}"</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Original vs corrected values */}
+      {showOriginals && (
+        <div>
+          <div style={detailLabel}>Original Submitted Values</div>
+          <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: '6px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ background: '#f8f9fa' }}>
+                  <th style={{ ...th, width: '100px' }}>Field</th>
+                  <th style={th}>Original</th>
+                  <th style={th}>Current (AI-corrected)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hasOriginalText && (
+                  <tr style={{ borderTop: '1px solid #dee2e6' }}>
+                    <td style={{ ...td, fontWeight: 600, color: '#495057' }}>Text</td>
+                    <td style={{ ...td, color: '#6c757d', fontStyle: 'italic', maxWidth: '260px' }}>{detail.originalText}</td>
+                    <td style={{ ...td, color: '#198754', maxWidth: '260px' }}>{detail.text}</td>
+                  </tr>
+                )}
+                {hasOriginalAuthor && (
+                  <tr style={{ borderTop: '1px solid #dee2e6' }}>
+                    <td style={{ ...td, fontWeight: 600, color: '#495057' }}>Author</td>
+                    <td style={{ ...td, color: '#6c757d' }}>{detail.originalAuthorName}</td>
+                    <td style={{ ...td, color: '#198754' }}>{detail.authorName}</td>
+                  </tr>
+                )}
+                {hasOriginalSource && (
+                  <tr style={{ borderTop: '1px solid #dee2e6' }}>
+                    <td style={{ ...td, fontWeight: 600, color: '#495057' }}>Source</td>
+                    <td style={{ ...td, color: '#6c757d' }}>{detail.originalSourceTitle}</td>
+                    <td style={{ ...td, color: '#198754' }}>{detail.sourceTitle}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Score breakdown */}
+      <div>
+        <div style={detailLabel}>Score Breakdown</div>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {scoreItems.map(({ label, data }) => (
+            <div key={label} style={{ flex: '1 1 200px', background: '#fff', border: '1px solid #dee2e6', borderRadius: '6px', padding: '0.75rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#495057' }}>{label}</span>
+                <ScoreBadge score={data?.score ?? null} />
+              </div>
+              {data?.reasoning && (
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#6c757d' }}>{data.reasoning}</p>
+              )}
+              {data?.suggestedValue && (
+                <div style={{ marginTop: '0.5rem', padding: '0.4rem 0.5rem', background: '#fff3cd', borderRadius: '4px', fontSize: '0.8rem' }}>
+                  <span style={{ fontWeight: 600, color: '#856404' }}>Suggestion ({data.suggestionConfidence}% confidence): </span>
+                  <span style={{ color: '#495057' }}>{data.suggestedValue}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tags */}
+      {detail.suggestedTags.length > 0 && (
+        <div>
+          <div style={detailLabel}>Suggested Tags</div>
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            {detail.suggestedTags.map(tag => {
+              const applied = detail.tags.includes(tag);
+              return (
+                <span key={tag} style={{ padding: '0.2rem 0.55rem', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 500, background: applied ? '#d1e7dd' : '#e9ecef', color: applied ? '#0f5132' : '#495057', border: `1px solid ${applied ? '#a3cfbb' : '#dee2e6'}` }}>
+                  {tag}{applied ? ' ✓' : ''}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Revision history */}
+      <div>
+        <div style={detailLabel}>AI-Applied Changes</div>
+        {detail.revisions.length === 0 ? (
+          <p style={{ margin: 0, fontSize: '0.85rem', color: '#6c757d' }}>No changes were applied — all fields met the confidence threshold or had no suggestions.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {detail.revisions.map((rev, i) => (
+              <div key={i} style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: '6px', overflow: 'hidden' }}>
+                <div style={{ padding: '0.4rem 0.75rem', background: '#f8f9fa', borderBottom: '1px solid #dee2e6', fontSize: '0.78rem', color: '#6c757d', display: 'flex', gap: '1rem' }}>
+                  <span>{formatDate(rev.appliedAt)}</span>
+                  <span>Model: {rev.modelUsed}</span>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f8f9fa' }}>
+                      <th style={{ ...th, width: '80px' }}>Field</th>
+                      <th style={th}>Before</th>
+                      <th style={th}>After</th>
+                      <th style={th}>Reasoning</th>
+                      <th style={{ ...th, width: '80px', textAlign: 'center' }}>Confidence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rev.changes.map((c, j) => (
+                      <tr key={j} style={{ borderTop: '1px solid #dee2e6' }}>
+                        <td style={{ ...td, fontWeight: 600, color: '#495057' }}>{c.field}</td>
+                        <td style={{ ...td, color: '#dc3545', maxWidth: '200px' }}>{c.previousValue}</td>
+                        <td style={{ ...td, color: '#198754', maxWidth: '200px' }}>{c.newValue}</td>
+                        <td style={{ ...td, color: '#6c757d', maxWidth: '260px' }}>{c.reasoning}</td>
+                        <td style={{ ...td, textAlign: 'center', fontWeight: 600, color: '#0d6efd' }}>{c.confidence}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const detailLabel: React.CSSProperties = {
+  fontSize: '0.75rem',
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  color: '#6c757d',
+  marginBottom: '0.4rem',
+};
 
 const smallBtn = (color: string, disabled: boolean): React.CSSProperties => ({
   padding: '0.25rem 0.6rem',

@@ -188,6 +188,158 @@
   background: #fff5f5;
 }
 
+.ai-eval-btn.active {
+  background: #e8f0fe;
+  border-color: #adc6ff;
+  color: #1a56db;
+}
+
+.ai-eval-panel {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-eval-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-eval-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6c757d;
+}
+
+.ai-eval-model {
+  font-size: 0.72rem;
+  color: #adb5bd;
+  font-family: monospace;
+}
+
+.ai-eval-summary {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #495057;
+  line-height: 1.5;
+}
+
+.ai-authenticity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ai-authenticity-badge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+}
+
+.ai-authenticity-badge.authentic {
+  background: #d1e7dd;
+  color: #0f5132;
+  border: 1px solid #a3cfbb;
+}
+
+.ai-authenticity-badge.misattributed {
+  background: #f8d7da;
+  color: #842029;
+  border: 1px solid #f1aeb5;
+}
+
+.ai-era {
+  font-size: 0.8rem;
+  color: #6c757d;
+}
+
+.ai-authenticity-reasoning {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6c757d;
+  line-height: 1.5;
+}
+
+.ai-scores {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ai-score-block {
+  flex: 1 1 160px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-score-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ai-score-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #495057;
+}
+
+.ai-score-reasoning {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #6c757d;
+  line-height: 1.4;
+}
+
+.ai-suggestion {
+  font-size: 0.78rem;
+  background: #fff3cd;
+  border-radius: 4px;
+  padding: 4px 6px;
+  color: #495057;
+}
+
+.ai-suggestion-label {
+  font-weight: 600;
+  color: #856404;
+}
+
+.ai-variants-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6c757d;
+  margin-bottom: 4px;
+}
+
+.ai-variants-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ai-variants-list li {
+  font-size: 0.82rem;
+  color: #495057;
+  font-style: italic;
+}
+
 @media (max-width: 640px) {
   .quotation-card {
     padding: 16px;

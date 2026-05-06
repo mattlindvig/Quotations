@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Quotation } from '../../types/quotation';
+import type { Quotation, AiScore } from '../../types/quotation';
 import { useAuth } from '../../contexts/AuthContext';
 import { useFavorites } from '../../contexts/FavoritesContext';
 import './QuotationCard.css';
@@ -15,6 +15,7 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
   const { isFavorited, toggleFavorite } = useFavorites();
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [showAiPanel, setShowAiPanel] = useState(false);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -162,9 +163,95 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
             >
               {copied ? 'Copied!' : 'Copy'}
             </button>
+            {quotation.aiReview?.status === 'reviewed' && (
+              <button
+                className={`card-action-btn ai-eval-btn${showAiPanel ? ' active' : ''}`}
+                onClick={() => setShowAiPanel(v => !v)}
+                title="Show AI evaluation"
+              >
+                {showAiPanel ? 'Hide AI' : 'AI Eval'}
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {showAiPanel && quotation.aiReview && (
+        <AiEvaluationPanel aiReview={quotation.aiReview} />
+      )}
     </article>
   );
 };
+
+function ScorePill({ score }: { score: number }) {
+  const color = score >= 8 ? '#198754' : score >= 5 ? '#fd7e14' : '#dc3545';
+  return <span style={{ fontWeight: 700, color }}>{score}/10</span>;
+}
+
+function ScoreBlock({ label, data }: { label: string; data: AiScore | null | undefined }) {
+  if (!data) return null;
+  return (
+    <div className="ai-score-block">
+      <div className="ai-score-header">
+        <span className="ai-score-label">{label}</span>
+        <ScorePill score={data.score} />
+      </div>
+      {data.reasoning && <p className="ai-score-reasoning">{data.reasoning}</p>}
+      {data.suggestedValue && (
+        <div className="ai-suggestion">
+          <span className="ai-suggestion-label">Suggestion: </span>
+          {data.suggestedValue}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AiEvaluationPanel({ aiReview }: { aiReview: NonNullable<Quotation['aiReview']> }) {
+  return (
+    <div className="ai-eval-panel">
+      <div className="ai-eval-header">
+        <span className="ai-eval-title">AI Evaluation</span>
+        {aiReview.modelUsed && (
+          <span className="ai-eval-model">{aiReview.modelUsed}</span>
+        )}
+      </div>
+
+      {aiReview.summary && (
+        <p className="ai-eval-summary">{aiReview.summary}</p>
+      )}
+
+      {(aiReview.isLikelyAuthentic !== null && aiReview.isLikelyAuthentic !== undefined) && (
+        <div className="ai-authenticity">
+          <span className={`ai-authenticity-badge ${aiReview.isLikelyAuthentic ? 'authentic' : 'misattributed'}`}>
+            {aiReview.isLikelyAuthentic ? 'Likely Authentic' : 'Possibly Misattributed'}
+          </span>
+          {aiReview.approximateEra && (
+            <span className="ai-era">{aiReview.approximateEra}</span>
+          )}
+        </div>
+      )}
+
+      {aiReview.authenticityReasoning && (
+        <p className="ai-authenticity-reasoning">{aiReview.authenticityReasoning}</p>
+      )}
+
+      <div className="ai-scores">
+        <ScoreBlock label="Quote Accuracy"  data={aiReview.quoteAccuracy} />
+        <ScoreBlock label="Attribution"     data={aiReview.attributionAccuracy} />
+        <ScoreBlock label="Source"          data={aiReview.sourceAccuracy} />
+      </div>
+
+      {aiReview.knownVariants && aiReview.knownVariants.length > 0 && (
+        <div className="ai-variants">
+          <div className="ai-variants-label">Known Variants</div>
+          <ul className="ai-variants-list">
+            {aiReview.knownVariants.map((v, i) => (
+              <li key={i}>"{v}"</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}

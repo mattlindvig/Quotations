@@ -38,6 +38,10 @@ export interface AiReview {
   sourceAccuracy?: AiScore | null;
   summary?: string | null;
   suggestedTags: string[];
+  isLikelyAuthentic?: boolean | null;
+  authenticityReasoning?: string | null;
+  approximateEra?: string | null;
+  knownVariants?: string[];
 }
 
 export interface Quotation {

@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Quotations.Api.Configuration;
 using Quotations.Api.Models;
 using Quotations.Api.Repositories;
 using System;
@@ -35,15 +37,18 @@ public class AiReviewQueueService : IAiReviewQueueService
 {
     private readonly IQuotationRepository _quotations;
     private readonly IAnthropicService _anthropic;
+    private readonly AiReviewOptions _options;
     private readonly ILogger<AiReviewQueueService> _logger;
 
     public AiReviewQueueService(
         IQuotationRepository quotations,
         IAnthropicService anthropic,
+        IOptions<AiReviewOptions> options,
         ILogger<AiReviewQueueService> logger)
     {
         _quotations = quotations;
         _anthropic = anthropic;
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -104,7 +109,8 @@ public class AiReviewQueueService : IAiReviewQueueService
             null,
             quotation.Source.Title,
             quotation.Source.Type.ToString(),
-            null);
+            null,
+            _options.UseWebSearch);
 
         return new AiRequestPreviewDto
         {

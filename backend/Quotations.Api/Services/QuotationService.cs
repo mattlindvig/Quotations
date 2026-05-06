@@ -191,6 +191,9 @@ public class QuotationService
         var quotation = new Quotation
         {
             Text = request.Text.Trim(),
+            OriginalText = request.Text.Trim(),
+            OriginalAuthorName = author.Name,
+            OriginalSourceTitle = source.Title,
             Author = new AuthorReference
             {
                 Id = author.Id,

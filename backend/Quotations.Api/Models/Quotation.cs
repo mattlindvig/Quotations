@@ -21,7 +21,7 @@ public enum QuotationStatus
 public class AuthorReference
 {
     [BsonRepresentation(BsonType.ObjectId)]
-    public string Id { get; set; } = string.Empty;
+    public string? Id { get; set; }
 
     public string Name { get; set; } = string.Empty;
 }
@@ -32,7 +32,7 @@ public class AuthorReference
 public class SourceReference
 {
     [BsonRepresentation(BsonType.ObjectId)]
-    public string Id { get; set; } = string.Empty;
+    public string? Id { get; set; }
 
     public string Title { get; set; } = string.Empty;
 
@@ -124,8 +124,29 @@ public class Quotation
     [BsonElement("rejectionReason")]
     public string? RejectionReason { get; set; }
 
+    /// <summary>
+    /// Original submitted text before any AI corrections
+    /// </summary>
+    [BsonElement("originalText")]
+    public string? OriginalText { get; set; }
+
+    /// <summary>
+    /// Original submitted author name before any AI corrections
+    /// </summary>
+    [BsonElement("originalAuthorName")]
+    public string? OriginalAuthorName { get; set; }
+
+    /// <summary>
+    /// Original submitted source title before any AI corrections
+    /// </summary>
+    [BsonElement("originalSourceTitle")]
+    public string? OriginalSourceTitle { get; set; }
+
     [BsonElement("aiReview")]
     public AiReview AiReview { get; set; } = new();
+
+    [BsonElement("aiRevisions")]
+    public List<AiRevision> AiRevisions { get; set; } = new();
 
     /// <summary>
     /// IDs of similar quotations detected at submission time. Non-empty means the

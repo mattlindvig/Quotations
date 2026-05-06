@@ -4,6 +4,7 @@ using Quotations.Api.Configuration;
 using Quotations.Api.Models;
 using Quotations.Api.Repositories;
 using Quotations.Api.Services;
+using System.Linq;
 
 namespace Quotations.Api.Controllers;
 
@@ -74,6 +75,7 @@ public class AiReviewDashboardController : ControllerBase
             reviewedAt = q.AiReview.ReviewedAt,
             modelUsed = q.AiReview.ModelUsed,
             summary = q.AiReview.Summary,
+            aiChangesApplied = q.AiRevisions.Count > 0,
             scores = new
             {
                 quoteAccuracy = q.AiReview.QuoteAccuracy?.Score,
@@ -126,7 +128,22 @@ public class AiReviewDashboardController : ControllerBase
         return Ok(new
         {
             success = true,
-            data = new { autoProcessingEnabled = _runtimeSettings.AutoProcessingEnabled }
+            data = new
+            {
+                autoEnqueueEnabled = _runtimeSettings.AutoEnqueueEnabled,
+                autoProcessingEnabled = _runtimeSettings.AutoProcessingEnabled
+            }
+        });
+    }
+
+    [HttpPost("settings/auto-enqueue")]
+    public IActionResult SetAutoEnqueue([FromBody] SetAutoEnqueueRequest request)
+    {
+        _runtimeSettings.AutoEnqueueEnabled = request.Enabled;
+        return Ok(new
+        {
+            success = true,
+            data = new { autoEnqueueEnabled = _runtimeSettings.AutoEnqueueEnabled }
         });
     }
 
@@ -215,6 +232,141 @@ public class AiReviewDashboardController : ControllerBase
         });
     }
 
+    [HttpGet("detail/{quotationId}")]
+    public async Task<IActionResult> GetDetail(string quotationId)
+    {
+        var quotation = await _quotations.GetQuotationByIdAsync(quotationId);
+        if (quotation == null)
+            return NotFound(new { success = false, message = "Quotation not found" });
+
+        var review = quotation.AiReview;
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                quotationId = quotation.Id,
+                text = quotation.Text,
+                authorName = quotation.Author.Name,
+                sourceTitle = quotation.Source.Title,
+                originalText = quotation.OriginalText,
+                originalAuthorName = quotation.OriginalAuthorName,
+                originalSourceTitle = quotation.OriginalSourceTitle,
+                tags = quotation.Tags,
+                modelUsed = review?.ModelUsed,
+                reviewedAt = review?.ReviewedAt,
+                summary = review?.Summary,
+                suggestedTags = review?.SuggestedTags ?? new List<string>(),
+                authenticity = review == null ? null : (object)new
+                {
+                    isLikelyAuthentic = review.IsLikelyAuthentic,
+                    reasoning = review.AuthenticityReasoning,
+                    approximateEra = review.ApproximateEra,
+                    knownVariants = review.KnownVariants
+                },
+                scores = review == null ? null : new
+                {
+                    quoteAccuracy = review.QuoteAccuracy == null ? null : (object)new
+                    {
+                        score = review.QuoteAccuracy.Score,
+                        reasoning = review.QuoteAccuracy.Reasoning,
+                        suggestedValue = review.QuoteAccuracy.SuggestedValue,
+                        suggestionConfidence = review.QuoteAccuracy.SuggestionConfidence
+                    },
+                    attribution = review.AttributionAccuracy == null ? null : (object)new
+                    {
+                        score = review.AttributionAccuracy.Score,
+                        reasoning = review.AttributionAccuracy.Reasoning,
+                        suggestedValue = review.AttributionAccuracy.SuggestedValue,
+                        suggestionConfidence = review.AttributionAccuracy.SuggestionConfidence
+                    },
+                    source = review.SourceAccuracy == null ? null : (object)new
+                    {
+                        score = review.SourceAccuracy.Score,
+                        reasoning = review.SourceAccuracy.Reasoning,
+                        suggestedValue = review.SourceAccuracy.SuggestedValue,
+                        suggestionConfidence = review.SourceAccuracy.SuggestionConfidence
+                    }
+                },
+                revisions = quotation.AiRevisions
+                    .OrderByDescending(r => r.AppliedAt)
+                    .Select(r => new
+                    {
+                        appliedAt = r.AppliedAt,
+                        modelUsed = r.ModelUsed,
+                        changes = r.Changes.Select(c => new
+                        {
+                            field = c.Field,
+                            previousValue = c.PreviousValue,
+                            newValue = c.NewValue,
+                            reasoning = c.Reasoning,
+                            confidence = c.Confidence
+                        })
+                    })
+            }
+        });
+    }
+
+    [HttpGet("revisions/{quotationId}")]
+    public async Task<IActionResult> GetRevisions(string quotationId)
+    {
+        var quotation = await _quotations.GetQuotationByIdAsync(quotationId);
+        if (quotation == null)
+            return NotFound(new { success = false, message = "Quotation not found" });
+
+        var revisions = quotation.AiRevisions
+            .OrderByDescending(r => r.AppliedAt)
+            .Select(r => new
+            {
+                appliedAt = r.AppliedAt,
+                modelUsed = r.ModelUsed,
+                changes = r.Changes.Select(c => new
+                {
+                    field = c.Field,
+                    previousValue = c.PreviousValue,
+                    newValue = c.NewValue,
+                    reasoning = c.Reasoning,
+                    confidence = c.Confidence
+                })
+            });
+
+        return Ok(new { success = true, data = revisions });
+    }
+
+    [HttpPost("revisions/{quotationId}/revert-last")]
+    public async Task<IActionResult> RevertLastRevision(string quotationId)
+    {
+        var quotation = await _quotations.GetQuotationByIdAsync(quotationId);
+        if (quotation == null)
+            return NotFound(new { success = false, message = "Quotation not found" });
+
+        if (quotation.AiRevisions.Count == 0)
+            return BadRequest(new { success = false, message = "No AI revisions to revert" });
+
+        var last = quotation.AiRevisions[^1];
+
+        foreach (var change in last.Changes)
+        {
+            switch (change.Field)
+            {
+                case "Text":   quotation.Text = change.PreviousValue; break;
+                case "Author": quotation.Author.Name = change.PreviousValue; break;
+                case "Source": quotation.Source.Title = change.PreviousValue; break;
+                case "Tags":
+                    quotation.Tags = change.PreviousValue
+                        .Split(',', System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries)
+                        .ToList();
+                    break;
+            }
+        }
+
+        quotation.AiRevisions.RemoveAt(quotation.AiRevisions.Count - 1);
+        await _quotations.UpdateQuotationAsync(quotation);
+
+        return Ok(new { success = true, message = "Last AI revision reverted" });
+    }
+
     [HttpPost("errors/{quotationId}/requeue")]
     public async Task<IActionResult> RequeueOne(string quotationId)
     {
@@ -267,4 +419,5 @@ public class AiReviewDashboardController : ControllerBase
     }
 }
 
+public record SetAutoEnqueueRequest(bool Enabled);
 public record SetAutoProcessingRequest(bool Enabled);

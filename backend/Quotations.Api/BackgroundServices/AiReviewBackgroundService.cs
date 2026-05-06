@@ -34,25 +34,27 @@ public class AiReviewBackgroundService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation(
-            "AI Review background service started. Auto-processing: {Enabled}. Polling every {Interval}s when idle.",
-            _runtimeSettings.AutoProcessingEnabled, _options.PollingIntervalSeconds);
+            "AI Review background service started. Auto-enqueue: {Enqueue}, Auto-processing: {Processing}. Polling every {Interval}s when idle.",
+            _runtimeSettings.AutoEnqueueEnabled, _runtimeSettings.AutoProcessingEnabled, _options.PollingIntervalSeconds);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                if (!_runtimeSettings.AutoProcessingEnabled)
-                {
-                    _logger.LogDebug("Auto-processing is disabled. Sleeping for {Interval}s.", _options.PollingIntervalSeconds);
-                    await Task.Delay(TimeSpan.FromSeconds(_options.PollingIntervalSeconds), stoppingToken);
-                    continue;
-                }
+                var processed = 0;
 
-                var processed = await ProcessBatchAsync(stoppingToken);
+                if (_runtimeSettings.AutoProcessingEnabled)
+                    processed = await ProcessBatchAsync(stoppingToken);
 
                 if (processed == 0)
                 {
-                    _logger.LogDebug("No pending AI reviews found. Sleeping for {Interval}s.", _options.PollingIntervalSeconds);
+                    if (_runtimeSettings.AutoEnqueueEnabled)
+                        await EnqueueUnreviewedAsync();
+
+                    _logger.LogDebug(
+                        "Idle. Auto-enqueue: {Enqueue}, Auto-processing: {Processing}. Sleeping for {Interval}s.",
+                        _runtimeSettings.AutoEnqueueEnabled, _runtimeSettings.AutoProcessingEnabled, _options.PollingIntervalSeconds);
+
                     await Task.Delay(TimeSpan.FromSeconds(_options.PollingIntervalSeconds), stoppingToken);
                 }
             }
@@ -68,6 +70,15 @@ public class AiReviewBackgroundService : BackgroundService
         }
 
         _logger.LogInformation("AI Review background service stopped.");
+    }
+
+    private async Task EnqueueUnreviewedAsync()
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var queueService = scope.ServiceProvider.GetRequiredService<IAiReviewQueueService>();
+        var result = await queueService.EnqueueAllUnreviewedAsync();
+        if (result.Enqueued > 0)
+            _logger.LogInformation("Auto-enqueue: added {Count} quotations to the review queue.", result.Enqueued);
     }
 
     private async Task<int> ProcessBatchAsync(CancellationToken stoppingToken)
