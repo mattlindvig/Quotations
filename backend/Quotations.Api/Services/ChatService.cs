@@ -29,8 +29,13 @@ public class ChatService
         "quotations that match their interests, themes, or descriptions. When a user asks for " +
         "quotations about a topic, use your search tools to find relevant examples from the database. " +
         "Always use the search tools to find real quotations rather than inventing them. " +
-        "Be conversational and briefly explain why the quotes you found are relevant. " +
-        "If no results are found, say so and suggest the user try different keywords.";
+        "Be conversational and briefly explain why the quotes you found are relevant.\n\n" +
+        "Search strategy: if your first search returns no results, try again with related terms before giving up. " +
+        "For example: 'graduation' → try 'success', 'achievement', 'new beginnings', 'future'; " +
+        "'happiness' → try 'joy', 'contentment', 'smile'; 'courage' → try 'bravery', 'fear', 'strength'. " +
+        "When asked for a quote by a specific author, use the query field with just the author's name " +
+        "to do a full-text search — this finds partial matches even if the name is stored differently. " +
+        "Only tell the user nothing was found after trying at least two different search strategies.";
 
     public ChatService(
         HttpClient httpClient,
@@ -49,6 +54,19 @@ public class ChatService
         if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey == "REPLACE_WITH_ANTHROPIC_API_KEY")
             return new ChatResult("AI chat is not available — API key not configured.", new List<QuotationDto>());
 
+        try
+        {
+            return await ChatInternalAsync(userMessage, history);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Chat request failed for message: {Message}", userMessage);
+            return new ChatResult("I'm having trouble connecting right now. Please try again in a moment.", new List<QuotationDto>());
+        }
+    }
+
+    private async Task<ChatResult> ChatInternalAsync(string userMessage, List<ChatMessageDto> history)
+    {
         var foundQuotations = new Dictionary<string, QuotationDto>();
 
         // Build messages: prior history (text only) + new user message
@@ -71,25 +89,9 @@ public class ChatService
                 messages
             };
 
-            var json = JsonSerializer.Serialize(requestBody);
-            using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
-            request.Headers.Add("x-api-key", _apiKey);
-            request.Headers.Add("anthropic-version", ApiVersion);
-            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-
-            var httpResponse = await _httpClient.SendAsync(request);
-            await httpResponse.Content.LoadIntoBufferAsync();
-            var body = await httpResponse.Content.ReadAsStringAsync();
-
-            if (!httpResponse.IsSuccessStatusCode)
-            {
-                _logger.LogError(
-                    "Anthropic API returned {Status} (Content-Type: {ContentType}): {Body}",
-                    (int)httpResponse.StatusCode,
-                    httpResponse.Content.Headers.ContentType?.ToString() ?? "unknown",
-                    string.IsNullOrWhiteSpace(body) ? "<empty body>" : body);
-                return new ChatResult("I encountered an error. Please try again.", new List<QuotationDto>());
-            }
+            var body = await SendWithRetryAsync(JsonSerializer.Serialize(requestBody));
+            if (body == null)
+                return new ChatResult("The service is busy right now — please try again in a moment.", new List<QuotationDto>());
 
             using var doc = JsonDocument.Parse(body);
             var root = doc.RootElement;
@@ -148,6 +150,47 @@ public class ChatService
         return new ChatResult("I couldn't process your request. Please try again.", new List<QuotationDto>());
     }
 
+    // Returns the response body on success, null if rate-limited after all retries, throws on other errors.
+    private async Task<string?> SendWithRetryAsync(string json)
+    {
+        var delay = TimeSpan.FromSeconds(30);
+        for (var attempt = 0; attempt <= 3; attempt++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
+            request.Headers.Add("x-api-key", _apiKey);
+            request.Headers.Add("anthropic-version", ApiVersion);
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.SendAsync(request);
+            await response.Content.LoadIntoBufferAsync();
+            var body = await response.Content.ReadAsStringAsync();
+
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                if (attempt >= 3)
+                {
+                    _logger.LogWarning("Chat: rate limit exceeded after {Attempts} retries", attempt + 1);
+                    return null;
+                }
+                if (response.Headers.RetryAfter?.Delta is { } retryAfter)
+                    delay = retryAfter + TimeSpan.FromSeconds(2);
+                _logger.LogWarning("Chat: rate limit hit (attempt {Attempt}/3), waiting {Seconds}s", attempt + 1, (int)delay.TotalSeconds);
+                await Task.Delay(delay);
+                continue;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Anthropic API returned {Status}: {Body}", (int)response.StatusCode,
+                    string.IsNullOrWhiteSpace(body) ? "<empty body>" : body);
+                throw new InvalidOperationException($"Anthropic API error {response.StatusCode}");
+            }
+
+            return body;
+        }
+        return null;
+    }
+
     private async Task<string> ExecuteToolAsync(
         string toolName,
         JsonElement input,
@@ -184,6 +227,13 @@ public class ChatService
         {
             var (searchItems, _) = await _quotationRepository.SearchQuotationsAsync(
                 query, page: 1, pageSize: 5, status: QuotationStatus.Approved);
+            items = searchItems;
+        }
+        else if (!string.IsNullOrWhiteSpace(authorName) && sourceType == null && (tags == null || tags.Count == 0))
+        {
+            // Author-only lookup: use regex search so partial/case-insensitive names match
+            var (searchItems, _) = await _quotationRepository.SearchQuotationsAsync(
+                authorName, page: 1, pageSize: 5, status: QuotationStatus.Approved);
             items = searchItems;
         }
         else

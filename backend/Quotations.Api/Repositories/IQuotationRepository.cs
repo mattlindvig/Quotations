@@ -26,6 +26,7 @@ public interface IQuotationRepository
         string? authorId = null,
         string? authorName = null,
         SourceType? sourceType = null,
+        string? sourceTitle = null,
         List<string>? tags = null,
         string? sortBy = null);
 

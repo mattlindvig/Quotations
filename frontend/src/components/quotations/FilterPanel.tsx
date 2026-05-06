@@ -12,11 +12,13 @@ interface FilterPanelProps {
   onFilterChange: (filters: {
     authorName?: string;
     sourceType?: SourceType;
+    sourceTitle?: string;
     tags?: string[];
   }) => void;
   initialFilters?: {
     authorName?: string;
     sourceType?: SourceType;
+    sourceTitle?: string;
     tags?: string[];
   };
 }
@@ -38,8 +40,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const autocompleteRef = useRef<HTMLDivElement>(null);
 
   const [selectedSourceType, setSelectedSourceType] = useState(initialFilters.sourceType || '');
+  const [selectedSourceTitle, setSelectedSourceTitle] = useState(initialFilters.sourceTitle || '');
   const [selectedTags, setSelectedTags] = useState<string[]>(initialFilters.tags || []);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(
+    !!(initialFilters.authorName || initialFilters.sourceType || initialFilters.tags?.length)
+  );
 
   const sourceTypes: SourceType[] = ['book', 'movie', 'speech', 'interview', 'other'];
 
@@ -48,6 +53,24 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         .filter((n) => n.toLowerCase().includes(inputValue.toLowerCase()))
         .slice(0, MAX_SUGGESTIONS)
     : [];
+
+  // Sync state when initialFilters change externally (e.g. clicking an author name on a card)
+  useEffect(() => {
+    setSelectedAuthorName(initialFilters.authorName || '');
+    setInputValue(initialFilters.authorName || '');
+  }, [initialFilters.authorName]);
+
+  useEffect(() => {
+    setSelectedSourceType(initialFilters.sourceType || '');
+  }, [initialFilters.sourceType]);
+
+  useEffect(() => {
+    setSelectedSourceTitle(initialFilters.sourceTitle || '');
+  }, [initialFilters.sourceTitle]);
+
+  useEffect(() => {
+    setSelectedTags(initialFilters.tags || []);
+  }, [initialFilters.tags]);
 
   // Fetch author names once on mount
   useEffect(() => {
@@ -82,12 +105,13 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
 
   // Apply filters when confirmed selections change
   useEffect(() => {
-    const filters: { authorName?: string; sourceType?: SourceType; tags?: string[] } = {};
+    const filters: { authorName?: string; sourceType?: SourceType; sourceTitle?: string; tags?: string[] } = {};
     if (selectedAuthorName) filters.authorName = selectedAuthorName;
     if (selectedSourceType) filters.sourceType = selectedSourceType as SourceType;
+    if (selectedSourceTitle) filters.sourceTitle = selectedSourceTitle;
     if (selectedTags.length > 0) filters.tags = selectedTags;
     onFilterChange(filters);
-  }, [selectedAuthorName, selectedSourceType, selectedTags, onFilterChange]);
+  }, [selectedAuthorName, selectedSourceType, selectedSourceTitle, selectedTags, onFilterChange]);
 
   const selectAuthor = useCallback((name: string) => {
     setSelectedAuthorName(name);
@@ -140,10 +164,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const handleClearFilters = () => {
     clearAuthor();
     setSelectedSourceType('');
+    setSelectedSourceTitle('');
     setSelectedTags([]);
   };
 
-  const hasActiveFilters = selectedAuthorName || selectedSourceType || selectedTags.length > 0;
+  const hasActiveFilters = selectedAuthorName || selectedSourceType || selectedSourceTitle || selectedTags.length > 0;
 
   return (
     <div className="filter-panel">
@@ -169,7 +194,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           <span>Filters</span>
           {hasActiveFilters && (
             <span className="filter-badge">
-              {[selectedAuthorName, selectedSourceType, ...selectedTags].filter(Boolean).length}
+              {[selectedAuthorName, selectedSourceType, selectedSourceTitle, ...selectedTags].filter(Boolean).length}
             </span>
           )}
         </button>
@@ -267,6 +292,23 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             ))}
           </select>
         </div>
+
+        {/* Active source title filter */}
+        {selectedSourceTitle && (
+          <div className="filter-group">
+            <label className="filter-label">Source</label>
+            <div className="active-source-filter">
+              <span className="active-source-title">{selectedSourceTitle}</span>
+              <button
+                className="author-clear-btn"
+                onClick={() => setSelectedSourceTitle('')}
+                aria-label="Clear source filter"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Tags filter */}
         {tags.length > 0 && (

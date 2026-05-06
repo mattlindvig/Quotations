@@ -155,41 +155,51 @@ public class AiReviewService
 
         if (ShouldApply(result.QuoteAccuracy, ConfidenceThreshold, FillConfidenceThreshold))
         {
+            var newText = TextNormalizer.Normalize(result.QuoteAccuracy.SuggestedValue!);
             changes.Add(new AiFieldChange
             {
                 Field = "Text",
                 PreviousValue = quotation.Text,
-                NewValue = result.QuoteAccuracy.SuggestedValue!,
+                NewValue = newText,
                 Reasoning = result.QuoteAccuracy.Reasoning,
                 Confidence = result.QuoteAccuracy.SuggestionConfidence!.Value
             });
-            quotation.Text = result.QuoteAccuracy.SuggestedValue!;
+            quotation.Text = newText;
+        }
+        else
+        {
+            // Always normalize spacing on the existing text even when no AI correction is applied
+            quotation.Text = TextNormalizer.Normalize(quotation.Text);
         }
 
-        if (ShouldApply(result.AttributionAccuracy, ConfidenceThreshold, FillConfidenceThreshold))
+        var authorOverwrite = IsPlaceholder(quotation.Author.Name) ? FillConfidenceThreshold : ConfidenceThreshold;
+        if (ShouldApply(result.AttributionAccuracy, authorOverwrite, FillConfidenceThreshold))
         {
+            var newAuthor = TextNormalizer.Normalize(result.AttributionAccuracy.SuggestedValue!);
             changes.Add(new AiFieldChange
             {
                 Field = "Author",
                 PreviousValue = quotation.Author.Name,
-                NewValue = result.AttributionAccuracy.SuggestedValue!,
+                NewValue = newAuthor,
                 Reasoning = result.AttributionAccuracy.Reasoning,
                 Confidence = result.AttributionAccuracy.SuggestionConfidence!.Value
             });
-            quotation.Author.Name = result.AttributionAccuracy.SuggestedValue!;
+            quotation.Author.Name = newAuthor;
         }
 
-        if (ShouldApply(result.SourceAccuracy, ConfidenceThreshold, FillConfidenceThreshold))
+        var sourceOverwrite = IsPlaceholder(quotation.Source.Title) ? FillConfidenceThreshold : ConfidenceThreshold;
+        if (ShouldApply(result.SourceAccuracy, sourceOverwrite, FillConfidenceThreshold))
         {
+            var newSource = TextNormalizer.Normalize(result.SourceAccuracy.SuggestedValue!);
             changes.Add(new AiFieldChange
             {
                 Field = "Source",
                 PreviousValue = quotation.Source.Title,
-                NewValue = result.SourceAccuracy.SuggestedValue!,
+                NewValue = newSource,
                 Reasoning = result.SourceAccuracy.Reasoning,
                 Confidence = result.SourceAccuracy.SuggestionConfidence!.Value
             });
-            quotation.Source.Title = result.SourceAccuracy.SuggestedValue!;
+            quotation.Source.Title = newSource;
         }
 
         var highConfidenceTags = result.TagSuggestions
@@ -234,6 +244,14 @@ public class AiReviewService
         _logger.LogInformation("AI fix: applied {Count} change(s) to {QuotationId}", changes.Count, quotation.Id);
         await _quotationRepository.UpdateQuotationAsync(quotation);
     }
+
+    private static readonly HashSet<string> PlaceholderValues = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "", "unknown", "other", "n/a", "none", "various", "anonymous", "unattributed"
+    };
+
+    private static bool IsPlaceholder(string value) =>
+        string.IsNullOrWhiteSpace(value) || PlaceholderValues.Contains(value.Trim());
 
     private static bool ShouldApply(AiScoreResult score, int overwriteThreshold, int fillThreshold)
     {

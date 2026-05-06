@@ -49,6 +49,7 @@ public class QuotationService
         string? authorId = null,
         string? authorName = null,
         SourceType? sourceType = null,
+        string? sourceTitle = null,
         List<string>? tags = null,
         string? sortBy = null)
     {
@@ -58,7 +59,7 @@ public class QuotationService
         if (pageSize > 100) pageSize = 100; // Max page size limit
 
         var (items, totalCount) = await _quotationRepository.GetQuotationsAsync(
-            page, pageSize, status, authorId, authorName, sourceType, tags, sortBy);
+            page, pageSize, status, authorId, authorName, sourceType, sourceTitle, tags, sortBy);
 
         return new PaginatedQuotationsResponse
         {
@@ -306,7 +307,7 @@ public class QuotationService
         if (pageSize > 100) pageSize = 100;
 
         var (items, totalCount) = await _quotationRepository.GetQuotationsAsync(
-            page, pageSize, QuotationStatus.Pending, null, null, null, null);
+            page, pageSize, QuotationStatus.Pending, null, null, null, null, null);
 
         return new PaginatedQuotationsResponse
         {

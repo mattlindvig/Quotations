@@ -4,6 +4,7 @@ import type { SourceType } from '../types/quotation';
 export interface QuotationFilters {
   authorName?: string;
   sourceType?: SourceType;
+  sourceTitle?: string;
   tags?: string[];
 }
 

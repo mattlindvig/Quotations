@@ -52,6 +52,7 @@ export function useQuotations(initialFilters?: QuotationFilters): UseQuotationsR
       if (mergedFilters.authorName) params.append('authorName', mergedFilters.authorName);
       else if (mergedFilters.authorId) params.append('authorId', mergedFilters.authorId);
       if (mergedFilters.sourceType) params.append('sourceType', mergedFilters.sourceType);
+      if (mergedFilters.sourceTitle) params.append('sourceTitle', mergedFilters.sourceTitle);
       if (mergedFilters.tags && mergedFilters.tags.length > 0) {
         params.append('tags', mergedFilters.tags.join(','));
       }

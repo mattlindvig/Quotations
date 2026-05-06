@@ -20,7 +20,6 @@ public enum QuotationStatus
 /// </summary>
 public class AuthorReference
 {
-    [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
     public string Name { get; set; } = string.Empty;
@@ -31,7 +30,6 @@ public class AuthorReference
 /// </summary>
 public class SourceReference
 {
-    [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
     public string Title { get; set; } = string.Empty;

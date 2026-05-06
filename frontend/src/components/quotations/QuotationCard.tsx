@@ -30,6 +30,10 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
     navigate(`/browse?authorName=${encodeURIComponent(quotation.author.name)}`);
   };
 
+  const handleSourceClick = () => {
+    navigate(`/browse?sourceTitle=${encodeURIComponent(quotation.source.title)}`);
+  };
+
   const handleTagClick = (tag: string) => {
     navigate(`/browse?tags=${encodeURIComponent(tag)}`);
   };
@@ -105,7 +109,13 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
           <span className="source-type" aria-label="Source type">
             {quotation.source.type}
           </span>
-          <span className="source-title">{quotation.source.title}</span>
+          <button
+            className="source-title source-link"
+            onClick={handleSourceClick}
+            title={`Browse quotes from ${quotation.source.title}`}
+          >
+            {quotation.source.title}
+          </button>
           {quotation.source.year && (
             <span className="source-year" aria-label="Publication year">
               ({quotation.source.year})

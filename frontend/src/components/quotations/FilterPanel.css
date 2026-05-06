@@ -147,6 +147,26 @@
 
 .author-clear-btn:hover { color: #424242; }
 
+.active-source-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.active-source-title {
+  flex: 1;
+  color: #1565c0;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .author-suggestions {
   position: absolute;
   top: calc(100% + 4px);

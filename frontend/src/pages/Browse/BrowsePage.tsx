@@ -22,12 +22,14 @@ export const BrowsePage: React.FC = () => {
   const initialPage = parseInt(searchParams.get('page') || '1');
   const initialAuthorName = searchParams.get('authorName') || undefined;
   const initialSourceType = searchParams.get('sourceType') as SourceType | undefined;
+  const initialSourceTitle = searchParams.get('sourceTitle') || undefined;
   const initialTags = searchParams.get('tags')?.split(',').filter(Boolean) || undefined;
   const sortBy = (searchParams.get('sortBy') as QuotationSortBy | null) || 'newest';
 
   const initialFilters: QuotationFilters = {
     authorName: initialAuthorName,
     sourceType: initialSourceType,
+    sourceTitle: initialSourceTitle,
     tags: initialTags,
   };
 
@@ -103,6 +105,7 @@ export const BrowsePage: React.FC = () => {
       if (query) params.q = query;
       if (newFilters.authorName) params.authorName = newFilters.authorName;
       if (newFilters.sourceType) params.sourceType = newFilters.sourceType;
+      if (newFilters.sourceTitle) params.sourceTitle = newFilters.sourceTitle;
       if (newFilters.tags?.length) params.tags = newFilters.tags.join(',');
       if (newSortBy !== 'newest') params.sortBy = newSortBy;
       setSearchParams(params, { replace: true });

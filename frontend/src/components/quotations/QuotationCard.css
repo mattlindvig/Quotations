@@ -92,6 +92,23 @@
   color: #424242;
 }
 
+.source-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.15s, color 0.15s;
+}
+
+.source-link:hover {
+  color: #1976d2;
+  text-decoration-color: #1976d2;
+}
+
 .source-year {
   color: #757575;
   font-size: 0.875rem;

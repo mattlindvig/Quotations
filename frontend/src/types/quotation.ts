@@ -89,6 +89,7 @@ export interface QuotationFilters {
   authorId?: string;
   authorName?: string;
   sourceType?: SourceType;
+  sourceTitle?: string;
   tags?: string[];
   sortBy?: QuotationSortBy;
 }

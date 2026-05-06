@@ -30,6 +30,7 @@ public class QuotationRepository : IQuotationRepository
         string? authorId = null,
         string? authorName = null,
         SourceType? sourceType = null,
+        string? sourceTitle = null,
         List<string>? tags = null,
         string? sortBy = null)
     {
@@ -60,6 +61,12 @@ public class QuotationRepository : IQuotationRepository
         if (sourceType.HasValue)
         {
             filters.Add(filterBuilder.Eq(q => q.Source.Type, sourceType.Value));
+        }
+
+        // Apply source title filter
+        if (!string.IsNullOrEmpty(sourceTitle))
+        {
+            filters.Add(filterBuilder.Eq(q => q.Source.Title, sourceTitle));
         }
 
         // Apply tags filter (quotation must have all specified tags)
@@ -115,8 +122,14 @@ public class QuotationRepository : IQuotationRepository
         var filterBuilder = Builders<Quotation>.Filter;
         var filters = new List<FilterDefinition<Quotation>>();
 
-        // Text search filter
-        filters.Add(filterBuilder.Text(searchText));
+        // Case-insensitive partial-match regex across quote text, author name, and source title.
+        // Regex.Escape prevents user input from being interpreted as a regex pattern.
+        var regex = new BsonRegularExpression(Regex.Escape(searchText), "i");
+        filters.Add(filterBuilder.Or(
+            filterBuilder.Regex(q => q.Text, regex),
+            filterBuilder.Regex(q => q.Author.Name, regex),
+            filterBuilder.Regex(q => q.Source.Title, regex)
+        ));
 
         // Status filter (default to approved)
         if (status.HasValue)
@@ -130,13 +143,11 @@ public class QuotationRepository : IQuotationRepository
 
         var combinedFilter = filterBuilder.And(filters);
 
-        // Get total count
         var totalCount = await _quotations.CountDocumentsAsync(combinedFilter);
 
-        // Get paginated results sorted by text relevance score
         var items = await _quotations
             .Find(combinedFilter)
-            .Sort(Builders<Quotation>.Sort.MetaTextScore("score"))
+            .Sort(Builders<Quotation>.Sort.Descending(q => q.SubmittedAt))
             .Skip((page - 1) * pageSize)
             .Limit(pageSize)
             .ToListAsync();
