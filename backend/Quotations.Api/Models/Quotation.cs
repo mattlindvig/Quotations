@@ -36,6 +36,8 @@ public class SourceReference
 
     [BsonRepresentation(BsonType.String)]
     public SourceType Type { get; set; }
+
+    public int? Year { get; set; }
 }
 
 /// <summary>

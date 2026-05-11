@@ -2,36 +2,23 @@
 FROM node:18-alpine AS build
 WORKDIR /app
 
-# Copy package files
 COPY package.json package-lock.json ./
-
-# Install dependencies
 RUN npm ci
 
-# Copy source code
 COPY . .
 
 # Build arg so Vite can bake the API URL into the bundle at build time
 ARG VITE_API_BASE_URL=http://localhost:5000/api/v1
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
-# Build the application
 RUN npm run build
 
 # Production stage
-FROM node:18-alpine AS production
-WORKDIR /app
+FROM nginx:alpine AS production
 
-# Install a simple HTTP server for serving static content
-RUN npm install -g serve
-
-# Copy built assets from build stage
-COPY --from=build /app/dist /app/dist
-
-# Install curl for healthcheck
-RUN apk add --no-cache curl
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 5173
 
-# Serve the application
-CMD ["serve", "-s", "dist", "-l", "5173"]
+CMD ["nginx", "-g", "daemon off;"]

@@ -11,6 +11,7 @@ import { ReviewQueuePage } from './pages/Review/ReviewQueuePage';
 import { LoginPage } from './pages/Login/LoginPage';
 import AiReviewDashboardPage from './pages/AiReviewDashboard/AiReviewDashboardPage';
 import { QuoteDetailPage } from './pages/Quote/QuoteDetailPage';
+import { RandomPage } from './pages/Random/RandomPage';
 import { ChatWidget } from './components/chat/ChatWidget';
 import { UserManagementPage } from './pages/Admin/UserManagementPage';
 import './App.css';
@@ -37,6 +38,7 @@ function App() {
                 <Route path="/favorites" element={<FavoritesPage />} />
                 <Route path="/review" element={<ReviewQueuePage />} />
                 <Route path="/ai-review" element={<AiReviewDashboardPage />} />
+                <Route path="/random" element={<RandomPage />} />
                 <Route path="/admin/users" element={<UserManagementPage />} />
               </Routes>
             </main>

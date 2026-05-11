@@ -32,7 +32,9 @@ public class QuotationRepository : IQuotationRepository
         SourceType? sourceType = null,
         string? sourceTitle = null,
         List<string>? tags = null,
-        string? sortBy = null)
+        string? sortBy = null,
+        int? yearFrom = null,
+        int? yearTo = null)
     {
         var filterBuilder = Builders<Quotation>.Filter;
         var filters = new List<FilterDefinition<Quotation>>();
@@ -74,6 +76,12 @@ public class QuotationRepository : IQuotationRepository
         {
             filters.Add(filterBuilder.All(q => q.Tags, tags));
         }
+
+        // Apply year range filters
+        if (yearFrom.HasValue)
+            filters.Add(filterBuilder.Gte(q => q.Source.Year, yearFrom.Value));
+        if (yearTo.HasValue)
+            filters.Add(filterBuilder.Lte(q => q.Source.Year, yearTo.Value));
 
         var combinedFilter = filters.Any()
             ? filterBuilder.And(filters)
@@ -117,7 +125,12 @@ public class QuotationRepository : IQuotationRepository
         string searchText,
         int page = 1,
         int pageSize = 20,
-        QuotationStatus? status = null)
+        QuotationStatus? status = null,
+        string? authorName = null,
+        SourceType? sourceType = null,
+        List<string>? tags = null,
+        int? yearFrom = null,
+        int? yearTo = null)
     {
         var filterBuilder = Builders<Quotation>.Filter;
         var filters = new List<FilterDefinition<Quotation>>();
@@ -140,6 +153,17 @@ public class QuotationRepository : IQuotationRepository
         {
             filters.Add(filterBuilder.Eq(q => q.Status, QuotationStatus.Approved));
         }
+
+        if (!string.IsNullOrWhiteSpace(authorName))
+            filters.Add(filterBuilder.Regex(q => q.Author.Name, new BsonRegularExpression(Regex.Escape(authorName), "i")));
+        if (sourceType.HasValue)
+            filters.Add(filterBuilder.Eq(q => q.Source.Type, sourceType.Value));
+        if (tags != null && tags.Count > 0)
+            filters.Add(filterBuilder.All(q => q.Tags, tags));
+        if (yearFrom.HasValue)
+            filters.Add(filterBuilder.Gte(q => q.Source.Year, yearFrom.Value));
+        if (yearTo.HasValue)
+            filters.Add(filterBuilder.Lte(q => q.Source.Year, yearTo.Value));
 
         var combinedFilter = filterBuilder.And(filters);
 
@@ -362,12 +386,14 @@ public class QuotationRepository : IQuotationRepository
 
     public async Task<Quotation?> GetRandomQuotationAsync()
     {
-        var pipeline = new[]
-        {
-            new BsonDocument("$match", new BsonDocument("status", "Approved")),
-            new BsonDocument("$sample", new BsonDocument("size", 1))
-        };
-        return await _quotations.Aggregate<Quotation>(pipeline).FirstOrDefaultAsync();
+        // $match → $sample materialises ALL matched docs before sampling, which hangs on large
+        // collections. Random-skip uses the status index for both Count and Find — much faster.
+        var filter = Builders<Quotation>.Filter.Eq(q => q.Status, QuotationStatus.Approved);
+        var count = await _quotations.CountDocumentsAsync(filter);
+        if (count == 0) return null;
+
+        var skip = (int)Random.Shared.NextInt64(0, count);
+        return await _quotations.Find(filter).Skip(skip).Limit(1).FirstOrDefaultAsync();
     }
 
     public async Task<bool> UpdateAiReviewAsync(string quotationId, AiReview aiReview)
@@ -481,6 +507,83 @@ public class QuotationRepository : IQuotationRepository
 
         int distance = prev[s2.Length];
         return 1.0 - (double)distance / Math.Max(s1.Length, s2.Length);
+    }
+
+    public async Task<List<Quotation>> TextSearchAsync(
+        string searchText,
+        int limit = 5,
+        QuotationStatus status = QuotationStatus.Approved)
+    {
+        try
+        {
+            var filter = Builders<Quotation>.Filter.And(
+                Builders<Quotation>.Filter.Text(searchText),
+                Builders<Quotation>.Filter.Eq(q => q.Status, status)
+            );
+
+            return await _quotations.Find(filter).Limit(limit).ToListAsync();
+        }
+        catch (MongoCommandException)
+        {
+            // Text index unavailable (e.g., still building on first run) — fall back to regex
+            var (items, _) = await SearchQuotationsAsync(searchText, page: 1, pageSize: limit, status: status);
+            return items;
+        }
+    }
+
+    public async Task<List<Quotation>> GetRandomBatchAsync(
+        int count,
+        SourceType? sourceType = null,
+        List<string>? tags = null)
+    {
+        var filterBuilder = Builders<Quotation>.Filter;
+        var filters = new List<FilterDefinition<Quotation>>
+        {
+            filterBuilder.Eq(q => q.Status, QuotationStatus.Approved)
+        };
+
+        if (sourceType.HasValue)
+            filters.Add(filterBuilder.Eq(q => q.Source.Type, sourceType.Value));
+
+        if (tags != null && tags.Count > 0)
+            filters.Add(filterBuilder.All(q => q.Tags, tags));
+
+        var filter = filterBuilder.And(filters);
+        var total = await _quotations.CountDocumentsAsync(filter);
+        if (total == 0) return new List<Quotation>();
+
+        count = (int)Math.Min(count, total);
+        var positions = GenerateDistinctRandomPositions(count, (int)Math.Min(total, int.MaxValue));
+
+        var tasks = positions.Select(skip =>
+            _quotations.Find(filter).Skip(skip).Limit(1).FirstOrDefaultAsync());
+
+        var results = await Task.WhenAll(tasks);
+        return results.Where(q => q != null).ToList()!;
+    }
+
+    public async Task<Quotation?> GetRandomExcludingAsync(IEnumerable<string> excludeIds)
+    {
+        var excludeList = excludeIds.ToList();
+        var filter = excludeList.Count > 0
+            ? Builders<Quotation>.Filter.And(
+                Builders<Quotation>.Filter.Eq(q => q.Status, QuotationStatus.Approved),
+                Builders<Quotation>.Filter.Nin(q => q.Id, excludeList))
+            : Builders<Quotation>.Filter.Eq(q => q.Status, QuotationStatus.Approved);
+
+        var count = await _quotations.CountDocumentsAsync(filter);
+        if (count == 0) return null;
+
+        var skip = (int)Random.Shared.NextInt64(0, count);
+        return await _quotations.Find(filter).Skip(skip).Limit(1).FirstOrDefaultAsync();
+    }
+
+    private static List<int> GenerateDistinctRandomPositions(int count, int max)
+    {
+        var positions = new HashSet<int>(count);
+        while (positions.Count < count)
+            positions.Add((int)Random.Shared.NextInt64(0, max));
+        return positions.ToList();
     }
 
     public async Task<List<Quotation>> GetByIdsAsync(IEnumerable<string> ids)

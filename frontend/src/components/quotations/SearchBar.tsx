@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './SearchBar.css';
 
 interface SearchBarProps {
@@ -19,17 +19,17 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   debounceMs = 500,
 }) => {
   const [searchValue, setSearchValue] = useState(initialValue);
+  const isMountRef = useRef(true);
 
   // Debounced search effect
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (searchValue.trim() !== initialValue) {
-        onSearch(searchValue.trim());
-      }
-    }, debounceMs);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchValue, debounceMs, onSearch, initialValue]);
+    if (isMountRef.current) {
+      isMountRef.current = false;
+      return;
+    }
+    const id = setTimeout(() => onSearch(searchValue.trim()), debounceMs);
+    return () => clearTimeout(id);
+  }, [searchValue]); // intentionally omit onSearch and debounceMs from deps — they don't change the intent
 
   const handleClear = useCallback(() => {
     setSearchValue('');

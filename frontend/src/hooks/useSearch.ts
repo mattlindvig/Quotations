@@ -6,13 +6,21 @@ import type {
   ApiResponse,
 } from '../types/quotation';
 
+interface SearchFilters {
+  authorName?: string;
+  sourceType?: string;
+  tags?: string[];
+  yearFrom?: string;
+  yearTo?: string;
+}
+
 interface UseSearchResult {
   searchQuery: string;
   searchResults: Quotation[];
   searchLoading: boolean;
   searchError: string | null;
   pagination: PaginatedQuotationsResponse['pagination'] | null;
-  performSearch: (query: string, page?: number, pageSize?: number) => Promise<void>;
+  performSearch: (query: string, page?: number, pageSize?: number, filters?: SearchFilters) => Promise<void>;
   clearSearch: () => void;
   goToPage: (page: number) => Promise<void>;
 }
@@ -29,8 +37,9 @@ export function useSearch(): UseSearchResult {
     null
   );
   const [currentPageSize, setCurrentPageSize] = useState(20);
+  const [currentFilters, setCurrentFilters] = useState<SearchFilters>({});
 
-  const performSearch = useCallback(async (query: string, page = 1, pageSize = 20) => {
+  const performSearch = useCallback(async (query: string, page = 1, pageSize = 20, filters: SearchFilters = {}) => {
     if (!query.trim()) {
       setSearchResults([]);
       setPagination(null);
@@ -43,6 +52,7 @@ export function useSearch(): UseSearchResult {
     setSearchLoading(true);
     setSearchError(null);
     setCurrentPageSize(pageSize);
+    setCurrentFilters(filters);
 
     try {
       const params = new URLSearchParams({
@@ -50,6 +60,14 @@ export function useSearch(): UseSearchResult {
         page: page.toString(),
         pageSize: pageSize.toString(),
       });
+
+      if (filters.authorName) params.set('authorName', filters.authorName);
+      if (filters.sourceType) params.set('sourceType', filters.sourceType);
+      if (filters.tags && filters.tags.length > 0) {
+        filters.tags.forEach((tag) => params.append('tags', tag));
+      }
+      if (filters.yearFrom) params.set('yearFrom', filters.yearFrom);
+      if (filters.yearTo) params.set('yearTo', filters.yearTo);
 
       const response = await apiClient.get<ApiResponse<PaginatedQuotationsResponse>>(
         `/quotations/search?${params.toString()}`
@@ -81,15 +99,16 @@ export function useSearch(): UseSearchResult {
     setSearchResults([]);
     setSearchError(null);
     setPagination(null);
+    setCurrentFilters({});
   }, []);
 
   const goToPage = useCallback(
     async (page: number) => {
       if (searchQuery) {
-        await performSearch(searchQuery, page, currentPageSize);
+        await performSearch(searchQuery, page, currentPageSize, currentFilters);
       }
     },
-    [searchQuery, currentPageSize, performSearch]
+    [searchQuery, currentPageSize, currentFilters, performSearch]
   );
 
   return {

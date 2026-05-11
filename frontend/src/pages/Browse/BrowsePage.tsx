@@ -7,6 +7,7 @@ import { QuotationList } from '../../components/quotations/QuotationList';
 import { SearchBar } from '../../components/quotations/SearchBar';
 import { FilterPanel } from '../../components/quotations/FilterPanel';
 import { SurpriseModal } from '../../components/quotations/SurpriseModal';
+import { QuoteOfDayCard } from '../../components/quotations/QuoteOfDayCard';
 import apiClient from '../../services/apiClient';
 import type { Quotation, SourceType, ApiResponse, QuotationSortBy } from '../../types/quotation';
 import './BrowsePage.css';
@@ -107,6 +108,8 @@ export const BrowsePage: React.FC = () => {
       if (newFilters.sourceType) params.sourceType = newFilters.sourceType;
       if (newFilters.sourceTitle) params.sourceTitle = newFilters.sourceTitle;
       if (newFilters.tags?.length) params.tags = newFilters.tags.join(',');
+      if (newFilters.yearFrom) params.yearFrom = newFilters.yearFrom;
+      if (newFilters.yearTo) params.yearTo = newFilters.yearTo;
       if (newSortBy !== 'newest') params.sortBy = newSortBy;
       setSearchParams(params, { replace: true });
     },
@@ -116,7 +119,11 @@ export const BrowsePage: React.FC = () => {
   const handleSearch = useCallback(
     (query: string) => {
       if (query.trim()) {
-        performSearch(query, 1);
+        performSearch(query, 1, 20, {
+          authorName: filters.authorName,
+          sourceType: filters.sourceType,
+          tags: filters.tags,
+        });
         setActiveMode('search');
         updateUrl(query, filters, sortBy);
       } else {
@@ -132,8 +139,15 @@ export const BrowsePage: React.FC = () => {
   const handleFilterChange = useCallback(
     (newFilters: QuotationFilters) => {
       setFilters(newFilters);
-      updateUrl(activeMode === 'search' ? searchQuery : '', newFilters, sortBy);
-      if (activeMode === 'browse') {
+      const newSortBy = (newFilters.sortBy as QuotationSortBy) || 'newest';
+      updateUrl(activeMode === 'search' ? searchQuery : '', newFilters, newSortBy);
+      if (activeMode === 'search' && searchQuery) {
+        performSearch(searchQuery, 1, 20, {
+          authorName: newFilters.authorName,
+          sourceType: newFilters.sourceType,
+          tags: newFilters.tags,
+        });
+      } else if (activeMode === 'browse') {
         fetchQuotations({
           status: 'approved',
           page: 1,
@@ -145,7 +159,7 @@ export const BrowsePage: React.FC = () => {
         });
       }
     },
-    [setFilters, fetchQuotations, activeMode, searchQuery, updateUrl]
+    [setFilters, fetchQuotations, activeMode, searchQuery, updateUrl, performSearch]
   );
 
   const fetchSurprise = useCallback(async () => {
@@ -177,6 +191,8 @@ export const BrowsePage: React.FC = () => {
 
         {/* Main content */}
         <div className="browse-main">
+          <QuoteOfDayCard />
+
           <div className="browse-toolbar">
             <SearchBar onSearch={handleSearch} initialValue={initialQuery} />
             <button className="surprise-btn" onClick={handleSurprise} title="Show me a random quote">

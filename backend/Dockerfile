@@ -27,4 +27,8 @@ EXPOSE 5000
 EXPOSE 5001
 
 COPY --from=publish /app/publish .
+
+RUN adduser --disabled-password --gecos '' appuser
+USER appuser
+
 ENTRYPOINT ["dotnet", "Quotations.Api.dll"]

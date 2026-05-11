@@ -35,6 +35,7 @@ public class SubmissionsController : ControllerBase
     /// <param name="mode">AI review mode: "sync" (wait for analysis) or "async" (background, default)</param>
     /// <returns>Created quotation with pending status</returns>
     [HttpPost]
+    [Authorize]
     [ProducesResponseType(typeof(ApiResponse<QuotationDto>), 201)]
     [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<ActionResult<ApiResponse<QuotationDto>>> SubmitQuotation(
@@ -81,6 +82,7 @@ public class SubmissionsController : ControllerBase
     /// Submit multiple quotations in bulk — AI review always runs asynchronously
     /// </summary>
     [HttpPost("bulk")]
+    [Authorize]
     [ProducesResponseType(typeof(ApiResponse<BulkSubmitResult>), 200)]
     [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<ActionResult<ApiResponse<BulkSubmitResult>>> BulkSubmitQuotations(

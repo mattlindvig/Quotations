@@ -38,7 +38,7 @@ public class QuotationsController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<List<string>>), 200)]
     public async Task<ActionResult<ApiResponse<List<string>>>> GetAuthorNames([FromQuery] int limit = 500)
     {
-        var names = await _quotationService.GetDistinctAuthorNamesAsync(limit);
+        var names = await _quotationService.GetDistinctAuthorNamesAsync(Math.Min(limit, 1000));
         return Ok(new ApiResponse<List<string>> { Data = names, Success = true });
     }
 
@@ -53,7 +53,9 @@ public class QuotationsController : ControllerBase
         [FromQuery] string? sourceType = null,
         [FromQuery] string? sourceTitle = null,
         [FromQuery] string? tags = null,
-        [FromQuery] string? sortBy = null)
+        [FromQuery] string? sortBy = null,
+        [FromQuery] int? yearFrom = null,
+        [FromQuery] int? yearTo = null)
     {
         // Parse status
         QuotationStatus? statusFilter = null;
@@ -77,13 +79,51 @@ public class QuotationsController : ControllerBase
         }
 
         var result = await _quotationService.GetQuotationsAsync(
-            page, pageSize, statusFilter, authorId, authorName, sourceTypeFilter, sourceTitle, tagsList, sortBy);
+            page, pageSize, statusFilter, authorId, authorName, sourceTypeFilter, sourceTitle, tagsList, sortBy, yearFrom, yearTo);
 
         return Ok(new ApiResponse<PaginatedQuotationsResponse>
         {
             Data = result,
             Success = true
         });
+    }
+
+    /// <summary>
+    /// Get today's Quote of the Day (persists across requests; avoids repeats)
+    /// </summary>
+    [HttpGet("quote-of-the-day")]
+    [ProducesResponseType(typeof(ApiResponse<QuotationDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 404)]
+    public async Task<ActionResult<ApiResponse<QuotationDto>>> GetQuoteOfTheDay()
+    {
+        var quote = await _quotationService.GetQuoteOfTheDayAsync();
+        if (quote == null)
+            return NotFound(new ApiResponse<object> { Success = false });
+        return Ok(new ApiResponse<QuotationDto> { Data = quote, Success = true });
+    }
+
+    /// <summary>
+    /// Get a batch of random approved quotations with optional filters
+    /// </summary>
+    [HttpGet("random-batch")]
+    [ProducesResponseType(typeof(ApiResponse<List<QuotationDto>>), 200)]
+    public async Task<ActionResult<ApiResponse<List<QuotationDto>>>> GetRandomBatch(
+        [FromQuery] int count = 12,
+        [FromQuery] string? sourceType = null,
+        [FromQuery] string? tags = null)
+    {
+        SourceType? sourceTypeFilter = null;
+        if (!string.IsNullOrEmpty(sourceType) &&
+            System.Enum.TryParse<SourceType>(sourceType, true, out var parsedSt))
+            sourceTypeFilter = parsedSt;
+
+        List<string>? tagsList = null;
+        if (!string.IsNullOrEmpty(tags))
+            tagsList = new List<string>(tags.Split(',',
+                System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries));
+
+        var quotes = await _quotationService.GetRandomBatchAsync(count, sourceTypeFilter, tagsList);
+        return Ok(new ApiResponse<List<QuotationDto>> { Data = quotes, Success = true });
     }
 
     /// <summary>
@@ -142,7 +182,12 @@ public class QuotationsController : ControllerBase
     public async Task<ActionResult<ApiResponse<PaginatedQuotationsResponse>>> SearchQuotations(
         [FromQuery] string q,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? authorName = null,
+        [FromQuery] SourceType? sourceType = null,
+        [FromQuery] string[]? tags = null,
+        [FromQuery] int? yearFrom = null,
+        [FromQuery] int? yearTo = null)
     {
         if (string.IsNullOrWhiteSpace(q))
         {
@@ -156,7 +201,9 @@ public class QuotationsController : ControllerBase
             });
         }
 
-        var result = await _quotationService.SearchQuotationsAsync(q, page, pageSize);
+        List<string>? tagsList = tags != null && tags.Length > 0 ? new List<string>(tags) : null;
+
+        var result = await _quotationService.SearchQuotationsAsync(q, page, pageSize, null, authorName, sourceType, tagsList, yearFrom, yearTo);
 
         return Ok(new ApiResponse<PaginatedQuotationsResponse>
         {

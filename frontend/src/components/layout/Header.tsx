@@ -11,6 +11,7 @@ const Header = () => {
         <div className="nav-links">
           <Link to="/" className="nav-brand">Quotations</Link>
           <Link to="/" className="nav-link">Browse</Link>
+          <Link to="/random" className="nav-link">Random</Link>
           <Link to="/submit" className="nav-link">Submit</Link>
           {isAuthenticated && (
             <Link to="/my-submissions" className="nav-link">My Submissions</Link>

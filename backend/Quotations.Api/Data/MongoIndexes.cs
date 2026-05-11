@@ -104,5 +104,14 @@ public static class MongoIndexes
         };
 
         await usersCollection.Indexes.CreateManyAsync(userIndexes);
+
+        // Quote of the Day index — unique per date so concurrent instances can't double-insert
+        var qotdCollection = database.GetCollection<object>("quoteOfDay");
+        await qotdCollection.Indexes.CreateOneAsync(
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys.Ascending("date"),
+                new CreateIndexOptions { Name = "date_idx", Unique = true }
+            )
+        );
     }
 }

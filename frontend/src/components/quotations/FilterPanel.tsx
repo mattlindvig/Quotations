@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiClient } from '../../services/apiClient';
-import type { SourceType, ApiResponse } from '../../types/quotation';
+import type { SourceType, ApiResponse, QuotationFilters, QuotationSortBy } from '../../types/quotation';
 import './FilterPanel.css';
 
 interface Tag {
@@ -9,18 +9,8 @@ interface Tag {
 }
 
 interface FilterPanelProps {
-  onFilterChange: (filters: {
-    authorName?: string;
-    sourceType?: SourceType;
-    sourceTitle?: string;
-    tags?: string[];
-  }) => void;
-  initialFilters?: {
-    authorName?: string;
-    sourceType?: SourceType;
-    sourceTitle?: string;
-    tags?: string[];
-  };
+  onFilterChange: (filters: QuotationFilters) => void;
+  initialFilters?: QuotationFilters;
 }
 
 const MAX_SUGGESTIONS = 8;
@@ -42,6 +32,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const [selectedSourceType, setSelectedSourceType] = useState(initialFilters.sourceType || '');
   const [selectedSourceTitle, setSelectedSourceTitle] = useState(initialFilters.sourceTitle || '');
   const [selectedTags, setSelectedTags] = useState<string[]>(initialFilters.tags || []);
+  const [yearFrom, setYearFrom] = useState(initialFilters.yearFrom || '');
+  const [yearTo, setYearTo] = useState(initialFilters.yearTo || '');
+  const [sortBy, setSortBy] = useState<QuotationSortBy>((initialFilters.sortBy as QuotationSortBy) || 'newest');
   const [isExpanded, setIsExpanded] = useState(
     !!(initialFilters.authorName || initialFilters.sourceType || initialFilters.tags?.length)
   );
@@ -105,13 +98,16 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
 
   // Apply filters when confirmed selections change
   useEffect(() => {
-    const filters: { authorName?: string; sourceType?: SourceType; sourceTitle?: string; tags?: string[] } = {};
+    const filters: QuotationFilters = {};
     if (selectedAuthorName) filters.authorName = selectedAuthorName;
     if (selectedSourceType) filters.sourceType = selectedSourceType as SourceType;
     if (selectedSourceTitle) filters.sourceTitle = selectedSourceTitle;
     if (selectedTags.length > 0) filters.tags = selectedTags;
+    if (yearFrom) filters.yearFrom = yearFrom;
+    if (yearTo) filters.yearTo = yearTo;
+    filters.sortBy = sortBy;
     onFilterChange(filters);
-  }, [selectedAuthorName, selectedSourceType, selectedSourceTitle, selectedTags, onFilterChange]);
+  }, [selectedAuthorName, selectedSourceType, selectedSourceTitle, selectedTags, yearFrom, yearTo, sortBy, onFilterChange]);
 
   const selectAuthor = useCallback((name: string) => {
     setSelectedAuthorName(name);
@@ -166,9 +162,12 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     setSelectedSourceType('');
     setSelectedSourceTitle('');
     setSelectedTags([]);
+    setYearFrom('');
+    setYearTo('');
+    setSortBy('newest');
   };
 
-  const hasActiveFilters = selectedAuthorName || selectedSourceType || selectedSourceTitle || selectedTags.length > 0;
+  const hasActiveFilters = selectedAuthorName || selectedSourceType || selectedSourceTitle || selectedTags.length > 0 || yearFrom || yearTo || sortBy !== 'newest';
 
   return (
     <div className="filter-panel">
@@ -194,7 +193,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           <span>Filters</span>
           {hasActiveFilters && (
             <span className="filter-badge">
-              {[selectedAuthorName, selectedSourceType, selectedSourceTitle, ...selectedTags].filter(Boolean).length}
+              {[selectedAuthorName, selectedSourceType, selectedSourceTitle, ...selectedTags, yearFrom, yearTo, sortBy !== 'newest' ? sortBy : ''].filter(Boolean).length}
             </span>
           )}
         </button>
@@ -310,6 +309,32 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           </div>
         )}
 
+        {/* Year range filter */}
+        <div className="filter-group">
+          <label className="filter-label">Year</label>
+          <div className="year-range">
+            <input
+              type="number"
+              className="filter-input-sm"
+              placeholder="From"
+              min="0"
+              max="2030"
+              value={yearFrom}
+              onChange={(e) => setYearFrom(e.target.value)}
+            />
+            <span className="year-dash">–</span>
+            <input
+              type="number"
+              className="filter-input-sm"
+              placeholder="To"
+              min="0"
+              max="2030"
+              value={yearTo}
+              onChange={(e) => setYearTo(e.target.value)}
+            />
+          </div>
+        </div>
+
         {/* Tags filter */}
         {tags.length > 0 && (
           <div className="filter-group">
@@ -328,6 +353,21 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             </div>
           </div>
         )}
+
+        {/* Sort by filter */}
+        <div className="filter-group">
+          <label className="filter-label">Sort by</label>
+          <select
+            className="filter-select"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as QuotationSortBy)}
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="author">Author (A–Z)</option>
+            <option value="year">Year</option>
+          </select>
+        </div>
       </div>
     </div>
   );

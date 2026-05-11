@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.Extensions.Hosting;
 
 namespace Quotations.Api.Middleware;
 
@@ -7,11 +8,13 @@ public class ErrorHandlingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ErrorHandlingMiddleware> _logger;
+    private readonly IHostEnvironment _env;
 
-    public ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorHandlingMiddleware> logger)
+    public ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorHandlingMiddleware> logger, IHostEnvironment env)
     {
         _next = next;
         _logger = logger;
+        _env = env;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -27,10 +30,9 @@ public class ErrorHandlingMiddleware
         }
     }
 
-    private static Task HandleExceptionAsync(HttpContext context, Exception exception)
+    private Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         var code = HttpStatusCode.InternalServerError;
-        var result = string.Empty;
 
         switch (exception)
         {
@@ -46,13 +48,12 @@ public class ErrorHandlingMiddleware
                 break;
         }
 
-        var response = new
-        {
-            message = exception.Message,
-            statusCode = (int)code
-        };
+        // Never leak internal exception details to clients in production
+        var message = code == HttpStatusCode.InternalServerError && !_env.IsDevelopment()
+            ? "An unexpected error occurred."
+            : exception.Message;
 
-        result = JsonSerializer.Serialize(response);
+        var result = JsonSerializer.Serialize(new { message, statusCode = (int)code });
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)code;
 

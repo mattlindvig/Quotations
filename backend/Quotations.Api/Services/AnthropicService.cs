@@ -27,7 +27,8 @@ public interface IAnthropicService
         string sourceTitle,
         string sourceType,
         int? sourceYear,
-        bool useWebSearch);
+        bool useWebSearch,
+        string? modelOverride = null);
 
     AiAnalysisRequestPreview BuildRequestPreview(
         string text,
@@ -63,14 +64,15 @@ public record AiAnalysisResult(
 
 public class AnthropicService : IAnthropicService
 {
-    // Shared across all instances — 50 requests/min, queues callers rather than rejecting them
-    private static readonly TokenBucketRateLimiter RateLimiter = new(new TokenBucketRateLimiterOptions
+    // Shared across ALL Anthropic callers (AI Review + Chat) — 20 req/min keeps us safely
+    // under free-tier limits and ensures Chat can always get through alongside AI Review.
+    internal static readonly TokenBucketRateLimiter RateLimiter = new(new TokenBucketRateLimiterOptions
     {
-        TokenLimit = 50,
-        TokensPerPeriod = 50,
+        TokenLimit = 20,
+        TokensPerPeriod = 20,
         ReplenishmentPeriod = TimeSpan.FromMinutes(1),
         QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-        QueueLimit = 500,
+        QueueLimit = 200,
         AutoReplenishment = true,
     });
 
@@ -119,7 +121,8 @@ public class AnthropicService : IAnthropicService
         string sourceTitle,
         string sourceType,
         int? sourceYear,
-        bool useWebSearch)
+        bool useWebSearch,
+        string? modelOverride = null)
     {
         if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey == "REPLACE_WITH_ANTHROPIC_API_KEY")
         {
@@ -132,6 +135,7 @@ public class AnthropicService : IAnthropicService
             throw new InvalidOperationException("Anthropic rate-limit queue is full — too many requests queued");
 
         var prompt = BuildPrompt(text, authorName, authorLifespan, sourceTitle, sourceType, sourceYear);
+        var effectiveModel = modelOverride ?? _options.Model;
 
         // Maintain full message history to support pause_turn continuation
         var messages = new JsonArray
@@ -143,13 +147,13 @@ public class AnthropicService : IAnthropicService
             ? """[{"type":"web_search_20250305","name":"web_search","max_uses":5}]"""
             : "[]";
         string contentText = string.Empty;
-        string modelUsed = _options.Model;
+        string modelUsed = effectiveModel;
 
         for (int iteration = 0; iteration < 15; iteration++)
         {
             var requestNode = new JsonObject
             {
-                ["model"] = _options.Model,
+                ["model"] = effectiveModel,
                 ["max_tokens"] = _options.MaxTokens,
                 ["messages"] = JsonNode.Parse(messages.ToJsonString()),
                 ["tools"] = JsonNode.Parse(toolsJson)
@@ -159,7 +163,7 @@ public class AnthropicService : IAnthropicService
 
             using var doc = JsonDocument.Parse(responseBody);
             var stopReason = doc.RootElement.TryGetProperty("stop_reason", out var sr) ? sr.GetString() : null;
-            modelUsed = doc.RootElement.TryGetProperty("model", out var m) ? m.GetString() ?? _options.Model : _options.Model;
+            modelUsed = doc.RootElement.TryGetProperty("model", out var m) ? m.GetString() ?? effectiveModel : effectiveModel;
 
             var contentEl = doc.RootElement.GetProperty("content");
 

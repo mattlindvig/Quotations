@@ -92,4 +92,6 @@ export interface QuotationFilters {
   sourceTitle?: string;
   tags?: string[];
   sortBy?: QuotationSortBy;
+  yearFrom?: string;
+  yearTo?: string;
 }

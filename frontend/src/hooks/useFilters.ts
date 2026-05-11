@@ -1,12 +1,7 @@
 import { useState, useCallback } from 'react';
-import type { SourceType } from '../types/quotation';
+import type { QuotationFilters } from '../types/quotation';
 
-export interface QuotationFilters {
-  authorName?: string;
-  sourceType?: SourceType;
-  sourceTitle?: string;
-  tags?: string[];
-}
+export type { QuotationFilters };
 
 interface UseFiltersResult {
   filters: QuotationFilters;

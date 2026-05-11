@@ -153,7 +153,12 @@ public class ChatService
     // Returns the response body on success, null if rate-limited after all retries, throws on other errors.
     private async Task<string?> SendWithRetryAsync(string json)
     {
-        var delay = TimeSpan.FromSeconds(30);
+        // Acquire from the shared limiter so Chat and AI Review don't compete against each other.
+        using var lease = await AnthropicService.RateLimiter.AcquireAsync(permitCount: 1);
+        if (!lease.IsAcquired)
+            return null;
+
+        var delay = TimeSpan.FromSeconds(15);
         for (var attempt = 0; attempt <= 3; attempt++)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
@@ -225,16 +230,13 @@ public class ChatService
         List<Quotation> items;
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var (searchItems, _) = await _quotationRepository.SearchQuotationsAsync(
-                query, page: 1, pageSize: 5, status: QuotationStatus.Approved);
-            items = searchItems;
+            // Use the MongoDB text index for fast full-word search on large collections
+            items = await _quotationRepository.TextSearchAsync(query, limit: 5);
         }
         else if (!string.IsNullOrWhiteSpace(authorName) && sourceType == null && (tags == null || tags.Count == 0))
         {
-            // Author-only lookup: use regex search so partial/case-insensitive names match
-            var (searchItems, _) = await _quotationRepository.SearchQuotationsAsync(
-                authorName, page: 1, pageSize: 5, status: QuotationStatus.Approved);
-            items = searchItems;
+            // Author-only lookup via text index (author.name is included in text_search_idx)
+            items = await _quotationRepository.TextSearchAsync(authorName, limit: 5);
         }
         else
         {
@@ -290,10 +292,10 @@ public class ChatService
     {
         Id = q.Id,
         Text = q.Text,
-        Author = new AuthorDto { Id = q.Author.Id.ToString(), Name = q.Author.Name },
+        Author = new AuthorDto { Id = q.Author.Id ?? string.Empty, Name = q.Author.Name },
         Source = new SourceDto
         {
-            Id = q.Source.Id.ToString(),
+            Id = q.Source.Id ?? string.Empty,
             Title = q.Source.Title,
             Type = q.Source.Type.ToString()
         },

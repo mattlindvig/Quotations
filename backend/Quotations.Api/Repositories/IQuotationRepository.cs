@@ -28,7 +28,9 @@ public interface IQuotationRepository
         SourceType? sourceType = null,
         string? sourceTitle = null,
         List<string>? tags = null,
-        string? sortBy = null);
+        string? sortBy = null,
+        int? yearFrom = null,
+        int? yearTo = null);
 
     /// <summary>
     /// Get distinct author names from quotations, ordered by usage count descending
@@ -54,7 +56,12 @@ public interface IQuotationRepository
         string searchText,
         int page = 1,
         int pageSize = 20,
-        QuotationStatus? status = null);
+        QuotationStatus? status = null,
+        string? authorName = null,
+        SourceType? sourceType = null,
+        List<string>? tags = null,
+        int? yearFrom = null,
+        int? yearTo = null);
 
     /// <summary>
     /// Create a new quotation
@@ -140,6 +147,22 @@ public interface IQuotationRepository
     /// Return a single random approved quotation
     /// </summary>
     Task<Quotation?> GetRandomQuotationAsync();
+
+    /// <summary>
+    /// Full-text search using the MongoDB text index (faster than regex on large collections).
+    /// Intended for the chat service where queries are always complete words.
+    /// </summary>
+    Task<List<Quotation>> TextSearchAsync(string searchText, int limit = 5, QuotationStatus status = QuotationStatus.Approved);
+
+    /// <summary>
+    /// Return a batch of random approved quotations with optional source type and tag filters.
+    /// </summary>
+    Task<List<Quotation>> GetRandomBatchAsync(int count, SourceType? sourceType = null, List<string>? tags = null);
+
+    /// <summary>
+    /// Return a single random approved quotation, excluding the given IDs (used for QOTD deduplication).
+    /// </summary>
+    Task<Quotation?> GetRandomExcludingAsync(IEnumerable<string> excludeIds);
 
     /// <summary>
     /// Get quotations by a list of IDs, preserving insertion order

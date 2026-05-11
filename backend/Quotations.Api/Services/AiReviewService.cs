@@ -111,6 +111,49 @@ public class AiReviewService
 
             await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
 
+            // If any dimension scored ≤ 5, run a deeper pass with a stronger model + web search
+            var minScore = Math.Min(result.QuoteAccuracy.Score,
+                Math.Min(result.AttributionAccuracy.Score, result.SourceAccuracy.Score));
+            if (minScore <= 5)
+            {
+                _logger.LogInformation("Low confidence on {QuotationId} (min score {Min}), running deep review with Sonnet + web search", quotation.Id, minScore);
+                var deepResult = await _anthropic.AnalyzeQuotationAsync(
+                    quotation.Text, quotation.Author.Name, null,
+                    quotation.Source.Title, quotation.Source.Type.ToString(), null,
+                    useWebSearch: true, modelOverride: "claude-sonnet-4-6");
+                if (deepResult != null)
+                {
+                    result = deepResult;
+                    quotation.AiReview.ModelUsed = result.ModelUsed;
+                    // Re-write scores from the deeper analysis
+                    quotation.AiReview.QuoteAccuracy = new AiScoreWithSuggestion
+                    {
+                        Score = result.QuoteAccuracy.Score, Reasoning = result.QuoteAccuracy.Reasoning,
+                        SuggestedValue = result.QuoteAccuracy.SuggestedValue,
+                        SuggestionConfidence = result.QuoteAccuracy.SuggestionConfidence,
+                        WasAiFilled = result.QuoteAccuracy.WasAiFilled, Citations = result.QuoteAccuracy.Citations
+                    };
+                    quotation.AiReview.AttributionAccuracy = new AiScoreWithSuggestion
+                    {
+                        Score = result.AttributionAccuracy.Score, Reasoning = result.AttributionAccuracy.Reasoning,
+                        SuggestedValue = result.AttributionAccuracy.SuggestedValue,
+                        SuggestionConfidence = result.AttributionAccuracy.SuggestionConfidence,
+                        WasAiFilled = result.AttributionAccuracy.WasAiFilled, Citations = result.AttributionAccuracy.Citations
+                    };
+                    quotation.AiReview.SourceAccuracy = new AiScoreWithSuggestion
+                    {
+                        Score = result.SourceAccuracy.Score, Reasoning = result.SourceAccuracy.Reasoning,
+                        SuggestedValue = result.SourceAccuracy.SuggestedValue,
+                        SuggestionConfidence = result.SourceAccuracy.SuggestionConfidence,
+                        WasAiFilled = result.SourceAccuracy.WasAiFilled, Citations = result.SourceAccuracy.Citations
+                    };
+                    quotation.AiReview.Summary = result.Summary;
+                    quotation.AiReview.IsLikelyAuthentic = result.IsLikelyAuthentic;
+                    quotation.AiReview.AuthenticityReasoning = result.AuthenticityReasoning;
+                    quotation.AiReview.SuggestedTags = result.TagSuggestions.Select(t => t.Tag).ToList();
+                }
+            }
+
             await ApplyAiFixesAsync(quotation, result);
 
             _logger.LogInformation("Completed AI review for quotation {QuotationId} using {Model}", quotation.Id, result.ModelUsed);

@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Quotations.Api.Models;
 using Quotations.Api.Models.Dtos;
@@ -19,6 +20,7 @@ public record LogoutRequest(string? RefreshToken);
 /// </summary>
 [ApiController]
 [Route("api/v1/auth")]
+[EnableRateLimiting("auth")]
 public class AuthController : ControllerBase
 {
     private readonly IUserRepository _userRepository;

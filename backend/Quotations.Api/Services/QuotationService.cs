@@ -18,6 +18,7 @@ public class QuotationService
     private readonly IAuthorRepository _authorRepository;
     private readonly ISourceRepository _sourceRepository;
     private readonly AiReviewService _aiReviewService;
+    private readonly IQuoteOfDayRepository _quoteOfDayRepository;
     private readonly ILogger<QuotationService> _logger;
 
     public QuotationService(
@@ -25,12 +26,14 @@ public class QuotationService
         IAuthorRepository authorRepository,
         ISourceRepository sourceRepository,
         AiReviewService aiReviewService,
+        IQuoteOfDayRepository quoteOfDayRepository,
         ILogger<QuotationService> logger)
     {
         _quotationRepository = quotationRepository;
         _authorRepository = authorRepository;
         _sourceRepository = sourceRepository;
         _aiReviewService = aiReviewService;
+        _quoteOfDayRepository = quoteOfDayRepository;
         _logger = logger;
     }
 
@@ -51,7 +54,9 @@ public class QuotationService
         SourceType? sourceType = null,
         string? sourceTitle = null,
         List<string>? tags = null,
-        string? sortBy = null)
+        string? sortBy = null,
+        int? yearFrom = null,
+        int? yearTo = null)
     {
         // Validate pagination parameters
         if (page < 1) page = 1;
@@ -59,7 +64,7 @@ public class QuotationService
         if (pageSize > 100) pageSize = 100; // Max page size limit
 
         var (items, totalCount) = await _quotationRepository.GetQuotationsAsync(
-            page, pageSize, status, authorId, authorName, sourceType, sourceTitle, tags, sortBy);
+            page, pageSize, status, authorId, authorName, sourceType, sourceTitle, tags, sortBy, yearFrom, yearTo);
 
         return new PaginatedQuotationsResponse
         {
@@ -101,7 +106,12 @@ public class QuotationService
         string searchText,
         int page = 1,
         int pageSize = 20,
-        QuotationStatus? status = null)
+        QuotationStatus? status = null,
+        string? authorName = null,
+        SourceType? sourceType = null,
+        List<string>? tags = null,
+        int? yearFrom = null,
+        int? yearTo = null)
     {
         // Validate pagination parameters
         if (page < 1) page = 1;
@@ -109,7 +119,7 @@ public class QuotationService
         if (pageSize > 100) pageSize = 100;
 
         var (items, totalCount) = await _quotationRepository.SearchQuotationsAsync(
-            searchText, page, pageSize, status);
+            searchText, page, pageSize, status, authorName, sourceType, tags, yearFrom, yearTo);
 
         return new PaginatedQuotationsResponse
         {
@@ -416,6 +426,44 @@ public class QuotationService
             quotation.Text, quotation.Author.Name, id);
 
         return duplicates.Select(MapToDto).ToList();
+    }
+
+    public async Task<QuotationDto?> GetQuoteOfTheDayAsync()
+    {
+        var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+        var existing = await _quoteOfDayRepository.GetByDateAsync(today);
+        if (existing != null)
+            return await GetQuotationByIdAsync(existing.QuotationId);
+
+        var usedIds = await _quoteOfDayRepository.GetAllUsedQuotationIdsAsync();
+        var quote = await _quotationRepository.GetRandomExcludingAsync(usedIds);
+        if (quote == null) return null;
+
+        try
+        {
+            await _quoteOfDayRepository.CreateAsync(new QuoteOfDay { Date = today, QuotationId = quote.Id });
+        }
+        catch (Exception ex)
+        {
+            // Race condition: another instance already inserted today's entry
+            _logger.LogWarning(ex, "QOTD race on {Date} — fetching existing entry", today);
+            var created = await _quoteOfDayRepository.GetByDateAsync(today);
+            if (created != null)
+                return await GetQuotationByIdAsync(created.QuotationId);
+        }
+
+        return MapToDto(quote);
+    }
+
+    public async Task<List<QuotationDto>> GetRandomBatchAsync(
+        int count,
+        SourceType? sourceType = null,
+        List<string>? tags = null)
+    {
+        count = Math.Clamp(count, 1, 20);
+        var quotes = await _quotationRepository.GetRandomBatchAsync(count, sourceType, tags);
+        return quotes.Select(MapToDto).ToList();
     }
 
     /// <summary>

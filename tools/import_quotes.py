@@ -12,6 +12,7 @@ Usage:
 import argparse
 import csv
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,7 +25,7 @@ except ImportError:
     print("pymongo is required. Install with:  pip install pymongo")
     sys.exit(1)
 
-MONGO_URI = "mongodb://admin:password123@localhost:27017"
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://admin:password123@localhost:27017")
 DB_NAME = "quotations"
 COLLECTION = "quotations"
 BATCH_SIZE = 500

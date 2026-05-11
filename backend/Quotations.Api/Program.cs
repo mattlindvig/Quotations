@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MongoDB.Bson.Serialization;
@@ -129,6 +130,7 @@ builder.Services.AddScoped<ISourceRepository, SourceRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAiReviewErrorRepository, AiReviewErrorRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<IQuoteOfDayRepository, QuoteOfDayRepository>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<QuotationService>();
 
@@ -146,18 +148,34 @@ builder.Services.AddHostedService<AiReviewBackgroundService>();
 // Configure JWT Authentication (using custom implementation, not ASP.NET Identity)
 builder.Services.AddJwtAuthentication(builder.Configuration);
 
-// Configure CORS
+// Configure CORS — set AllowedOrigins env var in production (comma-separated)
+var allowedOrigins = builder.Configuration["AllowedOrigins"]
+    ?.Split(",", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    ?? new[] { "http://localhost:5173", "https://localhost:5173" };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(
         "AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173", "https://localhost:5173")
+            policy.WithOrigins(allowedOrigins)
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
         });
+});
+
+// Rate limiting for auth endpoints (10 requests/min per IP)
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("auth", opt =>
+    {
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.PermitLimit = 10;
+        opt.QueueLimit = 0;
+    });
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
 var app = builder.Build();
@@ -174,6 +192,8 @@ app.UseMiddleware<Quotations.Api.Middleware.ErrorHandlingMiddleware>();
 
 // CORS middleware
 app.UseCors("AllowFrontend");
+
+app.UseRateLimiter();
 
 // Authentication & Authorization middleware
 app.UseAuthentication();
@@ -222,8 +242,11 @@ using (var scope = app.Services.CreateScope())
     // Create indexes
     await MongoIndexes.CreateIndexesAsync(database);
 
-    // Seed sample data
-    await DataSeeder.SeedDataAsync(database);
+    // Seed sample data (dev only — avoids known credentials in production)
+    if (app.Environment.IsDevelopment())
+    {
+        await DataSeeder.SeedDataAsync(database);
+    }
 }
 
 app.Run();
