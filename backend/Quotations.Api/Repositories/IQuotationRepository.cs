@@ -168,4 +168,9 @@ public interface IQuotationRepository
     /// Get quotations by a list of IDs, preserving insertion order
     /// </summary>
     Task<List<Quotation>> GetByIdsAsync(IEnumerable<string> ids);
+
+    /// <summary>
+    /// Get paginated quotations submitted by a specific user
+    /// </summary>
+    Task<(List<Quotation> Items, long TotalCount)> GetBySubmitterIdAsync(string userId, int page = 1, int pageSize = 20);
 }

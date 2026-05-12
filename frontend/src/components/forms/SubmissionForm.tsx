@@ -157,7 +157,7 @@ export const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onCan
 
       const response = await apiClient.post<ApiResponse<any>>('/submissions', payload);
 
-      if (response.data.success) {
+      if (response.success) {
         setShowSuccess(true);
         // Reset form
         setFormData({
@@ -175,9 +175,9 @@ export const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onCan
           setShowSuccess(false);
           onSuccess?.();
         }, 3000);
-      } else if (response.data.errors) {
+      } else if (response.errors) {
         const apiErrors: Record<string, string> = {};
-        Object.entries(response.data.errors as Record<string, string[]>).forEach(([key, messages]) => {
+        Object.entries(response.errors as Record<string, string[]>).forEach(([key, messages]) => {
           apiErrors[key] = messages[0];
         });
         setErrors(apiErrors);

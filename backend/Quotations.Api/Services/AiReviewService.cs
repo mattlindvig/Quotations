@@ -191,8 +191,8 @@ public class AiReviewService
 
     private async Task ApplyAiFixesAsync(Quotation quotation, AiAnalysisResult result)
     {
-        const int ConfidenceThreshold = 80;
-        const int FillConfidenceThreshold = 50; // lower bar when filling a blank field
+        const int ConfidenceThreshold = 70;
+        const int FillConfidenceThreshold = 50;
         const int TagConfidenceThreshold = 50;
         var changes = new List<AiFieldChange>();
 
@@ -301,16 +301,13 @@ public class AiReviewService
         if (string.IsNullOrWhiteSpace(score.SuggestedValue) || score.SuggestionConfidence == null)
             return false;
 
-        // Low scores mean the AI couldn't verify the content — the suggestedValue is a
-        // description of the problem, not a real corrected value. Never auto-apply.
-        if (score.Score < 5)
-            return false;
-
         // Filling a blank field: accept at the lower threshold
         if (score.WasAiFilled)
             return score.SuggestionConfidence >= fillThreshold;
 
-        // Overwriting an existing value: require the higher threshold
+        // Overwriting an existing value: require the higher threshold.
+        // A low accuracy score means the current value is wrong — confidence is what
+        // controls whether the suggested correction is trustworthy enough to apply.
         return score.SuggestionConfidence >= overwriteThreshold;
     }
 }

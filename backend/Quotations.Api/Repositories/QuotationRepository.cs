@@ -602,4 +602,18 @@ public class QuotationRepository : IQuotationRepository
             .OrderBy(q => orderMap.TryGetValue(q.Id, out var i) ? i : int.MaxValue)
             .ToList();
     }
+
+    public async Task<(List<Quotation> Items, long TotalCount)> GetBySubmitterIdAsync(string userId, int page = 1, int pageSize = 20)
+    {
+        var filter = Builders<Quotation>.Filter.Eq("submittedBy.id", userId);
+        var total = await _quotations.CountDocumentsAsync(filter);
+        var items = await _quotations
+            .Find(filter)
+            .SortByDescending(q => q.SubmittedAt)
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync();
+
+        return (items, total);
+    }
 }

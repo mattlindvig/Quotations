@@ -290,16 +290,20 @@ public class QuotationService
         int page = 1,
         int pageSize = 20)
     {
-        // This would require a new repository method to filter by submittedBy.Id
-        // For now, return empty - to be implemented
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 100) pageSize = 100;
+
+        var (items, totalCount) = await _quotationRepository.GetBySubmitterIdAsync(userId, page, pageSize);
+
         return new PaginatedQuotationsResponse
         {
-            Items = new List<QuotationDto>(),
+            Items = items.Select(MapToDto).ToList(),
             Pagination = new PaginationMetadata
             {
                 Page = page,
                 PageSize = pageSize,
-                TotalCount = 0
+                TotalCount = (int)totalCount
             }
         };
     }
