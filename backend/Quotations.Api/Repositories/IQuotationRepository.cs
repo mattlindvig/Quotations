@@ -173,4 +173,15 @@ public interface IQuotationRepository
     /// Get paginated quotations submitted by a specific user
     /// </summary>
     Task<(List<Quotation> Items, long TotalCount)> GetBySubmitterIdAsync(string userId, int page = 1, int pageSize = 20);
+
+    /// <summary>
+    /// Bulk-update aiReview.status for a list of quotation IDs in a single MongoDB operation.
+    /// Used by the Batch API to mark thousands of quotations as BatchPending in one call.
+    /// </summary>
+    Task<long> BulkSetAiReviewStatusAsync(IEnumerable<string> quotationIds, AiReviewStatus status);
+
+    /// <summary>
+    /// Get up to <paramref name="limit"/> NotReviewed quotations for batch submission.
+    /// </summary>
+    Task<List<Quotation>> GetUnreviewedForBatchAsync(int limit);
 }

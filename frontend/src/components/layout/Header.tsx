@@ -1,16 +1,22 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import './Header.css';
 
 const Header = () => {
   const { isAuthenticated, user, logout, hasRole } = useAuth();
+  const navigate = useNavigate();
+
+  const goHome = (e: React.MouseEvent) => {
+    e.preventDefault();
+    navigate('/', { replace: true });
+  };
 
   return (
     <header className="site-header">
       <nav className="site-nav">
         <div className="nav-links">
-          <Link to="/" className="nav-brand">Quotations</Link>
-          <Link to="/" className="nav-link">Browse</Link>
+          <a href="/" className="nav-brand" onClick={goHome}>Quotations</a>
+          <a href="/" className="nav-link" onClick={goHome}>Browse</a>
           <Link to="/random" className="nav-link">Random</Link>
           <Link to="/submit" className="nav-link">Submit</Link>
           {isAuthenticated && (

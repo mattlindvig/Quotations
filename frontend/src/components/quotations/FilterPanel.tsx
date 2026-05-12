@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiClient } from '../../services/apiClient';
-import type { SourceType, ApiResponse, QuotationFilters, QuotationSortBy } from '../../types/quotation';
+import type { SourceType, ApiResponse, QuotationFilters } from '../../types/quotation';
 import './FilterPanel.css';
 
 interface Tag {
@@ -32,9 +32,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const [selectedSourceType, setSelectedSourceType] = useState(initialFilters.sourceType || '');
   const [selectedSourceTitle, setSelectedSourceTitle] = useState(initialFilters.sourceTitle || '');
   const [selectedTags, setSelectedTags] = useState<string[]>(initialFilters.tags || []);
-  const [yearFrom, setYearFrom] = useState(initialFilters.yearFrom || '');
-  const [yearTo, setYearTo] = useState(initialFilters.yearTo || '');
-  const [sortBy, setSortBy] = useState<QuotationSortBy>((initialFilters.sortBy as QuotationSortBy) || 'newest');
+  const [showAllTags, setShowAllTags] = useState(false);
+  const [tagSearch, setTagSearch] = useState('');
   const [isExpanded, setIsExpanded] = useState(
     !!(initialFilters.authorName || initialFilters.sourceType || initialFilters.tags?.length)
   );
@@ -62,7 +61,13 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   }, [initialFilters.sourceTitle]);
 
   useEffect(() => {
-    setSelectedTags(initialFilters.tags || []);
+    const newTags = initialFilters.tags || [];
+    setSelectedTags(prev => {
+      // Return the same reference if values haven't changed — prevents the filter
+      // effect from firing and looping back through the parent's onFilterChange.
+      if (prev.length === newTags.length && prev.every((t, i) => t === newTags[i])) return prev;
+      return newTags;
+    });
   }, [initialFilters.tags]);
 
   // Fetch author names once on mount
@@ -74,7 +79,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
 
   // Re-fetch tags whenever the author or source type selection changes
   useEffect(() => {
-    const params = new URLSearchParams({ limit: '50' });
+    const params = new URLSearchParams({ limit: '200' });
     if (selectedAuthorName) params.append('authorName', selectedAuthorName);
     if (selectedSourceType) params.append('sourceType', selectedSourceType);
 
@@ -96,6 +101,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     return () => document.removeEventListener('mousedown', handler);
   }, [selectedAuthorName]);
 
+  // Keep a stable ref to the callback so the effect below only re-runs when
+  // filter *values* change, not when the parent recreates the callback reference.
+  const onFilterChangeRef = useRef(onFilterChange);
+  onFilterChangeRef.current = onFilterChange;
+
   // Apply filters when confirmed selections change
   useEffect(() => {
     const filters: QuotationFilters = {};
@@ -103,11 +113,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     if (selectedSourceType) filters.sourceType = selectedSourceType as SourceType;
     if (selectedSourceTitle) filters.sourceTitle = selectedSourceTitle;
     if (selectedTags.length > 0) filters.tags = selectedTags;
-    if (yearFrom) filters.yearFrom = yearFrom;
-    if (yearTo) filters.yearTo = yearTo;
-    filters.sortBy = sortBy;
-    onFilterChange(filters);
-  }, [selectedAuthorName, selectedSourceType, selectedSourceTitle, selectedTags, yearFrom, yearTo, sortBy, onFilterChange]);
+    onFilterChangeRef.current(filters);
+  }, [selectedAuthorName, selectedSourceType, selectedSourceTitle, selectedTags]);
 
   const selectAuthor = useCallback((name: string) => {
     setSelectedAuthorName(name);
@@ -162,12 +169,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     setSelectedSourceType('');
     setSelectedSourceTitle('');
     setSelectedTags([]);
-    setYearFrom('');
-    setYearTo('');
-    setSortBy('newest');
   };
 
-  const hasActiveFilters = selectedAuthorName || selectedSourceType || selectedSourceTitle || selectedTags.length > 0 || yearFrom || yearTo || sortBy !== 'newest';
+  const hasActiveFilters = !!(selectedAuthorName || selectedSourceType || selectedSourceTitle || selectedTags.length > 0);
 
   return (
     <div className="filter-panel">
@@ -193,7 +197,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           <span>Filters</span>
           {hasActiveFilters && (
             <span className="filter-badge">
-              {[selectedAuthorName, selectedSourceType, selectedSourceTitle, ...selectedTags, yearFrom, yearTo, sortBy !== 'newest' ? sortBy : ''].filter(Boolean).length}
+              {[selectedAuthorName, selectedSourceType, selectedSourceTitle, ...selectedTags].filter(Boolean).length}
             </span>
           )}
         </button>
@@ -309,65 +313,57 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           </div>
         )}
 
-        {/* Year range filter */}
-        <div className="filter-group">
-          <label className="filter-label">Year</label>
-          <div className="year-range">
-            <input
-              type="number"
-              className="filter-input-sm"
-              placeholder="From"
-              min="0"
-              max="2030"
-              value={yearFrom}
-              onChange={(e) => setYearFrom(e.target.value)}
-            />
-            <span className="year-dash">–</span>
-            <input
-              type="number"
-              className="filter-input-sm"
-              placeholder="To"
-              min="0"
-              max="2030"
-              value={yearTo}
-              onChange={(e) => setYearTo(e.target.value)}
-            />
-          </div>
-        </div>
-
         {/* Tags filter */}
         {tags.length > 0 && (
           <div className="filter-group">
             <label className="filter-label">Tags</label>
-            <div className="tags-container">
-              {tags.slice(0, 15).map(({ tag, count }) => (
-                <button
-                  key={tag}
-                  className={`tag-filter-button ${selectedTags.includes(tag) ? 'active' : ''}`}
-                  onClick={() => handleTagToggle(tag)}
-                  aria-pressed={selectedTags.includes(tag)}
-                >
-                  {tag} <span className="tag-count">({count})</span>
-                </button>
-              ))}
-            </div>
+
+            <input
+              type="search"
+              className="tag-search-input"
+              placeholder="Filter tags…"
+              value={tagSearch}
+              onChange={(e) => { setTagSearch(e.target.value); setShowAllTags(false); }}
+              autoComplete="off"
+            />
+
+            {(() => {
+              const filtered = tagSearch.trim()
+                ? tags.filter(({ tag }) => tag.includes(tagSearch.trim().toLowerCase()))
+                : tags;
+              const visible = (showAllTags || tagSearch.trim()) ? filtered : filtered.slice(0, 15);
+              return (
+                <>
+                  <div className="tags-container">
+                    {visible.map(({ tag, count }) => (
+                      <button
+                        key={tag}
+                        className={`tag-filter-button ${selectedTags.includes(tag) ? 'active' : ''}`}
+                        onClick={() => handleTagToggle(tag)}
+                        aria-pressed={selectedTags.includes(tag)}
+                      >
+                        {tag} <span className="tag-count">({count})</span>
+                      </button>
+                    ))}
+                    {filtered.length === 0 && (
+                      <span className="tag-no-results">No tags match</span>
+                    )}
+                  </div>
+
+                  {!tagSearch.trim() && tags.length > 15 && (
+                    <button
+                      className="tag-show-more"
+                      onClick={() => setShowAllTags(v => !v)}
+                    >
+                      {showAllTags ? `Show fewer tags ▲` : `Show all ${tags.length} tags ▼`}
+                    </button>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
-        {/* Sort by filter */}
-        <div className="filter-group">
-          <label className="filter-label">Sort by</label>
-          <select
-            className="filter-select"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as QuotationSortBy)}
-          >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="author">Author (A–Z)</option>
-            <option value="year">Year</option>
-          </select>
-        </div>
       </div>
     </div>
   );

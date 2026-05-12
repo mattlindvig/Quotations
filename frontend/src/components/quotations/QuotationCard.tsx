@@ -155,31 +155,51 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
                 onClick={() => toggleFavorite(quotation.id)}
                 title={isFavorited(quotation.id) ? 'Remove from favorites' : 'Add to favorites'}
                 aria-pressed={isFavorited(quotation.id)}
+                aria-label={isFavorited(quotation.id) ? 'Remove from favorites' : 'Add to favorites'}
               >
-                {isFavorited(quotation.id) ? '♥ Saved' : '♡ Save'}
+                <svg viewBox="0 0 24 24" fill={isFavorited(quotation.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                </svg>
               </button>
             )}
             <button
-              className="card-action-btn share-btn"
+              className={`card-action-btn share-btn${linkCopied ? ' copied' : ''}`}
               onClick={handleShare}
-              title="Copy link to this quote"
+              title={linkCopied ? 'Link copied!' : 'Copy link'}
+              aria-label="Copy link to this quote"
             >
-              {linkCopied ? 'Link copied!' : 'Share'}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                {linkCopied
+                  ? <polyline points="20 6 9 17 4 12" />
+                  : <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></>
+                }
+              </svg>
             </button>
             <button
-              className="card-action-btn copy-btn"
+              className={`card-action-btn copy-btn${copied ? ' copied' : ''}`}
               onClick={handleCopy}
-              title="Copy quote to clipboard"
+              title={copied ? 'Copied!' : 'Copy quote text'}
+              aria-label="Copy quote text"
             >
-              {copied ? 'Copied!' : 'Copy'}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                {copied
+                  ? <polyline points="20 6 9 17 4 12" />
+                  : <><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>
+                }
+              </svg>
             </button>
             {quotation.aiReview?.status === 'reviewed' && (
               <button
                 className={`card-action-btn ai-eval-btn${showAiPanel ? ' active' : ''}`}
                 onClick={() => setShowAiPanel(v => !v)}
-                title="Show AI evaluation"
+                title={showAiPanel ? 'Hide AI evaluation' : 'Show AI evaluation'}
+                aria-label="Toggle AI evaluation"
+                aria-pressed={showAiPanel}
               >
-                {showAiPanel ? 'Hide AI' : 'AI Eval'}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5z" />
+                  <path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75z" />
+                </svg>
               </button>
             )}
           </div>

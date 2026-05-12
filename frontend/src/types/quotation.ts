@@ -80,7 +80,7 @@ export interface ApiResponse<T> {
   errors?: Record<string, string[]>;
 }
 
-export type QuotationSortBy = 'newest' | 'oldest' | 'author' | 'year';
+export type QuotationSortBy = 'newest' | 'oldest' | 'author';
 
 export interface QuotationFilters {
   page?: number;

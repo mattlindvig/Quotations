@@ -139,11 +139,13 @@ builder.Services.Configure<AiReviewOptions>(builder.Configuration.GetSection("Ai
 builder.Services.AddHttpClient<IAnthropicService, AnthropicService>();
 builder.Services.AddScoped<AiReviewService>();
 builder.Services.AddScoped<IAiReviewQueueService, AiReviewQueueService>();
+builder.Services.AddScoped<IAiBatchJobRepository, AiBatchJobRepository>();
 
 // Chat service
 builder.Services.AddHttpClient<ChatService>();
 builder.Services.AddSingleton(new AiReviewRuntimeSettings());
 builder.Services.AddHostedService<AiReviewBackgroundService>();
+builder.Services.AddHostedService<AiBatchProcessingService>();
 
 // Configure JWT Authentication (using custom implementation, not ASP.NET Identity)
 builder.Services.AddJwtAuthentication(builder.Configuration);

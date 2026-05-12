@@ -616,4 +616,28 @@ public class QuotationRepository : IQuotationRepository
 
         return (items, total);
     }
+
+    public async Task<long> BulkSetAiReviewStatusAsync(IEnumerable<string> quotationIds, AiReviewStatusEnum status)
+    {
+        var ids = quotationIds.ToList();
+        if (ids.Count == 0) return 0;
+
+        var filter = Builders<Quotation>.Filter.In(q => q.Id, ids);
+        var update = Builders<Quotation>.Update.Set("aiReview.status", status.ToString());
+        var result = await _quotations.UpdateManyAsync(filter, update);
+        return result.ModifiedCount;
+    }
+
+    public async Task<List<Quotation>> GetUnreviewedForBatchAsync(int limit)
+    {
+        var filter = Builders<Quotation>.Filter.Or(
+            Builders<Quotation>.Filter.Eq("aiReview.status", AiReviewStatusEnum.NotReviewed.ToString()),
+            Builders<Quotation>.Filter.Exists("aiReview", false)
+        );
+
+        return await _quotations
+            .Find(filter)
+            .Limit(limit)
+            .ToListAsync();
+    }
 }

@@ -4,6 +4,7 @@ using Quotations.Api.Configuration;
 using Quotations.Api.Models;
 using Quotations.Api.Repositories;
 using Quotations.Api.Services;
+using System;
 using System.Linq;
 
 namespace Quotations.Api.Controllers;
@@ -18,19 +19,25 @@ public class AiReviewDashboardController : ControllerBase
     private readonly AiReviewRuntimeSettings _runtimeSettings;
     private readonly AiReviewService _aiReviewService;
     private readonly IAiReviewQueueService _queueService;
+    private readonly IAnthropicService _anthropic;
+    private readonly IAiBatchJobRepository _batchJobs;
 
     public AiReviewDashboardController(
         IQuotationRepository quotations,
         IAiReviewErrorRepository errors,
         AiReviewRuntimeSettings runtimeSettings,
         AiReviewService aiReviewService,
-        IAiReviewQueueService queueService)
+        IAiReviewQueueService queueService,
+        IAnthropicService anthropic,
+        IAiBatchJobRepository batchJobs)
     {
         _quotations = quotations;
         _errors = errors;
         _runtimeSettings = runtimeSettings;
         _aiReviewService = aiReviewService;
         _queueService = queueService;
+        _anthropic = anthropic;
+        _batchJobs = batchJobs;
     }
 
     [HttpGet("stats")]
@@ -383,6 +390,85 @@ public class AiReviewDashboardController : ControllerBase
         var requeued = await _quotations.ResetAllFailedAiReviewsAsync();
         await _errors.DeleteAllAsync();
         return Ok(new { success = true, data = new { requeued } });
+    }
+
+    /// <summary>
+    /// Submit up to 10,000 unreviewed quotations to the Anthropic Batch API.
+    /// Results arrive asynchronously (minutes to hours) and are processed by AiBatchProcessingService.
+    /// Cost: ~50% of standard per-request pricing.
+    /// </summary>
+    [HttpPost("batch/submit")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SubmitBatch([FromQuery] int limit = 10000)
+    {
+        limit = Math.Clamp(limit, 1, 10000);
+
+        var quotations = await _quotations.GetUnreviewedForBatchAsync(limit);
+        if (quotations.Count == 0)
+            return Ok(new { success = true, message = "No unreviewed quotations to submit.", data = new { submitted = 0 } });
+
+        var requests = quotations.Select(q => (
+            QuotationId: q.Id,
+            Text: q.Text,
+            AuthorName: q.Author.Name,
+            SourceTitle: q.Source.Title,
+            SourceType: q.Source.Type.ToString()
+        ));
+
+        var batchResult = await _anthropic.SubmitBatchAsync(requests);
+
+        // Record the job
+        var job = new AiBatchJob
+        {
+            AnthropicBatchId = batchResult.AnthropicBatchId,
+            Status = AiBatchJobStatus.Submitted,
+            QuotationIds = quotations.Select(q => q.Id).ToList(),
+            TotalCount = batchResult.RequestCount,
+            ModelUsed = string.Empty,
+            SubmittedAt = DateTime.UtcNow
+        };
+        await _batchJobs.CreateAsync(job);
+
+        // Mark all quotations as BatchPending so real-time processing skips them
+        await _quotations.BulkSetAiReviewStatusAsync(job.QuotationIds, AiReviewStatus.BatchPending);
+
+        return Ok(new
+        {
+            success = true,
+            message = $"Submitted {batchResult.RequestCount} quotations to Anthropic Batch API.",
+            data = new
+            {
+                jobId = job.Id,
+                anthropicBatchId = batchResult.AnthropicBatchId,
+                submitted = batchResult.RequestCount
+            }
+        });
+    }
+
+    /// <summary>
+    /// List recent batch jobs and their status.
+    /// </summary>
+    [HttpGet("batch/jobs")]
+    public async Task<IActionResult> GetBatchJobs([FromQuery] int limit = 20)
+    {
+        limit = Math.Clamp(limit, 1, 100);
+        var jobs = await _batchJobs.GetRecentAsync(limit);
+
+        var items = jobs.Select(j => new
+        {
+            jobId = j.Id,
+            anthropicBatchId = j.AnthropicBatchId,
+            status = j.Status.ToString(),
+            totalCount = j.TotalCount,
+            succeededCount = j.SucceededCount,
+            failedCount = j.FailedCount,
+            modelUsed = j.ModelUsed,
+            submittedAt = j.SubmittedAt,
+            completedAt = j.CompletedAt,
+            errorMessage = j.ErrorMessage
+        });
+
+        return Ok(new { success = true, data = items });
     }
 
     [HttpGet("errors")]

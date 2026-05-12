@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { getRandomBatch } from '../../services/quotationService';
+import { QuotationCard } from '../../components/quotations/QuotationCard';
 import type { Quotation, SourceType } from '../../types/quotation';
 import './RandomPage.css';
 
@@ -23,7 +23,6 @@ export const RandomPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [sourceType, setSourceType] = useState<SourceType | ''>('');
   const [activeTags, setActiveTags] = useState<string[]>([]);
-  const navigate = useNavigate();
 
   const fetchRandom = useCallback(async () => {
     setLoading(true);
@@ -41,7 +40,6 @@ export const RandomPage: React.FC = () => {
     }
   }, [sourceType, activeTags]);
 
-  // Fetch whenever filters change
   useEffect(() => {
     fetchRandom();
   }, [fetchRandom]);
@@ -101,8 +99,8 @@ export const RandomPage: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="random-grid">
-          {Array.from({ length: 12 }).map((_, i) => (
+        <div className="random-list">
+          {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="random-card-skeleton" />
           ))}
         </div>
@@ -112,31 +110,9 @@ export const RandomPage: React.FC = () => {
           <button className="shuffle-btn" onClick={fetchRandom}>Try Again</button>
         </div>
       ) : (
-        <div className="random-grid">
+        <div className="random-list">
           {quotes.map((quote) => (
-            <div
-              key={quote.id}
-              className="random-card"
-              onClick={() => navigate(`/quote/${quote.id}`)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && navigate(`/quote/${quote.id}`)}
-            >
-              <blockquote className="random-card-text">"{quote.text}"</blockquote>
-              <div className="random-card-meta">
-                <span className="random-card-author">— {quote.author.name}</span>
-                {quote.source.title && (
-                  <span className="random-card-source">{quote.source.title}</span>
-                )}
-              </div>
-              {quote.tags.length > 0 && (
-                <div className="random-card-tags">
-                  {quote.tags.slice(0, 3).map((tag) => (
-                    <span key={tag} className="random-card-tag">#{tag}</span>
-                  ))}
-                </div>
-              )}
-            </div>
+            <QuotationCard key={quote.id} quotation={quote} />
           ))}
         </div>
       )}

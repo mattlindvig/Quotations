@@ -18,6 +18,10 @@ namespace Quotations.Api.Services;
 
 public record AiAnalysisRequestPreview(string Model, int MaxTokens, string Prompt, string RequestJson);
 
+public record BatchSubmitResult(string AnthropicBatchId, int RequestCount);
+public record BatchStatusResult(string AnthropicBatchId, string ProcessingStatus, int Succeeded, int Errored, int Expired, string? ResultsUrl);
+public record BatchMessageResult(string CustomId, bool Succeeded, string? ContentText, string? ErrorType);
+
 public interface IAnthropicService
 {
     Task<AiAnalysisResult?> AnalyzeQuotationAsync(
@@ -38,6 +42,14 @@ public interface IAnthropicService
         string sourceType,
         int? sourceYear,
         bool useWebSearch);
+
+    // Batch API — 50% cost discount, results arrive asynchronously (minutes to hours)
+    Task<BatchSubmitResult> SubmitBatchAsync(IEnumerable<(string QuotationId, string Text, string AuthorName, string SourceTitle, string SourceType)> requests);
+    Task<BatchStatusResult> GetBatchStatusAsync(string anthropicBatchId);
+    Task<List<BatchMessageResult>> GetBatchResultsAsync(string anthropicBatchId);
+
+    // Parse the text content from a single batch result message
+    AiAnalysisResult? ParseBatchResultContent(string contentText, string modelUsed);
 }
 
 public record AiScoreResult(
@@ -134,13 +146,31 @@ public class AnthropicService : IAnthropicService
         if (!lease.IsAcquired)
             throw new InvalidOperationException("Anthropic rate-limit queue is full — too many requests queued");
 
-        var prompt = BuildPrompt(text, authorName, authorLifespan, sourceTitle, sourceType, sourceYear);
+        var quoteContext = BuildQuoteContext(text, authorName, authorLifespan, sourceTitle, sourceType, sourceYear);
         var effectiveModel = modelOverride ?? _options.Model;
+
+        // Split content into a cached static block + dynamic per-quote block.
+        // The static instructions (~1,000 tokens) are reused across all requests within
+        // a 5-min cache window, cutting input token cost by ~90% for the static portion.
+        var cachedUserContent = new JsonArray
+        {
+            new JsonObject
+            {
+                ["type"] = "text",
+                ["text"] = StaticInstructions,
+                ["cache_control"] = new JsonObject { ["type"] = "ephemeral" }
+            },
+            new JsonObject
+            {
+                ["type"] = "text",
+                ["text"] = quoteContext
+            }
+        };
 
         // Maintain full message history to support pause_turn continuation
         var messages = new JsonArray
         {
-            new JsonObject { ["role"] = "user", ["content"] = prompt }
+            new JsonObject { ["role"] = "user", ["content"] = cachedUserContent }
         };
 
         var toolsJson = useWebSearch
@@ -203,6 +233,7 @@ public class AnthropicService : IAnthropicService
             using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
             request.Headers.Add("x-api-key", _apiKey);
             request.Headers.Add("anthropic-version", ApiVersion);
+            request.Headers.Add("anthropic-beta", "prompt-caching-2024-07-31");
             request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.SendAsync(request);
@@ -242,46 +273,44 @@ public class AnthropicService : IAnthropicService
         throw new InvalidOperationException("Unreachable");
     }
 
-    private static string BuildPrompt(
-        string text,
-        string authorName,
-        string? authorLifespan,
-        string sourceTitle,
-        string sourceType,
-        int? sourceYear)
+    // Cached once per process — identical for every request, so there's no reason to rebuild it.
+    private static readonly string StaticInstructions = BuildStaticInstructions();
+
+    private static string BuildStaticInstructions()
     {
-        var lifespanPart = !string.IsNullOrEmpty(authorLifespan) ? $" ({authorLifespan})" : string.Empty;
-        var yearPart = sourceYear.HasValue ? $", {sourceYear}" : string.Empty;
         var tagList = string.Join(", ", CanonicalTags.All);
 
         return
-            "You are a quotation accuracy expert with access to web search. Analyze the following quotation — search the web as needed to verify facts — and respond ONLY with valid JSON.\n\n" +
-            $"Quotation text: \"{text}\"\n" +
-            $"Attributed to: {authorName}{lifespanPart}\n" +
-            $"Source: {sourceTitle} ({sourceType}{yearPart})\n\n" +
+            "You are a quotation accuracy expert. Analyze the quotation provided and respond ONLY with valid JSON.\n\n" +
             "Evaluate three dimensions and score each 1–10:\n" +
-            "  quoteAccuracy      — Is this the exact wording typically associated with this person?\n" +
+            "  quoteAccuracy       — Is this the exact wording typically associated with this person?\n" +
             "  attributionAccuracy — Did this specific person actually say or write this?\n" +
-            "  sourceAccuracy     — Is this source title and type correct for this quote?\n\n" +
+            "  sourceAccuracy      — Is this source title and type correct for this quote?\n\n" +
+            "MISSING DATA RULES (highest priority — apply before scoring):\n" +
+            "  - If the author field is 'Unknown', 'Anonymous', blank, or a clear placeholder: search the quotation text to identify the real author.\n" +
+            "    Score attributionAccuracy at 1. Always provide suggestedValue with the correct name and set wasAiFilled=true.\n" +
+            "  - If the source field is 'Other', 'Unknown', blank, or a clear placeholder: research the quotation to find the actual source title.\n" +
+            "    Score sourceAccuracy at 1. Always provide suggestedValue with the correct title and set wasAiFilled=true.\n" +
+            "  - If both author and source are unknown, prioritize finding the author first — a known author usually leads you to the source.\n\n" +
             "SUGGESTION RULES (apply to all three dimensions):\n" +
             "  - Score >= 8: set suggestedValue to null and omit suggestionConfidence (no fix needed).\n" +
-            "  - Score 5–7: provide suggestedValue if you know a better/corrected version; set suggestionConfidence (0–100) to your confidence that the suggestion is more accurate than the original.\n" +
+            "  - Score 5–7: provide suggestedValue if you know a better/corrected version; set suggestionConfidence (0–100) to your confidence it is more accurate than the original.\n" +
             "  - Score <= 4: always provide suggestedValue with the correct version; set suggestionConfidence (0–100) accordingly.\n" +
             "  - Set wasAiFilled to true only when the original field was blank/unknown and you are supplying a known value.\n\n" +
             "CITATION RULES (apply to each dimension independently):\n" +
             "  - Provide citations only for claims you can verify.\n" +
-            "  - High confidence (score 8–10): cite as specifically as possible — book title, edition, page, paragraph if known.\n" +
-            "  - Medium confidence (score 5–7): cite the reference but omit page/paragraph details.\n" +
+            "  - High confidence (score 8–10): cite as specifically as possible — book title, edition, page if known.\n" +
+            "  - Medium confidence (score 5–7): cite the reference but omit page details.\n" +
             "  - Low confidence (score 1–4): omit citations entirely (empty array) — do not guess.\n\n" +
             "TAG RULES:\n" +
-            $"  Select 1–5 tags from this exact list that best describe the quotation's themes: {tagList}\n" +
+            $"  Select 1–5 tags from this exact list: {tagList}\n" +
             "  Return only tags from that list, no others.\n" +
-            "  For each tag include a confidence (0–100): your confidence that this tag genuinely applies to the quotation.\n\n" +
+            "  For each tag include a confidence (0–100): your confidence it genuinely applies.\n\n" +
             "AUTHENTICITY METADATA:\n" +
-            "  - isLikelyAuthentic: true if you believe this quotation is genuinely from the attributed author; false if it is likely misattributed or apocryphal.\n" +
-            "  - authenticityReasoning: one or two sentences explaining your authenticity assessment.\n" +
-            "  - approximateEra: a short phrase placing the quotation historically (e.g. \"Ancient Greece, ~400 BCE\", \"Victorian era, 1880s\", \"20th century, 1940s\").\n" +
-            "  - knownVariants: an array of alternate wordings for this quotation that are commonly found in the wild (empty array if none known).\n\n" +
+            "  - isLikelyAuthentic: true if genuinely from the attributed author; false if likely misattributed or apocryphal.\n" +
+            "  - authenticityReasoning: one or two sentences explaining your assessment.\n" +
+            "  - approximateEra: short phrase placing the quotation historically (e.g. \"Ancient Greece, ~400 BCE\", \"Victorian era, 1880s\").\n" +
+            "  - knownVariants: alternate wordings commonly found in the wild (empty array if none).\n\n" +
             "Respond with exactly this JSON (no extra text):\n" +
             "{\n" +
             "  \"quoteAccuracy\": {\n" +
@@ -316,6 +345,36 @@ public class AnthropicService : IAnthropicService
             "  \"knownVariants\": []\n" +
             "}";
     }
+
+    private static string BuildQuoteContext(
+        string text,
+        string authorName,
+        string? authorLifespan,
+        string sourceTitle,
+        string sourceType,
+        int? sourceYear)
+    {
+        var lifespanPart = !string.IsNullOrEmpty(authorLifespan) ? $" ({authorLifespan})" : string.Empty;
+        var yearPart = sourceYear.HasValue ? $", {sourceYear}" : string.Empty;
+
+        return
+            $"Quotation text: \"{text}\"\n" +
+            $"Attributed to: {authorName}{lifespanPart}\n" +
+            $"Source: {sourceTitle} ({sourceType}{yearPart})";
+    }
+
+    // Kept for backward compatibility with BuildRequestPreview
+    private static string BuildPrompt(
+        string text,
+        string authorName,
+        string? authorLifespan,
+        string sourceTitle,
+        string sourceType,
+        int? sourceYear)
+        => StaticInstructions + "\n\n" + BuildQuoteContext(text, authorName, authorLifespan, sourceTitle, sourceType, sourceYear);
+
+    public AiAnalysisResult? ParseBatchResultContent(string contentText, string modelUsed)
+        => ParseAnalysisResult(contentText, modelUsed);
 
     private AiAnalysisResult? ParseAnalysisResult(string contentText, string modelUsed)
     {
@@ -436,5 +495,164 @@ public class AnthropicService : IAnthropicService
         }
 
         return result;
+    }
+
+    public async Task<BatchSubmitResult> SubmitBatchAsync(
+        IEnumerable<(string QuotationId, string Text, string AuthorName, string SourceTitle, string SourceType)> requests)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey == "REPLACE_WITH_ANTHROPIC_API_KEY")
+            throw new InvalidOperationException("Anthropic API key not configured");
+
+        // Each batch request uses the cached static block + a dynamic per-quote block.
+        // Anthropic caches the shared prefix across requests in the same batch,
+        // so the ~1,000-token instructions are charged at 10% after the first hit.
+        var requestList = requests.Select(r => new
+        {
+            custom_id = r.QuotationId,
+            @params = new
+            {
+                model = _options.Model,
+                max_tokens = _options.MaxTokens,
+                messages = new[]
+                {
+                    new
+                    {
+                        role = "user",
+                        content = new object[]
+                        {
+                            new
+                            {
+                                type = "text",
+                                text = StaticInstructions,
+                                cache_control = new { type = "ephemeral" }
+                            },
+                            new
+                            {
+                                type = "text",
+                                text = BuildQuoteContext(r.Text, r.AuthorName, null, r.SourceTitle, r.SourceType, null)
+                            }
+                        }
+                    }
+                }
+            }
+        }).ToList();
+
+        var body = JsonSerializer.Serialize(new { requests = requestList });
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages/batches");
+        request.Headers.Add("x-api-key", _apiKey);
+        request.Headers.Add("anthropic-version", ApiVersion);
+        request.Headers.Add("anthropic-beta", "prompt-caching-2024-07-31");
+        request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+
+        var response = await _httpClient.SendAsync(request);
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("Batch submit failed {Status}: {Body}", (int)response.StatusCode, responseBody);
+            throw new InvalidOperationException($"Anthropic Batch API error {response.StatusCode}: {responseBody}");
+        }
+
+        using var doc = JsonDocument.Parse(responseBody);
+        var batchId = doc.RootElement.GetProperty("id").GetString()!;
+
+        _logger.LogInformation("Submitted Anthropic batch {BatchId} with {Count} requests", batchId, requestList.Count);
+        return new BatchSubmitResult(batchId, requestList.Count);
+    }
+
+    public async Task<BatchStatusResult> GetBatchStatusAsync(string anthropicBatchId)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey == "REPLACE_WITH_ANTHROPIC_API_KEY")
+            throw new InvalidOperationException("Anthropic API key not configured");
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.anthropic.com/v1/messages/batches/{anthropicBatchId}");
+        request.Headers.Add("x-api-key", _apiKey);
+        request.Headers.Add("anthropic-version", ApiVersion);
+        request.Headers.Add("anthropic-beta", "prompt-caching-2024-07-31");
+
+        var response = await _httpClient.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Anthropic Batch status error {response.StatusCode}: {body}");
+
+        using var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+        var processingStatus = root.GetProperty("processing_status").GetString()!;
+        var counts = root.GetProperty("request_counts");
+        var succeeded = counts.TryGetProperty("succeeded", out var s) ? s.GetInt32() : 0;
+        var errored = counts.TryGetProperty("errored", out var e) ? e.GetInt32() : 0;
+        var expired = counts.TryGetProperty("expired", out var ex) ? ex.GetInt32() : 0;
+        string? resultsUrl = root.TryGetProperty("results_url", out var ru) && ru.ValueKind != JsonValueKind.Null
+            ? ru.GetString()
+            : null;
+
+        return new BatchStatusResult(anthropicBatchId, processingStatus, succeeded, errored, expired, resultsUrl);
+    }
+
+    public async Task<List<BatchMessageResult>> GetBatchResultsAsync(string anthropicBatchId)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey == "REPLACE_WITH_ANTHROPIC_API_KEY")
+            throw new InvalidOperationException("Anthropic API key not configured");
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.anthropic.com/v1/messages/batches/{anthropicBatchId}/results");
+        request.Headers.Add("x-api-key", _apiKey);
+        request.Headers.Add("anthropic-version", ApiVersion);
+        request.Headers.Add("anthropic-beta", "prompt-caching-2024-07-31");
+
+        var response = await _httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errBody = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException($"Anthropic Batch results error {response.StatusCode}: {errBody}");
+        }
+
+        var results = new List<BatchMessageResult>();
+        var stream = await response.Content.ReadAsStreamAsync();
+        using var reader = new System.IO.StreamReader(stream);
+
+        string? line;
+        while ((line = await reader.ReadLineAsync()) != null)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(line);
+                var root = doc.RootElement;
+                var customId = root.GetProperty("custom_id").GetString()!;
+                var result = root.GetProperty("result");
+                var resultType = result.GetProperty("type").GetString();
+
+                if (resultType == "succeeded")
+                {
+                    var message = result.GetProperty("message");
+                    var contentText = string.Empty;
+                    foreach (var block in message.GetProperty("content").EnumerateArray())
+                    {
+                        if (block.TryGetProperty("type", out var t) && t.GetString() == "text"
+                            && block.TryGetProperty("text", out var tx))
+                        {
+                            contentText += tx.GetString();
+                        }
+                    }
+                    results.Add(new BatchMessageResult(customId, true, contentText, null));
+                }
+                else
+                {
+                    var errorType = result.TryGetProperty("error", out var err)
+                        ? err.TryGetProperty("type", out var et) ? et.GetString() : resultType
+                        : resultType;
+                    results.Add(new BatchMessageResult(customId, false, null, errorType));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse batch result line: {Line}", line);
+            }
+        }
+
+        return results;
     }
 }

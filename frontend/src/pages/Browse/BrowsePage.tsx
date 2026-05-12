@@ -6,18 +6,15 @@ import { useFilters, type QuotationFilters } from '../../hooks/useFilters';
 import { QuotationList } from '../../components/quotations/QuotationList';
 import { SearchBar } from '../../components/quotations/SearchBar';
 import { FilterPanel } from '../../components/quotations/FilterPanel';
-import { SurpriseModal } from '../../components/quotations/SurpriseModal';
-import { QuoteOfDayCard } from '../../components/quotations/QuoteOfDayCard';
-import apiClient from '../../services/apiClient';
-import type { Quotation, SourceType, ApiResponse, QuotationSortBy } from '../../types/quotation';
+import type { SourceType, QuotationSortBy } from '../../types/quotation';
 import './BrowsePage.css';
 
 export const BrowsePage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeMode, setActiveMode] = useState<'browse' | 'search'>('browse');
-  const [surpriseQuote, setSurpriseQuote] = useState<Quotation | null>(null);
-  const [surpriseLoading, setSurpriseLoading] = useState(false);
-  const [showSurprise, setShowSurprise] = useState(false);
+  const [sortBy, setSortBy] = useState<QuotationSortBy>(
+    (searchParams.get('sortBy') as QuotationSortBy | null) || 'newest'
+  );
 
   const initialQuery = searchParams.get('q') || '';
   const initialPage = parseInt(searchParams.get('page') || '1');
@@ -25,7 +22,6 @@ export const BrowsePage: React.FC = () => {
   const initialSourceType = searchParams.get('sourceType') as SourceType | undefined;
   const initialSourceTitle = searchParams.get('sourceTitle') || undefined;
   const initialTags = searchParams.get('tags')?.split(',').filter(Boolean) || undefined;
-  const sortBy = (searchParams.get('sortBy') as QuotationSortBy | null) || 'newest';
 
   const initialFilters: QuotationFilters = {
     authorName: initialAuthorName,
@@ -61,8 +57,6 @@ export const BrowsePage: React.FC = () => {
   const pagination = activeMode === 'search' ? searchPagination : browsePagination;
   const hasResults = quotations.length > 0;
 
-  // Refs so the IntersectionObserver callback always reads current values
-  // without needing to reconnect the observer on every render.
   const loadingRef = useRef(loading);
   const paginationRef = useRef(pagination);
   loadingRef.current = loading;
@@ -74,12 +68,10 @@ export const BrowsePage: React.FC = () => {
       searchPage((paginationRef.current.page ?? 1) + 1);
   }, [activeMode, browseNextPage, searchPage]);
 
-  // Infinite scroll sentinel
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
-
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && !loadingRef.current && paginationRef.current?.hasNext) {
@@ -88,7 +80,6 @@ export const BrowsePage: React.FC = () => {
       },
       { rootMargin: '400px' }
     );
-
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [handleNextPage]);
@@ -108,8 +99,6 @@ export const BrowsePage: React.FC = () => {
       if (newFilters.sourceType) params.sourceType = newFilters.sourceType;
       if (newFilters.sourceTitle) params.sourceTitle = newFilters.sourceTitle;
       if (newFilters.tags?.length) params.tags = newFilters.tags.join(',');
-      if (newFilters.yearFrom) params.yearFrom = newFilters.yearFrom;
-      if (newFilters.yearTo) params.yearTo = newFilters.yearTo;
       if (newSortBy !== 'newest') params.sortBy = newSortBy;
       setSearchParams(params, { replace: true });
     },
@@ -139,8 +128,7 @@ export const BrowsePage: React.FC = () => {
   const handleFilterChange = useCallback(
     (newFilters: QuotationFilters) => {
       setFilters(newFilters);
-      const newSortBy = (newFilters.sortBy as QuotationSortBy) || 'newest';
-      updateUrl(activeMode === 'search' ? searchQuery : '', newFilters, newSortBy);
+      updateUrl(activeMode === 'search' ? searchQuery : '', newFilters, sortBy);
       if (activeMode === 'search' && searchQuery) {
         performSearch(searchQuery, 1, 20, {
           authorName: newFilters.authorName,
@@ -156,64 +144,60 @@ export const BrowsePage: React.FC = () => {
           sourceType: undefined,
           tags: undefined,
           ...newFilters,
+          sortBy,
         });
       }
     },
-    [setFilters, fetchQuotations, activeMode, searchQuery, updateUrl, performSearch]
+    [setFilters, fetchQuotations, activeMode, searchQuery, sortBy, updateUrl, performSearch]
   );
 
-  const fetchSurprise = useCallback(async () => {
-    setSurpriseLoading(true);
-    try {
-      const res = await apiClient.get<ApiResponse<Quotation>>('/quotations/random');
-      setSurpriseQuote(res.data ?? null);
-    } catch {
-      setSurpriseQuote(null);
-    } finally {
-      setSurpriseLoading(false);
-    }
-  }, []);
-
-  const handleSurprise = useCallback(async () => {
-    setShowSurprise(true);
-    await fetchSurprise();
-  }, [fetchSurprise]);
+  const handleSortChange = useCallback(
+    (newSort: QuotationSortBy) => {
+      setSortBy(newSort);
+      updateUrl(activeMode === 'search' ? searchQuery : '', filters, newSort);
+      if (activeMode === 'browse') {
+        fetchQuotations({ status: 'approved', page: 1, pageSize: 20, ...filters, sortBy: newSort });
+      }
+    },
+    [activeMode, filters, searchQuery, fetchQuotations, updateUrl]
+  );
 
   return (
     <main className="browse-page" id="main-content">
       <a href="#main-content" className="skip-link">Skip to main content</a>
 
       <div className="browse-layout">
-        {/* Sidebar — filters */}
+        {/* Left sidebar — filters */}
         <aside className="browse-sidebar">
           <FilterPanel onFilterChange={handleFilterChange} initialFilters={initialFilters} />
         </aside>
 
         {/* Main content */}
         <div className="browse-main">
-          <QuoteOfDayCard />
-
           <div className="browse-toolbar">
             <SearchBar onSearch={handleSearch} initialValue={initialQuery} />
-            <button className="surprise-btn" onClick={handleSurprise} title="Show me a random quote">
-              ✨ Surprise Me
-            </button>
           </div>
 
-          {!loading && hasResults && (
-            <div className="results-info" aria-live="polite">
-              {activeMode === 'search' && (
-                <p className="search-mode-indicator">
-                  Results for: <strong>"{searchQuery}"</strong>
-                </p>
-              )}
-              {pagination && (
-                <p className="result-count">
-                  {pagination.totalCount.toLocaleString()} {pagination.totalCount === 1 ? 'quotation' : 'quotations'}
-                </p>
-              )}
-            </div>
-          )}
+          <div className="sort-bar">
+            {!loading && hasResults && pagination && (
+              <p className="result-count">
+                {activeMode === 'search'
+                  ? <>Results for: <strong>"{searchQuery}"</strong> — {pagination.totalCount.toLocaleString()} found</>
+                  : <>{pagination.totalCount.toLocaleString()} {pagination.totalCount === 1 ? 'quotation' : 'quotations'}</>
+                }
+              </p>
+            )}
+            <select
+              className="sort-select"
+              value={sortBy}
+              onChange={(e) => handleSortChange(e.target.value as QuotationSortBy)}
+              aria-label="Sort quotations"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="author">Author (A–Z)</option>
+            </select>
+          </div>
 
           {!loading && !hasResults && !error && (
             <div className="empty-state" role="status">
@@ -249,17 +233,14 @@ export const BrowsePage: React.FC = () => {
 
           {!error && (
             <>
-              {/* Show initial-load spinner before any results arrive */}
               <QuotationList quotations={quotations} loading={loading && !hasResults} />
 
-              {/* Load-more spinner shown while fetching additional pages */}
               {loading && hasResults && (
                 <div className="load-more-spinner" aria-label="Loading more quotations">
                   <div className="loading-spinner" />
                 </div>
               )}
 
-              {/* Sentinel — IntersectionObserver watches this to trigger next page */}
               <div ref={sentinelRef} style={{ height: 1 }} />
 
               {!loading && pagination && !pagination.hasNext && hasResults && (
@@ -268,16 +249,8 @@ export const BrowsePage: React.FC = () => {
             </>
           )}
         </div>
-      </div>
 
-      {showSurprise && (
-        <SurpriseModal
-          quotation={surpriseQuote}
-          loading={surpriseLoading}
-          onClose={() => { setShowSurprise(false); setSurpriseQuote(null); }}
-          onTryAgain={fetchSurprise}
-        />
-      )}
+      </div>
     </main>
   );
 };

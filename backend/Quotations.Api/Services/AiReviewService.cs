@@ -111,16 +111,16 @@ public class AiReviewService
 
             await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
 
-            // If any dimension scored ≤ 5, run a deeper pass with a stronger model + web search
+            // If any dimension scored ≤ 5 and deep review is enabled, run a second pass
             var minScore = Math.Min(result.QuoteAccuracy.Score,
                 Math.Min(result.AttributionAccuracy.Score, result.SourceAccuracy.Score));
-            if (minScore <= 5)
+            if (_options.DeepReviewEnabled && minScore <= 5)
             {
-                _logger.LogInformation("Low confidence on {QuotationId} (min score {Min}), running deep review with Sonnet + web search", quotation.Id, minScore);
+                _logger.LogInformation("Low confidence on {QuotationId} (min score {Min}), running deep review with {Model}", quotation.Id, minScore, _options.DeepReviewModel);
                 var deepResult = await _anthropic.AnalyzeQuotationAsync(
                     quotation.Text, quotation.Author.Name, null,
                     quotation.Source.Title, quotation.Source.Type.ToString(), null,
-                    useWebSearch: true, modelOverride: "claude-sonnet-4-6");
+                    useWebSearch: _options.UseWebSearch, modelOverride: _options.DeepReviewModel);
                 if (deepResult != null)
                 {
                     result = deepResult;
@@ -187,6 +187,70 @@ public class AiReviewService
 
             await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
         }
+    }
+
+    public async Task ReviewFromBatchResultAsync(Quotation quotation, string contentText, string modelUsed)
+    {
+        quotation.AiReview ??= new AiReview();
+
+        var result = _anthropic.ParseBatchResultContent(contentText, modelUsed);
+        if (result == null)
+        {
+            quotation.AiReview.Status = AiReviewStatus.Failed;
+            quotation.AiReview.FailureReason = "Failed to parse batch result content";
+            await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
+            return;
+        }
+
+        quotation.AiReview.Status = AiReviewStatus.Reviewed;
+        quotation.AiReview.ModelUsed = result.ModelUsed;
+        quotation.AiReview.ReviewedAt = DateTime.UtcNow;
+        quotation.AiReview.ProcessingSnapshot = new AiProcessingSnapshot
+        {
+            Model = result.ModelUsed,
+            MaxTokens = _options.MaxTokens,
+            WebSearchEnabled = false,
+            ConcurrentRequests = 0,
+            BatchSize = 0
+        };
+        quotation.AiReview.Summary = result.Summary;
+
+        quotation.AiReview.QuoteAccuracy = new AiScoreWithSuggestion
+        {
+            Score = result.QuoteAccuracy.Score,
+            Reasoning = result.QuoteAccuracy.Reasoning,
+            SuggestedValue = result.QuoteAccuracy.SuggestedValue,
+            SuggestionConfidence = result.QuoteAccuracy.SuggestionConfidence,
+            WasAiFilled = result.QuoteAccuracy.WasAiFilled,
+            Citations = result.QuoteAccuracy.Citations
+        };
+        quotation.AiReview.AttributionAccuracy = new AiScoreWithSuggestion
+        {
+            Score = result.AttributionAccuracy.Score,
+            Reasoning = result.AttributionAccuracy.Reasoning,
+            SuggestedValue = result.AttributionAccuracy.SuggestedValue,
+            SuggestionConfidence = result.AttributionAccuracy.SuggestionConfidence,
+            WasAiFilled = result.AttributionAccuracy.WasAiFilled,
+            Citations = result.AttributionAccuracy.Citations
+        };
+        quotation.AiReview.SourceAccuracy = new AiScoreWithSuggestion
+        {
+            Score = result.SourceAccuracy.Score,
+            Reasoning = result.SourceAccuracy.Reasoning,
+            SuggestedValue = result.SourceAccuracy.SuggestedValue,
+            SuggestionConfidence = result.SourceAccuracy.SuggestionConfidence,
+            WasAiFilled = result.SourceAccuracy.WasAiFilled,
+            Citations = result.SourceAccuracy.Citations
+        };
+
+        quotation.AiReview.SuggestedTags = result.TagSuggestions.Select(t => t.Tag).ToList();
+        quotation.AiReview.IsLikelyAuthentic = result.IsLikelyAuthentic;
+        quotation.AiReview.AuthenticityReasoning = result.AuthenticityReasoning;
+        quotation.AiReview.ApproximateEra = result.ApproximateEra;
+        quotation.AiReview.KnownVariants = result.KnownVariants;
+
+        await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
+        await ApplyAiFixesAsync(quotation, result);
     }
 
     private async Task ApplyAiFixesAsync(Quotation quotation, AiAnalysisResult result)

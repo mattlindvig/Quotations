@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Quotations.Api.Configuration;
 using Quotations.Api.Models;
 using Quotations.Api.Models.Dtos;
 using Quotations.Api.Repositories;
@@ -21,8 +23,8 @@ public class ChatService
     private readonly HttpClient _httpClient;
     private readonly IQuotationRepository _quotationRepository;
     private readonly string _apiKey;
+    private readonly string _model;
     private readonly ILogger<ChatService> _logger;
-    private const string Model = "claude-haiku-4-5-20251001";
     private const string ApiVersion = "2023-06-01";
     private const string SystemPrompt =
         "You are a helpful assistant for a quotations library. Your role is to help users find " +
@@ -41,11 +43,13 @@ public class ChatService
         HttpClient httpClient,
         IQuotationRepository quotationRepository,
         IConfiguration configuration,
+        IOptions<AiReviewOptions> options,
         ILogger<ChatService> logger)
     {
         _httpClient = httpClient;
         _quotationRepository = quotationRepository;
         _apiKey = (configuration["Anthropic:ApiKey"] ?? string.Empty).Trim();
+        _model = options.Value.ChatModel;
         _logger = logger;
     }
 
@@ -82,7 +86,7 @@ public class ChatService
         {
             var requestBody = new
             {
-                model = Model,
+                model = _model,
                 max_tokens = 1024,
                 system = SystemPrompt,
                 tools,
