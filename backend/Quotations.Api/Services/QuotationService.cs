@@ -68,7 +68,7 @@ public class QuotationService
 
         return new PaginatedQuotationsResponse
         {
-            Items = items.Select(MapToDto).ToList(),
+            Items = items.Select(MapToSummaryDto).ToList(),
             Pagination = new PaginationMetadata
             {
                 Page = page,
@@ -93,10 +93,10 @@ public class QuotationService
         return quotation != null ? MapToDto(quotation) : null;
     }
 
-    public async Task<List<QuotationDto>> GetByIdsAsync(IEnumerable<string> ids)
+    public async Task<List<QuotationSummaryDto>> GetByIdsAsync(IEnumerable<string> ids)
     {
         var quotations = await _quotationRepository.GetByIdsAsync(ids);
-        return quotations.Select(MapToDto).ToList();
+        return quotations.Select(MapToSummaryDto).ToList();
     }
 
     /// <summary>
@@ -123,7 +123,7 @@ public class QuotationService
 
         return new PaginatedQuotationsResponse
         {
-            Items = items.Select(MapToDto).ToList(),
+            Items = items.Select(MapToSummaryDto).ToList(),
             Pagination = new PaginationMetadata
             {
                 Page = page,
@@ -298,7 +298,7 @@ public class QuotationService
 
         return new PaginatedQuotationsResponse
         {
-            Items = items.Select(MapToDto).ToList(),
+            Items = items.Select(MapToSummaryDto).ToList(),
             Pagination = new PaginationMetadata
             {
                 Page = page,
@@ -325,7 +325,7 @@ public class QuotationService
 
         return new PaginatedQuotationsResponse
         {
-            Items = items.Select(MapToDto).ToList(),
+            Items = items.Select(MapToSummaryDto).ToList(),
             Pagination = new PaginationMetadata
             {
                 Page = page,
@@ -460,14 +460,14 @@ public class QuotationService
         return MapToDto(quote);
     }
 
-    public async Task<List<QuotationDto>> GetRandomBatchAsync(
+    public async Task<List<QuotationSummaryDto>> GetRandomBatchAsync(
         int count,
         SourceType? sourceType = null,
         List<string>? tags = null)
     {
         count = Math.Clamp(count, 1, 20);
         var quotes = await _quotationRepository.GetRandomBatchAsync(count, sourceType, tags);
-        return quotes.Select(MapToDto).ToList();
+        return quotes.Select(MapToSummaryDto).ToList();
     }
 
     /// <summary>
@@ -488,7 +488,8 @@ public class QuotationService
             {
                 Id = quotation.Source.Id,
                 Title = quotation.Source.Title,
-                Type = quotation.Source.Type.ToString().ToLowerInvariant()
+                Type = quotation.Source.Type.ToString().ToLowerInvariant(),
+                Year = quotation.Source.Year
             },
             Tags = quotation.Tags,
             Status = quotation.Status.ToString().ToLowerInvariant(),
@@ -496,6 +497,51 @@ public class QuotationService
             ReviewedAt = quotation.ReviewedAt,
             PotentialDuplicateIds = quotation.PotentialDuplicateIds,
             AiReview = MapAiReviewToDto(quotation.AiReview)
+        };
+    }
+
+    private static QuotationSummaryDto MapToSummaryDto(Quotation quotation)
+    {
+        return new QuotationSummaryDto
+        {
+            Id = quotation.Id,
+            Text = quotation.Text,
+            Author = new AuthorDto
+            {
+                Id = quotation.Author.Id,
+                Name = quotation.Author.Name
+            },
+            Source = new SourceDto
+            {
+                Id = quotation.Source.Id,
+                Title = quotation.Source.Title,
+                Type = quotation.Source.Type.ToString().ToLowerInvariant(),
+                Year = quotation.Source.Year
+            },
+            Tags = quotation.Tags,
+            Status = quotation.Status.ToString().ToLowerInvariant(),
+            SubmittedAt = quotation.SubmittedAt,
+            ReviewedAt = quotation.ReviewedAt,
+            PotentialDuplicateIds = quotation.PotentialDuplicateIds,
+            AiReview = MapAiReviewToSummaryDto(quotation.AiReview)
+        };
+    }
+
+    private static AiReviewSummaryDto? MapAiReviewToSummaryDto(AiReview? aiReview)
+    {
+        if (aiReview == null) return null;
+
+        return new AiReviewSummaryDto
+        {
+            Status = aiReview.Status.ToString().ToLowerInvariant(),
+            ModelUsed = aiReview.ModelUsed,
+            ReviewedAt = aiReview.ReviewedAt,
+            Summary = aiReview.Summary,
+            IsLikelyAuthentic = aiReview.IsLikelyAuthentic,
+            ApproximateEra = aiReview.ApproximateEra,
+            QuoteAccuracyScore = aiReview.QuoteAccuracy?.Score,
+            AttributionAccuracyScore = aiReview.AttributionAccuracy?.Score,
+            SourceAccuracyScore = aiReview.SourceAccuracy?.Score
         };
     }
 

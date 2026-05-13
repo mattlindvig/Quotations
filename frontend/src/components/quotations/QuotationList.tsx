@@ -1,11 +1,11 @@
 import React, { useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { QuotationCard } from './QuotationCard';
-import type { Quotation } from '../../types/quotation';
+import type { QuotationSummary } from '../../types/quotation';
 import './QuotationList.css';
 
 interface QuotationListProps {
-  quotations: Quotation[];
+  quotations: QuotationSummary[];
   loading?: boolean;
   virtualized?: boolean;
 }
@@ -55,7 +55,7 @@ export const QuotationList: React.FC<QuotationListProps> = ({
 // Actual heights are measured after first render and corrected automatically.
 const ESTIMATED_CARD_HEIGHT = 200;
 
-const VirtualizedList: React.FC<{ quotations: Quotation[] }> = ({ quotations }) => {
+const VirtualizedList: React.FC<{ quotations: QuotationSummary[] }> = ({ quotations }) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({

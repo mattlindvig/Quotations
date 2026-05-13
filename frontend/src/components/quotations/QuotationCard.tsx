@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Quotation, AiScore } from '../../types/quotation';
+import type { QuotationSummary, AiReview, AiScore, ApiResponse, Quotation } from '../../types/quotation';
 import { useAuth } from '../../contexts/AuthContext';
 import { useFavorites } from '../../contexts/FavoritesContext';
+import { apiClient } from '../../services/apiClient';
 import './QuotationCard.css';
 
 interface QuotationCardProps {
-  quotation: Quotation;
+  quotation: QuotationSummary;
 }
 
 export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
@@ -16,6 +17,8 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [showAiPanel, setShowAiPanel] = useState(false);
+  const [fullAiReview, setFullAiReview] = useState<AiReview | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -63,7 +66,6 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for browsers without clipboard API
       const textarea = document.createElement('textarea');
       textarea.value = text;
       textarea.style.position = 'fixed';
@@ -74,6 +76,26 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
       document.body.removeChild(textarea);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleToggleAiPanel = async () => {
+    const next = !showAiPanel;
+    setShowAiPanel(next);
+
+    // Fetch full AI detail on first open (list response only has scores, not reasoning)
+    if (next && !fullAiReview) {
+      setAiLoading(true);
+      try {
+        const res = await apiClient.get<ApiResponse<Quotation>>(`/quotations/${quotation.id}`);
+        if (res.data?.aiReview) {
+          setFullAiReview(res.data.aiReview);
+        }
+      } catch {
+        // Silently fall back — panel will show whatever data is in the summary
+      } finally {
+        setAiLoading(false);
+      }
     }
   };
 
@@ -191,7 +213,7 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
             {quotation.aiReview?.status === 'reviewed' && (
               <button
                 className={`card-action-btn ai-eval-btn${showAiPanel ? ' active' : ''}`}
-                onClick={() => setShowAiPanel(v => !v)}
+                onClick={handleToggleAiPanel}
                 title={showAiPanel ? 'Hide AI evaluation' : 'Show AI evaluation'}
                 aria-label="Toggle AI evaluation"
                 aria-pressed={showAiPanel}
@@ -206,8 +228,12 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
         </div>
       </div>
 
-      {showAiPanel && quotation.aiReview && (
-        <AiEvaluationPanel aiReview={quotation.aiReview} />
+      {showAiPanel && (
+        aiLoading
+          ? <div className="ai-eval-panel ai-eval-loading">Loading AI evaluation…</div>
+          : fullAiReview
+            ? <AiEvaluationPanel aiReview={fullAiReview} />
+            : null
       )}
     </article>
   );
@@ -237,7 +263,7 @@ function ScoreBlock({ label, data }: { label: string; data: AiScore | null | und
   );
 }
 
-function AiEvaluationPanel({ aiReview }: { aiReview: NonNullable<Quotation['aiReview']> }) {
+function AiEvaluationPanel({ aiReview }: { aiReview: AiReview }) {
   return (
     <div className="ai-eval-panel">
       <div className="ai-eval-header">

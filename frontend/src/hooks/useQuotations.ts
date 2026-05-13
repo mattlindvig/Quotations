@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '../services/apiClient';
 import type {
-  Quotation,
+  QuotationSummary,
   PaginatedQuotationsResponse,
   QuotationFilters,
   ApiResponse,
 } from '../types/quotation';
 
 interface UseQuotationsResult {
-  quotations: Quotation[];
+  quotations: QuotationSummary[];
   loading: boolean;
   error: string | null;
   pagination: {
@@ -29,7 +29,7 @@ interface UseQuotationsResult {
  * Custom hook for fetching and managing quotations
  */
 export function useQuotations(initialFilters?: QuotationFilters): UseQuotationsResult {
-  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [quotations, setQuotations] = useState<QuotationSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<UseQuotationsResult['pagination']>(null);

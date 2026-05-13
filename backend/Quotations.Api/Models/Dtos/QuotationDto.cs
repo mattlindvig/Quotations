@@ -64,10 +64,45 @@ public class SourceDto
 }
 
 /// <summary>
-/// Paginated response for quotations list
+/// Slim AI review data returned on list endpoints — omits per-dimension reasoning,
+/// citations, and suggested values. Full detail is available on GET /quotations/{id}.
+/// </summary>
+public class AiReviewSummaryDto
+{
+    public string Status { get; set; } = string.Empty;
+    public string? ModelUsed { get; set; }
+    public DateTime? ReviewedAt { get; set; }
+    public string? Summary { get; set; }
+    public bool? IsLikelyAuthentic { get; set; }
+    public string? ApproximateEra { get; set; }
+    public int? QuoteAccuracyScore { get; set; }
+    public int? AttributionAccuracyScore { get; set; }
+    public int? SourceAccuracyScore { get; set; }
+}
+
+/// <summary>
+/// Slim quotation returned in list/search/random-batch endpoints.
+/// Omits heavy AI reasoning fields to keep page responses small.
+/// </summary>
+public class QuotationSummaryDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
+    public AuthorDto Author { get; set; } = new();
+    public SourceDto Source { get; set; } = new();
+    public List<string> Tags { get; set; } = new();
+    public string Status { get; set; } = string.Empty;
+    public DateTime SubmittedAt { get; set; }
+    public DateTime? ReviewedAt { get; set; }
+    public List<string> PotentialDuplicateIds { get; set; } = new();
+    public AiReviewSummaryDto? AiReview { get; set; }
+}
+
+/// <summary>
+/// Paginated response for quotations list (uses slim summary DTO)
 /// </summary>
 public class PaginatedQuotationsResponse
 {
-    public List<QuotationDto> Items { get; set; } = new();
+    public List<QuotationSummaryDto> Items { get; set; } = new();
     public PaginationMetadata Pagination { get; set; } = new();
 }

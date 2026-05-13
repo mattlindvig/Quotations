@@ -29,6 +29,7 @@ export interface AiScore {
   citations: string[];
 }
 
+// Full AI review — returned by GET /quotations/:id
 export interface AiReview {
   status: AiReviewStatus;
   modelUsed?: string | null;
@@ -44,6 +45,35 @@ export interface AiReview {
   knownVariants?: string[];
 }
 
+// Slim AI review — returned by list/search/random-batch endpoints.
+// Omits reasoning, citations, and suggested values; fetch GET /quotations/:id for full detail.
+export interface AiReviewSummary {
+  status: AiReviewStatus;
+  modelUsed?: string | null;
+  reviewedAt?: string | null;
+  summary?: string | null;
+  isLikelyAuthentic?: boolean | null;
+  approximateEra?: string | null;
+  quoteAccuracyScore?: number | null;
+  attributionAccuracyScore?: number | null;
+  sourceAccuracyScore?: number | null;
+}
+
+// Slim quotation returned by list/search/random-batch/favorites endpoints
+export interface QuotationSummary {
+  id: string;
+  text: string;
+  author: Author;
+  source: Source;
+  tags: string[];
+  status: QuotationStatus;
+  submittedAt: string;
+  reviewedAt?: string;
+  potentialDuplicateIds?: string[];
+  aiReview?: AiReviewSummary;
+}
+
+// Full quotation returned by GET /quotations/:id and review-queue endpoints
 export interface Quotation {
   id: string;
   text: string;
@@ -72,7 +102,7 @@ export interface PaginatedResponse<T> {
   pagination: PaginationMetadata;
 }
 
-export type PaginatedQuotationsResponse = PaginatedResponse<Quotation>;
+export type PaginatedQuotationsResponse = PaginatedResponse<QuotationSummary>;
 
 export interface ApiResponse<T> {
   data?: T;

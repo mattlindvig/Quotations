@@ -60,15 +60,15 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     setSelectedSourceTitle(initialFilters.sourceTitle || '');
   }, [initialFilters.sourceTitle]);
 
+  const externalTagsKey = (initialFilters.tags || []).join(',');
   useEffect(() => {
     const newTags = initialFilters.tags || [];
     setSelectedTags(prev => {
-      // Return the same reference if values haven't changed — prevents the filter
-      // effect from firing and looping back through the parent's onFilterChange.
-      if (prev.length === newTags.length && prev.every((t, i) => t === newTags[i])) return prev;
+      if (prev.join(',') === externalTagsKey) return prev;
       return newTags;
     });
-  }, [initialFilters.tags]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalTagsKey]);
 
   // Fetch author names once on mount
   useEffect(() => {

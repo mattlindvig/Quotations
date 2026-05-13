@@ -10,10 +10,12 @@ public static class MongoIndexes
         var authorsCollection = database.GetCollection<object>("authors");
         var sourcesCollection = database.GetCollection<object>("sources");
 
-        // Quotations indexes
+        // Quotations indexes — each index targets a specific query pattern.
+        // MongoDB can use a compound index as a prefix, so (status, submittedAt) also
+        // covers plain status-only queries.
         var quotationIndexes = new[]
         {
-            // Text search index
+            // Full-text search across quote text, author name, and source title
             new CreateIndexModel<object>(
                 Builders<object>.IndexKeys
                     .Text("text")
@@ -21,33 +23,64 @@ public static class MongoIndexes
                     .Text("source.title"),
                 new CreateIndexOptions { Name = "text_search_idx" }
             ),
-            // Filter and sort index
+
+            // Default browse: filter by status, sort newest-first
             new CreateIndexModel<object>(
                 Builders<object>.IndexKeys
                     .Ascending("status")
-                    .Ascending("author.id")
+                    .Descending("submittedAt"),
+                new CreateIndexOptions { Name = "status_date_idx" }
+            ),
+
+            // Author filter + default sort (also covers status-only queries via prefix)
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys
+                    .Ascending("status")
+                    .Ascending("author.name")
+                    .Descending("submittedAt"),
+                new CreateIndexOptions { Name = "status_author_date_idx" }
+            ),
+
+            // Source type filter + default sort
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys
+                    .Ascending("status")
                     .Ascending("source.type")
                     .Descending("submittedAt"),
-                new CreateIndexOptions { Name = "filter_sort_idx" }
+                new CreateIndexOptions { Name = "status_sourcetype_date_idx" }
             ),
-            // Tag filtering
-            new CreateIndexModel<object>(
-                Builders<object>.IndexKeys.Ascending("tags"),
-                new CreateIndexOptions { Name = "tags_idx" }
-            ),
-            // Review queue
+
+            // Source title filter
             new CreateIndexModel<object>(
                 Builders<object>.IndexKeys
                     .Ascending("status")
-                    .Ascending("submittedAt"),
-                new CreateIndexOptions { Name = "review_queue_idx" }
+                    .Ascending("source.title"),
+                new CreateIndexOptions { Name = "status_sourcetitle_idx" }
             ),
-            // AI review queue — used by background worker to find unreviewed/pending quotations
+
+            // Tag filter + default sort (multikey index — one entry per tag value)
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys
+                    .Ascending("status")
+                    .Ascending("tags")
+                    .Descending("submittedAt"),
+                new CreateIndexOptions { Name = "status_tags_date_idx" }
+            ),
+
+            // AI review queue — background service picks up NotReviewed/Pending, oldest first
             new CreateIndexModel<object>(
                 Builders<object>.IndexKeys
                     .Ascending("aiReview.status")
                     .Ascending("submittedAt"),
                 new CreateIndexOptions { Name = "ai_review_queue_idx" }
+            ),
+
+            // User's own submissions
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys
+                    .Ascending("submittedBy.id")
+                    .Descending("submittedAt"),
+                new CreateIndexOptions { Name = "submitter_date_idx" }
             )
         };
 
@@ -105,7 +138,7 @@ public static class MongoIndexes
 
         await usersCollection.Indexes.CreateManyAsync(userIndexes);
 
-        // Quote of the Day index — unique per date so concurrent instances can't double-insert
+        // Quote of the Day — unique per date so concurrent instances can't double-insert
         var qotdCollection = database.GetCollection<object>("quoteOfDay");
         await qotdCollection.Indexes.CreateOneAsync(
             new CreateIndexModel<object>(

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { apiClient } from '../services/apiClient';
 import type {
-  Quotation,
+  QuotationSummary,
   PaginatedQuotationsResponse,
   ApiResponse,
 } from '../types/quotation';
@@ -16,7 +16,7 @@ interface SearchFilters {
 
 interface UseSearchResult {
   searchQuery: string;
-  searchResults: Quotation[];
+  searchResults: QuotationSummary[];
   searchLoading: boolean;
   searchError: string | null;
   pagination: PaginatedQuotationsResponse['pagination'] | null;
@@ -30,7 +30,7 @@ interface UseSearchResult {
  */
 export function useSearch(): UseSearchResult {
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Quotation[]>([]);
+  const [searchResults, setSearchResults] = useState<QuotationSummary[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginatedQuotationsResponse['pagination'] | null>(

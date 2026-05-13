@@ -106,8 +106,8 @@ public class QuotationsController : ControllerBase
     /// Get a batch of random approved quotations with optional filters
     /// </summary>
     [HttpGet("random-batch")]
-    [ProducesResponseType(typeof(ApiResponse<List<QuotationDto>>), 200)]
-    public async Task<ActionResult<ApiResponse<List<QuotationDto>>>> GetRandomBatch(
+    [ProducesResponseType(typeof(ApiResponse<List<QuotationSummaryDto>>), 200)]
+    public async Task<ActionResult<ApiResponse<List<QuotationSummaryDto>>>> GetRandomBatch(
         [FromQuery] int count = 12,
         [FromQuery] string? sourceType = null,
         [FromQuery] string? tags = null)
@@ -123,7 +123,7 @@ public class QuotationsController : ControllerBase
                 System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries));
 
         var quotes = await _quotationService.GetRandomBatchAsync(count, sourceTypeFilter, tagsList);
-        return Ok(new ApiResponse<List<QuotationDto>> { Data = quotes, Success = true });
+        return Ok(new ApiResponse<List<QuotationSummaryDto>> { Data = quotes, Success = true });
     }
 
     /// <summary>
