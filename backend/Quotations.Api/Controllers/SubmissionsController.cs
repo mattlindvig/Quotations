@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Quotations.Api.Models;
 using Quotations.Api.Models.Dtos;
 using Quotations.Api.Services;
@@ -35,7 +36,7 @@ public class SubmissionsController : ControllerBase
     /// <param name="mode">AI review mode: "sync" (wait for analysis) or "async" (background, default)</param>
     /// <returns>Created quotation with pending status</returns>
     [HttpPost]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<QuotationDto>), 201)]
     [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<ActionResult<ApiResponse<QuotationDto>>> SubmitQuotation(
@@ -68,12 +69,12 @@ public class SubmissionsController : ControllerBase
                 new { id = quotation.Id },
                 new ApiResponse<QuotationDto> { Data = quotation, Success = true });
         }
-        catch (System.Exception ex)
+        catch (System.Exception)
         {
             return BadRequest(new ApiResponse<object>
             {
                 Success = false,
-                Errors = new Dictionary<string, string[]> { { "general", new[] { ex.Message } } }
+                Errors = new Dictionary<string, string[]> { { "general", new[] { "An error occurred while processing your submission. Please try again." } } }
             });
         }
     }
@@ -82,7 +83,8 @@ public class SubmissionsController : ControllerBase
     /// Submit multiple quotations in bulk — AI review always runs asynchronously
     /// </summary>
     [HttpPost("bulk")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
+    [EnableRateLimiting("submissions")]
     [ProducesResponseType(typeof(ApiResponse<BulkSubmitResult>), 200)]
     [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<ActionResult<ApiResponse<BulkSubmitResult>>> BulkSubmitQuotations(
@@ -121,7 +123,7 @@ public class SubmissionsController : ControllerBase
     /// <param name="pageSize">Items per page</param>
     /// <returns>Paginated list of user's submissions</returns>
     [HttpGet("my")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<PaginatedQuotationsResponse>), 200)]
     [ProducesResponseType(401)]
     public async Task<ActionResult<ApiResponse<PaginatedQuotationsResponse>>> GetMySubmissions(

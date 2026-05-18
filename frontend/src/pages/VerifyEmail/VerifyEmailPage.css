@@ -1,0 +1,42 @@
+.ve-page {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  background: #f8f9fa;
+}
+
+.ve-card {
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  text-align: center;
+}
+
+.ve-title {
+  font-size: 1.75rem;
+  margin: 0 0 1rem;
+}
+
+.ve-message {
+  color: #6c757d;
+  margin: 0 0 1.5rem;
+  line-height: 1.5;
+}
+
+.ve-link {
+  display: inline-block;
+  font-size: 0.875rem;
+  color: #6c757d;
+  text-decoration: none;
+}
+
+.ve-link:hover {
+  color: #212529;
+  text-decoration: underline;
+}

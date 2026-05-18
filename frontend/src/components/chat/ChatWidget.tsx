@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { sendChatMessage, type ChatMessage } from '../../services/chatService';
 import type { Quotation } from '../../types/quotation';
 import './ChatWidget.css';
@@ -11,7 +12,10 @@ interface DisplayMessage {
 }
 
 export const ChatWidget: React.FC = () => {
+  const { hasRole } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+
+  if (!hasRole('Admin')) return null;
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);

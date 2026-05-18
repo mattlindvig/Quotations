@@ -415,12 +415,13 @@ public class AiReviewDashboardController : ControllerBase
             SourceType: q.Source.Type.ToString()
         ));
 
-        var batchResult = await _anthropic.SubmitBatchAsync(requests);
+        var batchResult = await _anthropic.SubmitTriageBatchAsync(requests);
 
         // Record the job
         var job = new AiBatchJob
         {
             AnthropicBatchId = batchResult.AnthropicBatchId,
+            Phase = AiBatchJobPhase.Triage,
             Status = AiBatchJobStatus.Submitted,
             QuotationIds = quotations.Select(q => q.Id).ToList(),
             TotalCount = batchResult.RequestCount,

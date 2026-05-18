@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import './LoginPage.css';
 
@@ -117,6 +117,7 @@ export const LoginPage: React.FC = () => {
             <button type="submit" className="login-submit" disabled={isSubmitting}>
               {isSubmitting ? 'Signing in…' : 'Sign in'}
             </button>
+            <Link to="/forgot-password" className="login-forgot">Forgot your password?</Link>
           </form>
         ) : (
           <form onSubmit={handleRegister} className="login-form" noValidate>
@@ -155,7 +156,7 @@ export const LoginPage: React.FC = () => {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="reg-password">Password <span className="optional">(min 8 characters)</span></label>
+              <label htmlFor="reg-password">Password <span className="optional">(min 8 chars, upper, lower, number/symbol)</span></label>
               <input
                 id="reg-password"
                 type="password"

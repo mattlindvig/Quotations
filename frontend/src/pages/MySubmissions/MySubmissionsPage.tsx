@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../services/apiClient';
 import { QuotationCard } from '../../components/quotations/QuotationCard';
 import type { Quotation, PaginatedResponse, ApiResponse } from '../../types/quotation';
@@ -10,7 +11,14 @@ import './MySubmissionsPage.css';
  */
 export const MySubmissionsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading, hasRole } = useAuth();
   const [submissions, setSubmissions] = useState<Quotation[]>([]);
+
+  useEffect(() => {
+    if (!isLoading && (!isAuthenticated || !hasRole('Admin'))) {
+      navigate('/', { replace: true });
+    }
+  }, [isLoading, isAuthenticated, hasRole, navigate]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState({

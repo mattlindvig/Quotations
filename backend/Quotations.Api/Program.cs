@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
 using Quotations.Api.BackgroundServices;
+using Quotations.Api.Services;
 using Quotations.Api.Configuration;
 using Quotations.Api.Data;
 using Quotations.Api.Extensions;
@@ -118,6 +119,13 @@ builder.Services.AddHealthChecks()
 // Add FluentValidation
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
+// App and email settings
+builder.Services.Configure<Quotations.Api.Configuration.AppSettings>(
+    builder.Configuration.GetSection("AppSettings"));
+builder.Services.Configure<Quotations.Api.Configuration.ResendSettings>(
+    builder.Configuration.GetSection("Resend"));
+builder.Services.AddHttpClient<IEmailService, ResendEmailService>();
+
 // Configure MongoDB
 builder.Services.Configure<MongoDbSettings>(
     builder.Configuration.GetSection("MongoDbSettings"));
@@ -148,7 +156,7 @@ builder.Services.AddHostedService<AiReviewBackgroundService>();
 builder.Services.AddHostedService<AiBatchProcessingService>();
 
 // Configure JWT Authentication (using custom implementation, not ASP.NET Identity)
-builder.Services.AddJwtAuthentication(builder.Configuration);
+builder.Services.AddJwtAuthentication(builder.Configuration, builder.Environment);
 
 // Configure CORS — set AllowedOrigins env var in production (comma-separated)
 var allowedOrigins = builder.Configuration["AllowedOrigins"]
@@ -168,15 +176,33 @@ builder.Services.AddCors(options =>
         });
 });
 
-// Rate limiting for auth endpoints (10 requests/min per IP)
+// Rate limiting — keyed by IP address
 builder.Services.AddRateLimiter(options =>
 {
+    // Auth endpoints: 10 requests/min (brute force protection)
     options.AddFixedWindowLimiter("auth", opt =>
     {
         opt.Window = TimeSpan.FromMinutes(1);
         opt.PermitLimit = 10;
         opt.QueueLimit = 0;
     });
+
+    // Chat endpoint: 20 requests/min per IP (Anthropic cost protection)
+    options.AddFixedWindowLimiter("chat", opt =>
+    {
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.PermitLimit = 20;
+        opt.QueueLimit = 0;
+    });
+
+    // Bulk submission: 5 requests/min per IP (queue flooding protection)
+    options.AddFixedWindowLimiter("submissions", opt =>
+    {
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.PermitLimit = 5;
+        opt.QueueLimit = 0;
+    });
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
@@ -192,6 +218,15 @@ if (app.Environment.IsDevelopment())
 // Global error handling middleware (must be first)
 app.UseMiddleware<Quotations.Api.Middleware.ErrorHandlingMiddleware>();
 
+// Security headers
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+    await next();
+});
+
 // CORS middleware
 app.UseCors("AllowFrontend");
 
@@ -199,7 +234,6 @@ app.UseRateLimiter();
 
 // Authentication & Authorization middleware
 app.UseAuthentication();
-app.UseMiddleware<Quotations.Api.Middleware.JwtMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

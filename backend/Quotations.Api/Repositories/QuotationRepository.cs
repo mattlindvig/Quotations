@@ -640,4 +640,13 @@ public class QuotationRepository : IQuotationRepository
             .Limit(limit)
             .ToListAsync();
     }
+
+    public async Task<List<Quotation>> GetFixPendingForBatchAsync(int limit)
+    {
+        var filter = Builders<Quotation>.Filter.Eq("aiReview.status", AiReviewStatus.FixPending.ToString());
+        return await _quotations
+            .Find(filter)
+            .Limit(limit)
+            .ToListAsync();
+    }
 }

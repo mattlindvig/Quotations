@@ -18,8 +18,10 @@ const Header = () => {
           <a href="/" className="nav-brand" onClick={goHome}>Quotations</a>
           <a href="/" className="nav-link" onClick={goHome}>Browse</a>
           <Link to="/random" className="nav-link">Random</Link>
-          <Link to="/submit" className="nav-link">Submit</Link>
-          {isAuthenticated && (
+          {hasRole('Admin') && (
+            <Link to="/submit" className="nav-link">Submit</Link>
+          )}
+          {hasRole('Admin') && (
             <Link to="/my-submissions" className="nav-link">My Submissions</Link>
           )}
           {isAuthenticated && (

@@ -88,18 +88,18 @@ public class ReviewController : ControllerBase
                 Success = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "general", new[] { ex.Message } }
+                    { "general", new[] { ex.Message } }  // safe: business rule messages only
                 }
             });
         }
-        catch (System.ArgumentException ex)
+        catch (System.ArgumentException)
         {
             return NotFound(new ApiResponse<object>
             {
                 Success = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "general", new[] { ex.Message } }
+                    { "general", new[] { "The requested quotation was not found." } }
                 }
             });
         }
@@ -165,18 +165,18 @@ public class ReviewController : ControllerBase
                 Success = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "general", new[] { ex.Message } }
+                    { "general", new[] { ex.Message } }  // safe: business rule messages only
                 }
             });
         }
-        catch (System.ArgumentException ex)
+        catch (System.ArgumentException)
         {
             return NotFound(new ApiResponse<object>
             {
                 Success = false,
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "general", new[] { ex.Message } }
+                    { "general", new[] { "The requested quotation was not found." } }
                 }
             });
         }

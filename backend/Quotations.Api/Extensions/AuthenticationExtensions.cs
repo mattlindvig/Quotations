@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Quotations.Api.Extensions;
@@ -8,7 +9,8 @@ public static class AuthenticationExtensions
 {
     public static IServiceCollection AddJwtAuthentication(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         var jwtSettings = configuration.GetSection("Jwt");
         var secretKey = jwtSettings["Secret"] ?? throw new InvalidOperationException("JWT Secret is not configured");
@@ -21,7 +23,7 @@ public static class AuthenticationExtensions
         })
         .AddJwtBearer(options =>
         {
-            options.RequireHttpsMetadata = false;
+            options.RequireHttpsMetadata = !environment.IsDevelopment();
             options.SaveToken = true;
             options.TokenValidationParameters = new TokenValidationParameters
             {

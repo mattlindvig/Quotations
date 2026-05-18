@@ -184,4 +184,9 @@ public interface IQuotationRepository
     /// Get up to <paramref name="limit"/> NotReviewed quotations for batch submission.
     /// </summary>
     Task<List<Quotation>> GetUnreviewedForBatchAsync(int limit);
+
+    /// <summary>
+    /// Get up to <paramref name="limit"/> FixPending quotations for fix batch submission.
+    /// </summary>
+    Task<List<Quotation>> GetFixPendingForBatchAsync(int limit);
 }

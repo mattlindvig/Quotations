@@ -11,7 +11,8 @@ public enum AiReviewStatus
     InProgress,
     Reviewed,
     Failed,
-    BatchPending  // Submitted to Anthropic Batch API; awaiting async results
+    BatchPending,  // Submitted to Anthropic Batch API; awaiting async results
+    FixPending     // Triage complete; awaiting fix batch
 }
 
 public class AiScoreWithSuggestion

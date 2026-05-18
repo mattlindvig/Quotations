@@ -1,13 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { SubmissionForm } from '../../components/forms/SubmissionForm';
 import './SubmitPage.css';
 
-/**
- * Submit page - allows users to submit new quotations
- */
 export const SubmitPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading, hasRole } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && (!isAuthenticated || !hasRole('Admin'))) {
+      navigate('/', { replace: true });
+    }
+  }, [isLoading, isAuthenticated, hasRole, navigate]);
+
+  if (isLoading || !hasRole('Admin')) return null;
 
   const handleSuccess = () => {
     // Navigate to browse page after success message is shown

@@ -20,6 +20,9 @@ public class AiBatchProcessingService : BackgroundService
     private readonly ILogger<AiBatchProcessingService> _logger;
     private readonly AiReviewOptions _options;
 
+    // Fix batch: worst case is 3 requests per quote; stay well under the 10,000 Anthropic limit
+    private const int FixBatchQuoteLimit = 3000;
+
     // Poll every 10 minutes — batches take minutes to hours to complete
     private static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(10);
 
@@ -61,9 +64,9 @@ public class AiBatchProcessingService : BackgroundService
     private async Task CheckPendingBatchesAsync(CancellationToken stoppingToken)
     {
         using var scope = _scopeFactory.CreateScope();
-        var batchJobRepo = scope.ServiceProvider.GetRequiredService<IAiBatchJobRepository>();
-        var anthropic = scope.ServiceProvider.GetRequiredService<IAnthropicService>();
-        var quotationRepo = scope.ServiceProvider.GetRequiredService<IQuotationRepository>();
+        var batchJobRepo    = scope.ServiceProvider.GetRequiredService<IAiBatchJobRepository>();
+        var anthropic       = scope.ServiceProvider.GetRequiredService<IAnthropicService>();
+        var quotationRepo   = scope.ServiceProvider.GetRequiredService<IQuotationRepository>();
         var aiReviewService = scope.ServiceProvider.GetRequiredService<AiReviewService>();
 
         var pendingJobs = await batchJobRepo.GetPendingJobsAsync();
@@ -97,7 +100,7 @@ public class AiBatchProcessingService : BackgroundService
         AiReviewService aiReviewService)
     {
         var status = await anthropic.GetBatchStatusAsync(job.AnthropicBatchId);
-        _logger.LogInformation("Batch {BatchId} status: {Status}", job.AnthropicBatchId, status.ProcessingStatus);
+        _logger.LogInformation("Batch {BatchId} ({Phase}) status: {Status}", job.AnthropicBatchId, job.Phase, status.ProcessingStatus);
 
         if (status.ProcessingStatus != "ended")
         {
@@ -106,7 +109,6 @@ public class AiBatchProcessingService : BackgroundService
             return;
         }
 
-        // Batch has finished — download and process results
         _logger.LogInformation("Batch {BatchId} ended. Succeeded: {S}, Errored: {E}, Expired: {X}",
             job.AnthropicBatchId, status.Succeeded, status.Errored, status.Expired);
 
@@ -114,42 +116,21 @@ public class AiBatchProcessingService : BackgroundService
 
         int succeeded = 0, failed = 0;
 
-        foreach (var result in results)
+        if (job.Phase == AiBatchJobPhase.Triage)
         {
-            try
-            {
-                var quotation = await quotationRepo.GetQuotationByIdAsync(result.CustomId);
-                if (quotation == null)
-                {
-                    _logger.LogWarning("Batch result references unknown quotation {Id}", result.CustomId);
-                    failed++;
-                    continue;
-                }
+            (succeeded, failed) = await ProcessTriageResultsAsync(results, job, quotationRepo, aiReviewService);
 
-                if (!result.Succeeded || string.IsNullOrWhiteSpace(result.ContentText))
-                {
-                    _logger.LogWarning("Batch result failed for quotation {Id}: {Error}", result.CustomId, result.ErrorType);
-                    quotation.AiReview ??= new AiReview();
-                    quotation.AiReview.Status = AiReviewStatus.Failed;
-                    quotation.AiReview.FailureReason = result.ErrorType ?? "Batch request failed";
-                    await quotationRepo.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
-                    failed++;
-                    continue;
-                }
-
-                await ApplyBatchResultAsync(quotation, result.ContentText, job.ModelUsed, quotationRepo, aiReviewService);
-                succeeded++;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error applying batch result for quotation {Id}", result.CustomId);
-                failed++;
-            }
+            // Auto-submit a fix batch for any quotes that came back FixPending
+            await SubmitFixBatchIfNeededAsync(batchJobRepo, anthropic, quotationRepo);
+        }
+        else
+        {
+            (succeeded, failed) = await ProcessFixResultsAsync(results, job, quotationRepo, aiReviewService);
         }
 
         // Mark any quotations still BatchPending that had no result as Failed
-        var resultIds = new HashSet<string>(results.Select(r => r.CustomId));
-        foreach (var qId in job.QuotationIds.Where(id => !resultIds.Contains(id)))
+        var resultQuotationIds = new HashSet<string>(results.Select(r => ExtractQuotationId(r.CustomId)));
+        foreach (var qId in job.QuotationIds.Where(id => !resultQuotationIds.Contains(id)))
         {
             var quotation = await quotationRepo.GetQuotationByIdAsync(qId);
             if (quotation?.AiReview?.Status == AiReviewStatus.BatchPending)
@@ -167,17 +148,163 @@ public class AiBatchProcessingService : BackgroundService
         job.CompletedAt = DateTime.UtcNow;
         await batchJobRepo.UpdateAsync(job);
 
-        _logger.LogInformation("Batch job {JobId} complete. Succeeded: {S}, Failed: {F}", job.Id, succeeded, failed);
+        _logger.LogInformation("Batch job {JobId} ({Phase}) complete. Succeeded: {S}, Failed: {F}", job.Id, job.Phase, succeeded, failed);
     }
 
-    private static async Task ApplyBatchResultAsync(
-        Quotation quotation,
-        string contentText,
-        string modelUsed,
+    private async Task<(int succeeded, int failed)> ProcessTriageResultsAsync(
+        List<BatchMessageResult> results,
+        AiBatchJob job,
         IQuotationRepository quotationRepo,
         AiReviewService aiReviewService)
     {
-        // Re-use AiReviewService's internal logic by routing through ReviewFromBatchAsync
-        await aiReviewService.ReviewFromBatchResultAsync(quotation, contentText, modelUsed);
+        int succeeded = 0, failed = 0;
+
+        foreach (var result in results)
+        {
+            try
+            {
+                var quotation = await quotationRepo.GetQuotationByIdAsync(result.CustomId);
+                if (quotation == null)
+                {
+                    _logger.LogWarning("Triage batch result references unknown quotation {Id}", result.CustomId);
+                    failed++;
+                    continue;
+                }
+
+                if (!result.Succeeded || string.IsNullOrWhiteSpace(result.ContentText))
+                {
+                    _logger.LogWarning("Triage batch result failed for quotation {Id}: {Error}", result.CustomId, result.ErrorType);
+                    quotation.AiReview ??= new AiReview();
+                    quotation.AiReview.Status = AiReviewStatus.Failed;
+                    quotation.AiReview.FailureReason = result.ErrorType ?? "Triage batch request failed";
+                    await quotationRepo.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
+                    failed++;
+                    continue;
+                }
+
+                await aiReviewService.ApplyTriageBatchResultAsync(quotation, result.ContentText, job.ModelUsed);
+                succeeded++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error applying triage batch result for quotation {Id}", result.CustomId);
+                failed++;
+            }
+        }
+
+        return (succeeded, failed);
+    }
+
+    private async Task<(int succeeded, int failed)> ProcessFixResultsAsync(
+        List<BatchMessageResult> results,
+        AiBatchJob job,
+        IQuotationRepository quotationRepo,
+        AiReviewService aiReviewService)
+    {
+        int succeeded = 0, failed = 0;
+
+        // Group results by quotation ID (each quote may have up to 3 fix results)
+        var byQuotation = results
+            .Where(r => r.Succeeded && !string.IsNullOrWhiteSpace(r.ContentText))
+            .GroupBy(r => ExtractQuotationId(r.CustomId))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var (quotationId, quotationResults) in byQuotation)
+        {
+            try
+            {
+                var quotation = await quotationRepo.GetQuotationByIdAsync(quotationId);
+                if (quotation == null)
+                {
+                    _logger.LogWarning("Fix batch result references unknown quotation {Id}", quotationId);
+                    failed++;
+                    continue;
+                }
+
+                var fieldResults = quotationResults
+                    .Select(r => (Field: ExtractField(r.CustomId), ContentText: r.ContentText!))
+                    .Where(r => !string.IsNullOrEmpty(r.Field))
+                    .ToList();
+
+                await aiReviewService.ApplyFixBatchResultsAsync(quotation, fieldResults, job.ModelUsed);
+                succeeded++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error applying fix batch results for quotation {Id}", quotationId);
+                failed++;
+            }
+        }
+
+        // Count any entirely failed fix results
+        failed += results.Count(r => !r.Succeeded);
+
+        return (succeeded, failed);
+    }
+
+    private async Task SubmitFixBatchIfNeededAsync(
+        IAiBatchJobRepository batchJobRepo,
+        IAnthropicService anthropic,
+        IQuotationRepository quotationRepo)
+    {
+        var fixPending = await quotationRepo.GetFixPendingForBatchAsync(FixBatchQuoteLimit);
+        if (fixPending.Count == 0) return;
+
+        _logger.LogInformation("Auto-submitting fix batch for {Count} FixPending quotations.", fixPending.Count);
+
+        const int FixThreshold = 8;
+        var fixRequests = fixPending
+            .SelectMany(q => new[]
+            {
+                q.AiReview?.QuoteAccuracy?.Score < FixThreshold
+                    ? ("quote",  q) : (null, q),
+                q.AiReview?.AttributionAccuracy?.Score < FixThreshold
+                    ? ("author", q) : (null, q),
+                q.AiReview?.SourceAccuracy?.Score < FixThreshold
+                    ? ("source", q) : (null, q),
+            })
+            .Where(x => x.Item1 != null)
+            .Select(x => (
+                QuotationId: x.q.Id,
+                Field: x.Item1!,
+                Text: x.q.Text,
+                AuthorName: x.q.Author.Name,
+                SourceTitle: x.q.Source.Title,
+                SourceType: x.q.Source.Type.ToString()
+            ))
+            .ToList();
+
+        if (fixRequests.Count == 0) return;
+
+        var batchResult = await anthropic.SubmitFixBatchAsync(fixRequests);
+
+        var job = new AiBatchJob
+        {
+            AnthropicBatchId = batchResult.AnthropicBatchId,
+            Phase = AiBatchJobPhase.Fix,
+            Status = AiBatchJobStatus.Submitted,
+            QuotationIds = fixPending.Select(q => q.Id).ToList(),
+            TotalCount = batchResult.RequestCount,
+            ModelUsed = string.Empty,
+            SubmittedAt = DateTime.UtcNow
+        };
+        await batchJobRepo.CreateAsync(job);
+
+        await quotationRepo.BulkSetAiReviewStatusAsync(fixPending.Select(q => q.Id), AiReviewStatus.BatchPending);
+
+        _logger.LogInformation("Fix batch {BatchId} submitted with {Count} requests.", batchResult.AnthropicBatchId, batchResult.RequestCount);
+    }
+
+    // custom_id format: "{quotationId}" for triage, "{quotationId}:{field}" for fix
+    private static string ExtractQuotationId(string customId)
+    {
+        var colon = customId.IndexOf(':');
+        return colon >= 0 ? customId[..colon] : customId;
+    }
+
+    private static string ExtractField(string customId)
+    {
+        var colon = customId.IndexOf(':');
+        return colon >= 0 ? customId[(colon + 1)..] : string.Empty;
     }
 }

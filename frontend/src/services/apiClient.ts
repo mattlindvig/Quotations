@@ -1,6 +1,15 @@
 import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = (() => {
+  const url = import.meta.env.VITE_API_BASE_URL;
+  if (!url) {
+    if (import.meta.env.PROD) {
+      throw new Error('VITE_API_BASE_URL is not set. This environment variable is required for production builds.');
+    }
+    return 'http://localhost:5000/api/v1';
+  }
+  return url;
+})();
 
 interface RefreshResponse {
   success: boolean;
@@ -12,6 +21,9 @@ class ApiClient {
   private isRefreshing = false;
   private refreshSubscribers: Array<(token: string) => void> = [];
   private failSubscribers: Array<() => void> = [];
+  // Access token lives only in memory — never written to localStorage.
+  // Survives navigation but not page refresh (handled by refresh token on startup).
+  private accessToken: string | null = null;
 
   constructor() {
     this.client = axios.create({
@@ -25,9 +37,8 @@ class ApiClient {
     // Request interceptor to add auth token
     this.client.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('authToken');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        if (this.accessToken) {
+          config.headers.Authorization = `Bearer ${this.accessToken}`;
         }
         return config;
       },
@@ -78,7 +89,7 @@ class ApiClient {
             const data = response.data?.data;
             if (!data?.token) throw new Error('No token in refresh response');
 
-            localStorage.setItem('authToken', data.token);
+            this.accessToken = data.token;
             localStorage.setItem('refreshToken', data.refreshToken);
 
             this.refreshSubscribers.forEach((cb) => cb(data.token));
@@ -130,7 +141,7 @@ class ApiClient {
   }
 
   setAuthToken(token: string): void {
-    localStorage.setItem('authToken', token);
+    this.accessToken = token;
   }
 
   setRefreshToken(token: string): void {
@@ -138,7 +149,7 @@ class ApiClient {
   }
 
   clearTokens(): void {
-    localStorage.removeItem('authToken');
+    this.accessToken = null;
     localStorage.removeItem('refreshToken');
   }
 

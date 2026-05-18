@@ -98,4 +98,66 @@ public class UserRepository : IUserRepository
         var result = await _users.UpdateOneAsync(u => u.Id == userId, update);
         return result.ModifiedCount > 0 || result.MatchedCount > 0;
     }
+
+    public async Task IncrementFailedLoginAsync(string userId, DateTime? lockoutUntil)
+    {
+        var update = lockoutUntil.HasValue
+            ? Builders<User>.Update.Inc(u => u.FailedLoginCount, 1).Set(u => u.LockoutUntil, lockoutUntil.Value)
+            : Builders<User>.Update.Inc(u => u.FailedLoginCount, 1);
+        await _users.UpdateOneAsync(u => u.Id == userId, update);
+    }
+
+    public async Task ResetFailedLoginAsync(string userId)
+    {
+        var update = Builders<User>.Update
+            .Set(u => u.FailedLoginCount, 0)
+            .Unset(u => u.LockoutUntil);
+        await _users.UpdateOneAsync(u => u.Id == userId, update);
+    }
+
+    public async Task SetEmailVerificationTokenAsync(string userId, string hashedToken, DateTime expiry)
+    {
+        var update = Builders<User>.Update
+            .Set(u => u.EmailVerificationToken, hashedToken)
+            .Set(u => u.EmailVerificationExpiry, expiry);
+        await _users.UpdateOneAsync(u => u.Id == userId, update);
+    }
+
+    public async Task<bool> VerifyEmailAsync(string hashedToken)
+    {
+        var filter = Builders<User>.Filter.And(
+            Builders<User>.Filter.Eq(u => u.EmailVerificationToken, hashedToken),
+            Builders<User>.Filter.Gt(u => u.EmailVerificationExpiry, DateTime.UtcNow)
+        );
+        var update = Builders<User>.Update
+            .Set(u => u.EmailVerified, true)
+            .Unset(u => u.EmailVerificationToken)
+            .Unset(u => u.EmailVerificationExpiry);
+        var result = await _users.UpdateOneAsync(filter, update);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task SetPasswordResetTokenAsync(string userId, string hashedToken, DateTime expiry)
+    {
+        var update = Builders<User>.Update
+            .Set(u => u.PasswordResetToken, hashedToken)
+            .Set(u => u.PasswordResetExpiry, expiry);
+        await _users.UpdateOneAsync(u => u.Id == userId, update);
+    }
+
+    public async Task<bool> ResetPasswordAsync(string hashedToken, string newPasswordHash)
+    {
+        var filter = Builders<User>.Filter.And(
+            Builders<User>.Filter.Eq(u => u.PasswordResetToken, hashedToken),
+            Builders<User>.Filter.Gt(u => u.PasswordResetExpiry, DateTime.UtcNow)
+        );
+        var update = Builders<User>.Update
+            .Set(u => u.PasswordHash, newPasswordHash)
+            .Unset(u => u.PasswordResetToken)
+            .Unset(u => u.PasswordResetExpiry)
+            .Set(u => u.FailedLoginCount, 0)
+            .Unset(u => u.LockoutUntil);
+        var result = await _users.UpdateOneAsync(filter, update);
+        return result.ModifiedCount > 0;
+    }
 }

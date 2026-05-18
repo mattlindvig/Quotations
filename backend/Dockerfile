@@ -31,4 +31,4 @@ COPY --from=publish /app/publish .
 RUN adduser --disabled-password --gecos '' appuser
 USER appuser
 
-ENTRYPOINT ["dotnet", "Quotations.Api.dll"]
+ENTRYPOINT ["/bin/sh", "-c", "ASPNETCORE_URLS=http://+:${PORT:-5000} dotnet Quotations.Api.dll"]

@@ -50,6 +50,18 @@ public interface IAnthropicService
 
     // Parse the text content from a single batch result message
     AiAnalysisResult? ParseBatchResultContent(string contentText, string modelUsed);
+
+    // Two-pass review: triage scores + tags, then targeted fixes for low-scoring fields
+    Task<AiTriageResult?> TriageQuotationAsync(string text, string authorName, string sourceTitle, string sourceType);
+    Task<AiFixResult?> FixFieldAsync(string field, string text, string authorName, string sourceTitle, string sourceType, bool useWebSearch);
+
+    // Parse batch results for two-phase batch processing
+    AiTriageResult? ParseTriageBatchResult(string contentText, string modelUsed);
+    AiFixResult? ParseFixBatchResult(string contentText, string modelUsed);
+
+    // Two-phase batch API
+    Task<BatchSubmitResult> SubmitTriageBatchAsync(IEnumerable<(string QuotationId, string Text, string AuthorName, string SourceTitle, string SourceType)> requests);
+    Task<BatchSubmitResult> SubmitFixBatchAsync(IEnumerable<(string QuotationId, string Field, string Text, string AuthorName, string SourceTitle, string SourceType)> requests);
 }
 
 public record AiScoreResult(
@@ -73,6 +85,20 @@ public record AiAnalysisResult(
     string? AuthenticityReasoning,
     string? ApproximateEra,
     List<string> KnownVariants);
+
+public record AiTriageResult(
+    int QuoteScore,
+    int AttributionScore,
+    int SourceScore,
+    List<AiTagSuggestion> Tags,
+    string ModelUsed);
+
+public record AiFixResult(
+    string? SuggestedValue,
+    int? Confidence,
+    bool WasAiFilled,
+    string Reasoning,
+    string ModelUsed);
 
 public class AnthropicService : IAnthropicService
 {
@@ -174,7 +200,7 @@ public class AnthropicService : IAnthropicService
         };
 
         var toolsJson = useWebSearch
-            ? """[{"type":"web_search_20250305","name":"web_search","max_uses":5}]"""
+            ? """[{"type":"web_search_20250305","name":"web_search","max_uses":2}]"""
             : "[]";
         string contentText = string.Empty;
         string modelUsed = effectiveModel;
@@ -221,6 +247,178 @@ public class AnthropicService : IAnthropicService
         }
 
         return ParseAnalysisResult(contentText, modelUsed);
+    }
+
+    public async Task<AiTriageResult?> TriageQuotationAsync(
+        string text, string authorName, string sourceTitle, string sourceType)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey == "REPLACE_WITH_ANTHROPIC_API_KEY")
+        {
+            _logger.LogWarning("Anthropic API key not configured — skipping triage");
+            return null;
+        }
+
+        using var lease = await RateLimiter.AcquireAsync(permitCount: 1);
+        if (!lease.IsAcquired)
+            throw new InvalidOperationException("Anthropic rate-limit queue is full");
+
+        var quoteContext = BuildQuoteContext(text, authorName, null, sourceTitle, sourceType, null);
+        var requestNode = new JsonObject
+        {
+            ["model"] = _options.Model,
+            ["max_tokens"] = 256,
+            ["messages"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["content"] = TriageInstructions + "\n\n" + quoteContext
+                }
+            },
+            ["tools"] = JsonNode.Parse("[]")
+        };
+
+        var responseBody = await SendWithRetryAsync(requestNode.ToJsonString());
+        using var doc = JsonDocument.Parse(responseBody);
+        var modelUsed = doc.RootElement.TryGetProperty("model", out var m) ? m.GetString() ?? _options.Model : _options.Model;
+        var contentText = string.Empty;
+        foreach (var block in doc.RootElement.GetProperty("content").EnumerateArray())
+        {
+            if (block.TryGetProperty("type", out var t) && t.GetString() == "text"
+                && block.TryGetProperty("text", out var tx))
+                contentText += tx.GetString();
+        }
+
+        return ParseTriageResult(contentText, modelUsed);
+    }
+
+    public async Task<AiFixResult?> FixFieldAsync(
+        string field, string text, string authorName, string sourceTitle, string sourceType, bool useWebSearch)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey == "REPLACE_WITH_ANTHROPIC_API_KEY")
+        {
+            _logger.LogWarning("Anthropic API key not configured — skipping fix");
+            return null;
+        }
+
+        using var lease = await RateLimiter.AcquireAsync(permitCount: 1);
+        if (!lease.IsAcquired)
+            throw new InvalidOperationException("Anthropic rate-limit queue is full");
+
+        var instructions = field switch
+        {
+            "quote"  => QuoteFixInstructions,
+            "author" => AuthorFixInstructions,
+            "source" => SourceFixInstructions,
+            _        => throw new ArgumentException($"Unknown field: {field}")
+        };
+
+        var quoteContext = BuildQuoteContext(text, authorName, null, sourceTitle, sourceType, null);
+        var toolsJson = useWebSearch
+            ? """[{"type":"web_search_20250305","name":"web_search","max_uses":2}]"""
+            : "[]";
+
+        var messages = new JsonArray
+        {
+            new JsonObject
+            {
+                ["role"] = "user",
+                ["content"] = instructions + "\n\n" + quoteContext
+            }
+        };
+
+        string contentText = string.Empty;
+        string modelUsed = _options.Model;
+
+        for (int iteration = 0; iteration < 15; iteration++)
+        {
+            var requestNode = new JsonObject
+            {
+                ["model"] = _options.Model,
+                ["max_tokens"] = 256,
+                ["messages"] = JsonNode.Parse(messages.ToJsonString()),
+                ["tools"] = JsonNode.Parse(toolsJson)
+            };
+
+            var responseBody = await SendWithRetryAsync(requestNode.ToJsonString());
+            using var doc = JsonDocument.Parse(responseBody);
+            var stopReason = doc.RootElement.TryGetProperty("stop_reason", out var sr) ? sr.GetString() : null;
+            modelUsed = doc.RootElement.TryGetProperty("model", out var m) ? m.GetString() ?? modelUsed : modelUsed;
+
+            var contentEl = doc.RootElement.GetProperty("content");
+            foreach (var block in contentEl.EnumerateArray())
+            {
+                if (block.TryGetProperty("type", out var t) && t.GetString() == "text"
+                    && block.TryGetProperty("text", out var tx))
+                    contentText += tx.GetString();
+            }
+
+            if (stopReason != "pause_turn") break;
+
+            messages.Add(new JsonObject
+            {
+                ["role"] = "assistant",
+                ["content"] = JsonNode.Parse(contentEl.GetRawText())
+            });
+        }
+
+        return ParseFixResult(contentText, modelUsed);
+    }
+
+    private static AiTriageResult? ParseTriageResult(string contentText, string modelUsed)
+    {
+        try
+        {
+            var start = contentText.IndexOf('{');
+            var end = contentText.LastIndexOf('}');
+            if (start < 0 || end < 0) return null;
+
+            using var doc = JsonDocument.Parse(contentText[start..(end + 1)]);
+            var root = doc.RootElement;
+
+            var quoteScore = root.TryGetProperty("quoteAccuracy", out var q) ? q.GetInt32() : 0;
+            var attributionScore = root.TryGetProperty("attributionAccuracy", out var a) ? a.GetInt32() : 0;
+            var sourceScore = root.TryGetProperty("sourceAccuracy", out var s) ? s.GetInt32() : 0;
+
+            var tags = new List<AiTagSuggestion>();
+            if (root.TryGetProperty("tags", out var tagsEl) && tagsEl.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in tagsEl.EnumerateArray())
+                {
+                    var tag = item.TryGetProperty("tag", out var t) ? t.GetString() : null;
+                    var confidence = item.TryGetProperty("confidence", out var c) && c.ValueKind == JsonValueKind.Number
+                        ? c.GetInt32() : 0;
+                    if (!string.IsNullOrWhiteSpace(tag) && CanonicalTags.All.Contains(tag))
+                        tags.Add(new AiTagSuggestion(tag, confidence));
+                }
+            }
+
+            return new AiTriageResult(quoteScore, attributionScore, sourceScore, tags, modelUsed);
+        }
+        catch { return null; }
+    }
+
+    private static AiFixResult? ParseFixResult(string contentText, string modelUsed)
+    {
+        try
+        {
+            var start = contentText.IndexOf('{');
+            var end = contentText.LastIndexOf('}');
+            if (start < 0 || end < 0) return null;
+
+            using var doc = JsonDocument.Parse(contentText[start..(end + 1)]);
+            var root = doc.RootElement;
+
+            var suggested = root.TryGetProperty("suggestedValue", out var sv) && sv.ValueKind != JsonValueKind.Null
+                ? sv.GetString() : null;
+            int? confidence = root.TryGetProperty("confidence", out var c) && c.ValueKind == JsonValueKind.Number
+                ? c.GetInt32() : null;
+            var wasFilled = root.TryGetProperty("wasAiFilled", out var wf) && wf.GetBoolean();
+            var reasoning = root.TryGetProperty("reasoning", out var r) ? r.GetString() ?? string.Empty : string.Empty;
+
+            return new AiFixResult(suggested, confidence, wasFilled, reasoning, modelUsed);
+        }
+        catch { return null; }
     }
 
     private async Task<string> SendWithRetryAsync(string json)
@@ -275,6 +473,10 @@ public class AnthropicService : IAnthropicService
 
     // Cached once per process — identical for every request, so there's no reason to rebuild it.
     private static readonly string StaticInstructions = BuildStaticInstructions();
+    private static readonly string TriageInstructions = BuildTriageInstructions();
+    private static readonly string QuoteFixInstructions = BuildFixInstructions("quote");
+    private static readonly string AuthorFixInstructions = BuildFixInstructions("author");
+    private static readonly string SourceFixInstructions = BuildFixInstructions("source");
 
     private static string BuildStaticInstructions()
     {
@@ -311,39 +513,45 @@ public class AnthropicService : IAnthropicService
             "  - authenticityReasoning: one or two sentences explaining your assessment.\n" +
             "  - approximateEra: short phrase placing the quotation historically (e.g. \"Ancient Greece, ~400 BCE\", \"Victorian era, 1880s\").\n" +
             "  - knownVariants: alternate wordings commonly found in the wild (empty array if none).\n\n" +
-            "Respond with exactly this JSON (no extra text):\n" +
-            "{\n" +
-            "  \"quoteAccuracy\": {\n" +
-            "    \"score\": 0,\n" +
-            "    \"reasoning\": \"\",\n" +
-            "    \"suggestedValue\": null,\n" +
-            "    \"suggestionConfidence\": null,\n" +
-            "    \"wasAiFilled\": false,\n" +
-            "    \"citations\": []\n" +
-            "  },\n" +
-            "  \"attributionAccuracy\": {\n" +
-            "    \"score\": 0,\n" +
-            "    \"reasoning\": \"\",\n" +
-            "    \"suggestedValue\": null,\n" +
-            "    \"suggestionConfidence\": null,\n" +
-            "    \"wasAiFilled\": false,\n" +
-            "    \"citations\": []\n" +
-            "  },\n" +
-            "  \"sourceAccuracy\": {\n" +
-            "    \"score\": 0,\n" +
-            "    \"reasoning\": \"\",\n" +
-            "    \"suggestedValue\": null,\n" +
-            "    \"suggestionConfidence\": null,\n" +
-            "    \"wasAiFilled\": false,\n" +
-            "    \"citations\": []\n" +
-            "  },\n" +
-            "  \"suggestedTags\": [{\"tag\": \"\", \"confidence\": 0}],\n" +
-            "  \"summary\": \"\",\n" +
-            "  \"isLikelyAuthentic\": true,\n" +
-            "  \"authenticityReasoning\": \"\",\n" +
-            "  \"approximateEra\": \"\",\n" +
-            "  \"knownVariants\": []\n" +
-            "}";
+            "Respond with JSON only (no extra text). Shape:\n" +
+            "{ quoteAccuracy: { score, reasoning, suggestedValue, suggestionConfidence, wasAiFilled, citations[] },\n" +
+            "  attributionAccuracy: { score, reasoning, suggestedValue, suggestionConfidence, wasAiFilled, citations[] },\n" +
+            "  sourceAccuracy: { score, reasoning, suggestedValue, suggestionConfidence, wasAiFilled, citations[] },\n" +
+            "  suggestedTags: [{ tag, confidence }], summary, isLikelyAuthentic, authenticityReasoning, approximateEra, knownVariants[] }";
+    }
+
+    private static string BuildTriageInstructions()
+    {
+        var tagList = string.Join(", ", CanonicalTags.All);
+        return
+            "You are a quotation accuracy expert. Score each dimension 1-10 and assign tags.\n\n" +
+            "quoteAccuracy — Is this the exact wording typically associated with this person?\n" +
+            "attributionAccuracy — Did this specific person actually say or write this?\n" +
+            "sourceAccuracy — Is this source title and type correct for this quote?\n\n" +
+            "TAG RULES:\n" +
+            $"  Select 1-5 tags from this exact list: {tagList}\n" +
+            "  Return only tags from that list.\n" +
+            "  For each tag include confidence (0-100): your confidence it genuinely applies.\n\n" +
+            "Respond with JSON only:\n" +
+            "{ \"quoteAccuracy\": 0, \"attributionAccuracy\": 0, \"sourceAccuracy\": 0, \"tags\": [{\"tag\": \"\", \"confidence\": 0}] }";
+    }
+
+    private static string BuildFixInstructions(string field)
+    {
+        var (subject, placeholder) = field switch
+        {
+            "quote"  => ("the exact wording of the quotation", "the corrected quote text"),
+            "author" => ("the author attribution", "the correct author name"),
+            "source" => ("the source title", "the correct source title"),
+            _        => throw new ArgumentException($"Unknown field: {field}")
+        };
+
+        return
+            $"You are a quotation accuracy expert. The {subject} for this quotation is wrong or missing.\n" +
+            $"Identify {placeholder}.\n\n" +
+            "Set wasAiFilled to true only if the original field was blank, 'Unknown', 'Anonymous', or a clear placeholder.\n\n" +
+            "Respond with JSON only:\n" +
+            "{ \"suggestedValue\": \"\", \"confidence\": 0, \"wasAiFilled\": false, \"reasoning\": \"\" }";
     }
 
     private static string BuildQuoteContext(
@@ -495,6 +703,101 @@ public class AnthropicService : IAnthropicService
         }
 
         return result;
+    }
+
+    public AiTriageResult? ParseTriageBatchResult(string contentText, string modelUsed)
+        => ParseTriageResult(contentText, modelUsed);
+
+    public AiFixResult? ParseFixBatchResult(string contentText, string modelUsed)
+        => ParseFixResult(contentText, modelUsed);
+
+    public async Task<BatchSubmitResult> SubmitTriageBatchAsync(
+        IEnumerable<(string QuotationId, string Text, string AuthorName, string SourceTitle, string SourceType)> requests)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey == "REPLACE_WITH_ANTHROPIC_API_KEY")
+            throw new InvalidOperationException("Anthropic API key not configured");
+
+        var requestList = requests.Select(r => new
+        {
+            custom_id = r.QuotationId,
+            @params = new
+            {
+                model = _options.Model,
+                max_tokens = 256,
+                messages = new[]
+                {
+                    new
+                    {
+                        role = "user",
+                        content = TriageInstructions + "\n\n" + BuildQuoteContext(r.Text, r.AuthorName, null, r.SourceTitle, r.SourceType, null)
+                    }
+                }
+            }
+        }).ToList();
+
+        return await SendBatchRequestAsync(requestList);
+    }
+
+    public async Task<BatchSubmitResult> SubmitFixBatchAsync(
+        IEnumerable<(string QuotationId, string Field, string Text, string AuthorName, string SourceTitle, string SourceType)> requests)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey == "REPLACE_WITH_ANTHROPIC_API_KEY")
+            throw new InvalidOperationException("Anthropic API key not configured");
+
+        var requestList = requests.Select(r =>
+        {
+            var instructions = r.Field switch
+            {
+                "quote"  => QuoteFixInstructions,
+                "author" => AuthorFixInstructions,
+                "source" => SourceFixInstructions,
+                _        => throw new ArgumentException($"Unknown field: {r.Field}")
+            };
+            return new
+            {
+                custom_id = $"{r.QuotationId}:{r.Field}",
+                @params = new
+                {
+                    model = _options.Model,
+                    max_tokens = 256,
+                    messages = new[]
+                    {
+                        new
+                        {
+                            role = "user",
+                            content = instructions + "\n\n" + BuildQuoteContext(r.Text, r.AuthorName, null, r.SourceTitle, r.SourceType, null)
+                        }
+                    }
+                }
+            };
+        }).ToList();
+
+        return await SendBatchRequestAsync(requestList);
+    }
+
+    private async Task<BatchSubmitResult> SendBatchRequestAsync<T>(List<T> requestList)
+    {
+        var body = JsonSerializer.Serialize(new { requests = requestList });
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages/batches");
+        request.Headers.Add("x-api-key", _apiKey);
+        request.Headers.Add("anthropic-version", ApiVersion);
+        request.Headers.Add("anthropic-beta", "prompt-caching-2024-07-31");
+        request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+
+        var response = await _httpClient.SendAsync(request);
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("Batch submit failed {Status}: {Body}", (int)response.StatusCode, responseBody);
+            throw new InvalidOperationException($"Anthropic Batch API error {response.StatusCode}: {responseBody}");
+        }
+
+        using var doc = JsonDocument.Parse(responseBody);
+        var batchId = doc.RootElement.GetProperty("id").GetString()!;
+        _logger.LogInformation("Submitted Anthropic batch {BatchId} with {Count} requests", batchId, requestList.Count);
+        return new BatchSubmitResult(batchId, requestList.Count);
     }
 
     public async Task<BatchSubmitResult> SubmitBatchAsync(

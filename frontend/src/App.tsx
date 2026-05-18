@@ -9,6 +9,9 @@ import { MySubmissionsPage } from './pages/MySubmissions/MySubmissionsPage';
 import { FavoritesPage } from './pages/Favorites/FavoritesPage';
 import { ReviewQueuePage } from './pages/Review/ReviewQueuePage';
 import { LoginPage } from './pages/Login/LoginPage';
+import { ForgotPasswordPage } from './pages/ForgotPassword/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPassword/ResetPasswordPage';
+import { VerifyEmailPage } from './pages/VerifyEmail/VerifyEmailPage';
 import AiReviewDashboardPage from './pages/AiReviewDashboard/AiReviewDashboardPage';
 import { QuoteDetailPage } from './pages/Quote/QuoteDetailPage';
 import { RandomPage } from './pages/Random/RandomPage';
@@ -33,6 +36,9 @@ function App() {
                 <Route path="/browse" element={<BrowsePageWrapper />} />
                 <Route path="/quote/:id" element={<QuoteDetailPage />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/verify-email" element={<VerifyEmailPage />} />
                 <Route path="/submit" element={<SubmitPage />} />
                 <Route path="/my-submissions" element={<MySubmissionsPage />} />
                 <Route path="/favorites" element={<FavoritesPage />} />

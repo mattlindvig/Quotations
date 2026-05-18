@@ -13,6 +13,12 @@ public enum AiBatchJobStatus
     Failed
 }
 
+public enum AiBatchJobPhase
+{
+    Triage,
+    Fix
+}
+
 public class AiBatchJob
 {
     [BsonId]
@@ -23,6 +29,9 @@ public class AiBatchJob
 
     [BsonRepresentation(BsonType.String)]
     public AiBatchJobStatus Status { get; set; } = AiBatchJobStatus.Submitted;
+
+    [BsonRepresentation(BsonType.String)]
+    public AiBatchJobPhase Phase { get; set; } = AiBatchJobPhase.Triage;
 
     public List<string> QuotationIds { get; set; } = new();
 

@@ -14,4 +14,10 @@ public interface IUserRepository
     Task<List<string>> GetFavoriteIdsAsync(string userId);
     Task<bool> AddFavoriteAsync(string userId, string quotationId);
     Task<bool> RemoveFavoriteAsync(string userId, string quotationId);
+    Task IncrementFailedLoginAsync(string userId, DateTime? lockoutUntil);
+    Task ResetFailedLoginAsync(string userId);
+    Task SetEmailVerificationTokenAsync(string userId, string hashedToken, DateTime expiry);
+    Task<bool> VerifyEmailAsync(string hashedToken);
+    Task SetPasswordResetTokenAsync(string userId, string hashedToken, DateTime expiry);
+    Task<bool> ResetPasswordAsync(string hashedToken, string newPasswordHash);
 }

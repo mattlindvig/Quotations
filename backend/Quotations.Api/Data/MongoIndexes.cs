@@ -146,5 +146,19 @@ public static class MongoIndexes
                 new CreateIndexOptions { Name = "date_idx", Unique = true }
             )
         );
+
+        // Refresh tokens — fast lookup by hash, TTL auto-deletes expired tokens
+        var refreshTokensCollection = database.GetCollection<object>("refreshTokens");
+        await refreshTokensCollection.Indexes.CreateManyAsync(new[]
+        {
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys.Ascending("token"),
+                new CreateIndexOptions { Name = "token_idx", Unique = true }
+            ),
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys.Ascending("expiresAt"),
+                new CreateIndexOptions { Name = "token_ttl_idx", ExpireAfter = TimeSpan.Zero }
+            )
+        });
     }
 }

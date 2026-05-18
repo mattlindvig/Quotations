@@ -36,4 +36,26 @@ public class User
 
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [BsonElement("failedLoginCount")]
+    public int FailedLoginCount { get; set; } = 0;
+
+    [BsonElement("lockoutUntil")]
+    public DateTime? LockoutUntil { get; set; }
+
+    // Default true so existing users (without this field in MongoDB) are treated as verified
+    [BsonElement("emailVerified")]
+    public bool EmailVerified { get; set; } = true;
+
+    [BsonElement("emailVerificationToken")]
+    public string? EmailVerificationToken { get; set; }
+
+    [BsonElement("emailVerificationExpiry")]
+    public DateTime? EmailVerificationExpiry { get; set; }
+
+    [BsonElement("passwordResetToken")]
+    public string? PasswordResetToken { get; set; }
+
+    [BsonElement("passwordResetExpiry")]
+    public DateTime? PasswordResetExpiry { get; set; }
 }

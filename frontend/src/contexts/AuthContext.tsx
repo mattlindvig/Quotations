@@ -8,6 +8,7 @@ interface User {
   username: string;
   displayName: string;
   roles: string[];
+  emailVerified: boolean;
 }
 
 interface AuthResponse {
@@ -44,13 +45,6 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
-function isTokenExpired(token: string): boolean {
-  const payload = decodeJwtPayload(token);
-  if (!payload) return true;
-  const exp = typeof payload.exp === 'number' ? payload.exp : 0;
-  return exp * 1000 < Date.now();
-}
-
 // ASP.NET's JWT handler may use either the short form or the full Microsoft claim URL
 const MS_ROLE_CLAIM = 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role';
 const MS_NAME_CLAIM = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name';
@@ -77,23 +71,12 @@ function applyAuthResponse(data: AuthResponse) {
   apiClient.setRefreshToken(data.refreshToken);
 }
 
-function getInitialUser(): User | null {
-  const accessToken = localStorage.getItem('authToken');
-  if (accessToken && !isTokenExpired(accessToken)) {
-    const payload = decodeJwtPayload(accessToken);
-    if (payload) return userFromPayload(payload);
-  }
-  return null;
-}
-
 function needsRefresh(): boolean {
-  const accessToken = localStorage.getItem('authToken');
-  if (accessToken && !isTokenExpired(accessToken)) return false;
   return !!localStorage.getItem('refreshToken');
 }
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(getInitialUser);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(needsRefresh);
 
   useEffect(() => {
