@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import apiClient from '../../services/apiClient';
 import './ResetPasswordPage.css';
 
 export const ResetPasswordPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('token') ?? '';
+  const token = new URLSearchParams(window.location.hash.slice(1)).get('token') ?? '';
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');

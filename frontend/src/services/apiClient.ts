@@ -13,7 +13,7 @@ const API_BASE_URL = (() => {
 
 interface RefreshResponse {
   success: boolean;
-  data?: { token: string; refreshToken: string };
+  data?: { token: string };
 }
 
 class ApiClient {
@@ -32,6 +32,7 @@ class ApiClient {
         'Content-Type': 'application/json',
       },
       timeout: 30000,
+      withCredentials: true,
     });
 
     // Request interceptor to add auth token
@@ -60,8 +61,7 @@ class ApiClient {
         if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
           originalRequest._retry = true;
 
-          const refreshToken = localStorage.getItem('refreshToken');
-          if (!refreshToken) {
+          if (!localStorage.getItem('hasSession')) {
             this.redirectToLogin();
             return Promise.reject(error);
           }
@@ -80,17 +80,17 @@ class ApiClient {
           this.isRefreshing = true;
 
           try {
+            // Refresh token is sent automatically via HttpOnly cookie
             const response = await axios.post<RefreshResponse>(
               `${API_BASE_URL}/auth/refresh`,
-              { refreshToken },
-              { headers: { 'Content-Type': 'application/json' } }
+              {},
+              { headers: { 'Content-Type': 'application/json' }, withCredentials: true }
             );
 
             const data = response.data?.data;
             if (!data?.token) throw new Error('No token in refresh response');
 
             this.accessToken = data.token;
-            localStorage.setItem('refreshToken', data.refreshToken);
 
             this.refreshSubscribers.forEach((cb) => cb(data.token));
             this.refreshSubscribers = [];
@@ -115,8 +115,8 @@ class ApiClient {
   }
 
   private redirectToLogin() {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('refreshToken');
+    this.accessToken = null;
+    localStorage.removeItem('hasSession');
     window.location.href = '/login';
   }
 
@@ -142,20 +142,12 @@ class ApiClient {
 
   setAuthToken(token: string): void {
     this.accessToken = token;
-  }
-
-  setRefreshToken(token: string): void {
-    localStorage.setItem('refreshToken', token);
+    localStorage.setItem('hasSession', '1');
   }
 
   clearTokens(): void {
     this.accessToken = null;
-    localStorage.removeItem('refreshToken');
-  }
-
-  /** @deprecated Use clearTokens() */
-  clearAuthToken(): void {
-    this.clearTokens();
+    localStorage.removeItem('hasSession');
   }
 }
 

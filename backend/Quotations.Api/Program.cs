@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -120,8 +121,10 @@ builder.Services.AddHealthChecks()
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 // App and email settings
-builder.Services.Configure<Quotations.Api.Configuration.AppSettings>(
-    builder.Configuration.GetSection("AppSettings"));
+builder.Services.AddOptions<Quotations.Api.Configuration.AppSettings>()
+    .Bind(builder.Configuration.GetSection("AppSettings"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 builder.Services.Configure<Quotations.Api.Configuration.ResendSettings>(
     builder.Configuration.GetSection("Resend"));
 builder.Services.AddHttpClient<IEmailService, ResendEmailService>();
@@ -176,6 +179,14 @@ builder.Services.AddCors(options =>
         });
 });
 
+// Trust X-Forwarded-For from Railway's reverse proxy
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // Rate limiting — keyed by IP address
 builder.Services.AddRateLimiter(options =>
 {
@@ -226,6 +237,9 @@ app.Use(async (context, next) =>
     context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
     await next();
 });
+
+// Resolve real client IP from X-Forwarded-For (must be before rate limiter)
+app.UseForwardedHeaders();
 
 // CORS middleware
 app.UseCors("AllowFrontend");

@@ -16,8 +16,6 @@ using Quotations.Api.Services;
 
 namespace Quotations.Api.Controllers;
 
-public record RefreshRequest(string RefreshToken);
-public record LogoutRequest(string? RefreshToken);
 
 /// <summary>
 /// Handles user registration, login, token refresh, and logout.
@@ -27,7 +25,7 @@ public record LogoutRequest(string? RefreshToken);
 [EnableRateLimiting("auth")]
 public class AuthController : ControllerBase
 {
-    private static readonly Regex UsernamePattern = new(@"^[a-zA-Z0-9_\-\.]{3,50}$", RegexOptions.Compiled);
+    private static readonly Regex UsernamePattern = new(@"^[a-zA-Z0-9_\-]{3,50}$", RegexOptions.Compiled);
 
     private readonly IUserRepository _userRepository;
     private readonly IPasswordHasher<User> _passwordHasher;
@@ -108,14 +106,15 @@ public class AuthController : ControllerBase
         var (rawVerifyToken, hashedVerifyToken) = GenerateSecureToken();
         var verifyExpiry = DateTime.UtcNow.AddHours(24);
         await _userRepository.SetEmailVerificationTokenAsync(user.Id, hashedVerifyToken, verifyExpiry);
-        var verifyLink = $"{_appSettings.FrontendUrl}/verify-email?token={Uri.EscapeDataString(rawVerifyToken)}";
+        var verifyLink = $"{_appSettings.FrontendUrl}/verify-email#token={Uri.EscapeDataString(rawVerifyToken)}";
         await _emailService.SendEmailVerificationAsync(user.Email, user.DisplayName, verifyLink);
 
         var token = GenerateJwtToken(user);
         var refreshToken = await IssueRefreshTokenAsync(user.Id);
+        SetRefreshCookie(refreshToken);
         return CreatedAtAction(
             nameof(Register),
-            ApiResponse<AuthResponse>.SuccessResponse(BuildAuthResponse(token, refreshToken, user), "Registration successful."));
+            ApiResponse<AuthResponse>.SuccessResponse(BuildAuthResponse(token, user), "Registration successful."));
     }
 
     /// <summary>
@@ -157,18 +156,24 @@ public class AuthController : ControllerBase
         _logger.LogInformation("Successful login: {Username}", user.Username);
         var token = GenerateJwtToken(user);
         var refreshToken = await IssueRefreshTokenAsync(user.Id);
-        return Ok(ApiResponse<AuthResponse>.SuccessResponse(BuildAuthResponse(token, refreshToken, user)));
+        SetRefreshCookie(refreshToken);
+        return Ok(ApiResponse<AuthResponse>.SuccessResponse(BuildAuthResponse(token, user)));
     }
 
     /// <summary>
     /// Exchange a valid refresh token for a new access token and rotated refresh token.
+    /// The refresh token is read from the HttpOnly cookie set at login.
     /// </summary>
     [HttpPost("refresh")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), 200)]
     [ProducesResponseType(typeof(ApiResponse<object>), 401)]
-    public async Task<ActionResult<ApiResponse<AuthResponse>>> Refresh([FromBody] RefreshRequest request)
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> Refresh()
     {
-        var existing = await _refreshTokenRepository.FindByTokenAsync(request.RefreshToken);
+        var cookieToken = Request.Cookies["refreshToken"];
+        if (string.IsNullOrWhiteSpace(cookieToken))
+            return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or expired refresh token."));
+
+        var existing = await _refreshTokenRepository.FindByTokenAsync(cookieToken);
         if (existing is null)
             return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid or expired refresh token."));
 
@@ -180,19 +185,22 @@ public class AuthController : ControllerBase
 
         var newAccessToken = GenerateJwtToken(user);
         var newRefreshToken = await IssueRefreshTokenAsync(user.Id);
-        return Ok(ApiResponse<AuthResponse>.SuccessResponse(BuildAuthResponse(newAccessToken, newRefreshToken, user)));
+        SetRefreshCookie(newRefreshToken);
+        return Ok(ApiResponse<AuthResponse>.SuccessResponse(BuildAuthResponse(newAccessToken, user)));
     }
 
     /// <summary>
-    /// Revoke the current refresh token, ending the persistent session on this device.
+    /// Revoke the current refresh token cookie, ending the persistent session on this device.
     /// </summary>
     [HttpPost("logout")]
     [ProducesResponseType(typeof(ApiResponse<object>), 200)]
-    public async Task<ActionResult<ApiResponse<object>>> Logout([FromBody] LogoutRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> Logout()
     {
-        if (!string.IsNullOrWhiteSpace(request.RefreshToken))
-            await _refreshTokenRepository.RevokeAsync(request.RefreshToken);
+        var cookieToken = Request.Cookies["refreshToken"];
+        if (!string.IsNullOrWhiteSpace(cookieToken))
+            await _refreshTokenRepository.RevokeAsync(cookieToken);
 
+        ClearRefreshCookie();
         return Ok(ApiResponse<object>.SuccessResponse(null, "Logged out successfully."));
     }
 
@@ -263,7 +271,7 @@ public class AuthController : ControllerBase
         var expiry = DateTime.UtcNow.AddHours(1);
         await _userRepository.SetPasswordResetTokenAsync(user.Id, hashedToken, expiry);
 
-        var resetLink = $"{_appSettings.FrontendUrl}/reset-password?token={Uri.EscapeDataString(rawToken)}";
+        var resetLink = $"{_appSettings.FrontendUrl}/reset-password#token={Uri.EscapeDataString(rawToken)}";
         await _emailService.SendPasswordResetAsync(user.Email, user.DisplayName, resetLink);
         _logger.LogInformation("Password reset requested for: {Username}", user.Username);
 
@@ -336,16 +344,15 @@ public class AuthController : ControllerBase
         var expiry = DateTime.UtcNow.AddHours(24);
         await _userRepository.SetEmailVerificationTokenAsync(user.Id, hashedToken, expiry);
 
-        var verifyLink = $"{_appSettings.FrontendUrl}/verify-email?token={Uri.EscapeDataString(rawToken)}";
+        var verifyLink = $"{_appSettings.FrontendUrl}/verify-email#token={Uri.EscapeDataString(rawToken)}";
         await _emailService.SendEmailVerificationAsync(user.Email, user.DisplayName, verifyLink);
 
         return Ok();
     }
 
-    private static AuthResponse BuildAuthResponse(string token, string refreshToken, User user) => new()
+    private static AuthResponse BuildAuthResponse(string token, User user) => new()
     {
         Token = token,
-        RefreshToken = refreshToken,
         User = new UserDto
         {
             Id = user.Id,
@@ -355,6 +362,29 @@ public class AuthController : ControllerBase
             EmailVerified = user.EmailVerified
         }
     };
+
+    private void SetRefreshCookie(string token)
+    {
+        Response.Cookies.Append("refreshToken", token, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = Request.IsHttps ? SameSiteMode.None : SameSiteMode.Lax,
+            Expires = DateTimeOffset.UtcNow.AddDays(30),
+            Path = "/"
+        });
+    }
+
+    private void ClearRefreshCookie()
+    {
+        Response.Cookies.Delete("refreshToken", new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = Request.IsHttps ? SameSiteMode.None : SameSiteMode.Lax,
+            Path = "/"
+        });
+    }
 
     private static bool IsPasswordComplex(string password) =>
         password.Any(char.IsUpper) &&

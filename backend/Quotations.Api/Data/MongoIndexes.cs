@@ -133,6 +133,14 @@ public static class MongoIndexes
             new CreateIndexModel<object>(
                 Builders<object>.IndexKeys.Ascending("email"),
                 new CreateIndexOptions { Name = "email_idx", Unique = true }
+            ),
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys.Ascending("emailVerificationToken"),
+                new CreateIndexOptions { Name = "email_verification_token_idx", Sparse = true }
+            ),
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys.Ascending("passwordResetToken"),
+                new CreateIndexOptions { Name = "password_reset_token_idx", Sparse = true }
             )
         };
 

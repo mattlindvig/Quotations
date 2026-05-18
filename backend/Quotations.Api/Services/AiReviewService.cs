@@ -148,7 +148,7 @@ public class AiReviewService
             SuggestedValue = fix?.SuggestedValue,
             SuggestionConfidence = fix?.Confidence,
             WasAiFilled = fix?.WasAiFilled ?? false,
-            Citations = new List<string>()
+            Citations = fix?.Citations ?? new List<string>()
         };
 
     private static AiScoreResult ToScoreResult(int score, AiFixResult? fix) =>
@@ -157,7 +157,7 @@ public class AiReviewService
             fix?.SuggestedValue,
             fix?.Confidence,
             fix?.WasAiFilled ?? false,
-            new List<string>());
+            fix?.Citations ?? new List<string>());
 
     public async Task ApplyTriageBatchResultAsync(Quotation quotation, string contentText, string modelUsed)
     {

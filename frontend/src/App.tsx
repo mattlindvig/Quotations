@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { useAuth } from './contexts/AuthContext';
 import { FavoritesProvider } from './contexts/FavoritesContext';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
@@ -23,35 +24,43 @@ function BrowsePageWrapper() {
   return <BrowsePage />;
 }
 
+function AppContent() {
+  const { isLoading } = useAuth();
+  if (isLoading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading…</div>;
+  return (
+    <Router>
+      <div className="app">
+        <Header />
+        <main>
+          <Routes>
+            <Route path="/" element={<BrowsePageWrapper />} />
+            <Route path="/browse" element={<BrowsePageWrapper />} />
+            <Route path="/quote/:id" element={<QuoteDetailPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/submit" element={<SubmitPage />} />
+            <Route path="/my-submissions" element={<MySubmissionsPage />} />
+            <Route path="/favorites" element={<FavoritesPage />} />
+            <Route path="/review" element={<ReviewQueuePage />} />
+            <Route path="/ai-review" element={<AiReviewDashboardPage />} />
+            <Route path="/random" element={<RandomPage />} />
+            <Route path="/admin/users" element={<UserManagementPage />} />
+          </Routes>
+        </main>
+        <Footer />
+        <ChatWidget />
+      </div>
+    </Router>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
       <FavoritesProvider>
-        <Router>
-          <div className="app">
-            <Header />
-            <main>
-              <Routes>
-                <Route path="/" element={<BrowsePageWrapper />} />
-                <Route path="/browse" element={<BrowsePageWrapper />} />
-                <Route path="/quote/:id" element={<QuoteDetailPage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
-                <Route path="/verify-email" element={<VerifyEmailPage />} />
-                <Route path="/submit" element={<SubmitPage />} />
-                <Route path="/my-submissions" element={<MySubmissionsPage />} />
-                <Route path="/favorites" element={<FavoritesPage />} />
-                <Route path="/review" element={<ReviewQueuePage />} />
-                <Route path="/ai-review" element={<AiReviewDashboardPage />} />
-                <Route path="/random" element={<RandomPage />} />
-                <Route path="/admin/users" element={<UserManagementPage />} />
-              </Routes>
-            </main>
-            <Footer />
-            <ChatWidget />
-          </div>
-        </Router>
+        <AppContent />
       </FavoritesProvider>
     </AuthProvider>
   );

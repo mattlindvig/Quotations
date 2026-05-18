@@ -13,7 +13,6 @@ interface User {
 
 interface AuthResponse {
   token: string;
-  refreshToken: string;
   user: User;
 }
 
@@ -68,11 +67,10 @@ function userFromPayload(payload: Record<string, unknown>): User {
 
 function applyAuthResponse(data: AuthResponse) {
   apiClient.setAuthToken(data.token);
-  apiClient.setRefreshToken(data.refreshToken);
 }
 
 function needsRefresh(): boolean {
-  return !!localStorage.getItem('refreshToken');
+  return !!localStorage.getItem('hasSession');
 }
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -143,11 +141,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (refreshToken) {
-      // Fire-and-forget: revoke the refresh token server-side
-      apiClient.post('/auth/logout', { refreshToken }).catch(() => {});
-    }
+    // Fire-and-forget: revoke the HttpOnly refresh cookie server-side
+    apiClient.post('/auth/logout', {}).catch(() => {});
     apiClient.clearTokens();
     setUser(null);
   };

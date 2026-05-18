@@ -69,12 +69,20 @@ public class SubmissionsController : ControllerBase
                 new { id = quotation.Id },
                 new ApiResponse<QuotationDto> { Data = quotation, Success = true });
         }
-        catch (System.Exception)
+        catch (System.InvalidOperationException ex)
         {
             return BadRequest(new ApiResponse<object>
             {
                 Success = false,
-                Errors = new Dictionary<string, string[]> { { "general", new[] { "An error occurred while processing your submission. Please try again." } } }
+                Errors = new Dictionary<string, string[]> { { "general", new[] { ex.Message } } }
+            });
+        }
+        catch (System.ArgumentException)
+        {
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Errors = new Dictionary<string, string[]> { { "general", new[] { "The requested quotation was not found." } } }
             });
         }
     }

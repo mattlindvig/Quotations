@@ -73,19 +73,13 @@ public class ResendEmailService : IEmailService
 
         var body = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
-        try
+        var response = await _http.PostAsync("emails", body);
+        if (!response.IsSuccessStatusCode)
         {
-            var response = await _http.PostAsync("emails", body);
-            if (!response.IsSuccessStatusCode)
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Resend API error {Status} sending to {Email}: {Error}",
-                    response.StatusCode, toEmail, error);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send email to {Email}", toEmail);
+            var error = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Resend API error {Status} sending to {Email}: {Error}",
+                response.StatusCode, toEmail, error);
+            throw new InvalidOperationException($"Failed to send email: {response.StatusCode}");
         }
     }
 

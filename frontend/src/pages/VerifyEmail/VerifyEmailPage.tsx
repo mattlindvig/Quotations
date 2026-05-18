@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import apiClient from '../../services/apiClient';
 import './VerifyEmailPage.css';
 
 type Status = 'verifying' | 'success' | 'error';
 
 export const VerifyEmailPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('token') ?? '';
+  const token = new URLSearchParams(window.location.hash.slice(1)).get('token') ?? '';
   const [status, setStatus] = useState<Status>('verifying');
 
   useEffect(() => {
