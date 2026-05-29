@@ -62,6 +62,7 @@ function userFromPayload(payload: Record<string, unknown>): User {
     username: ((payload.unique_name ?? payload[MS_NAME_CLAIM]) as string) ?? '',
     displayName: (payload.displayName as string) ?? ((payload.unique_name ?? payload[MS_NAME_CLAIM]) as string) ?? '',
     roles,
+    emailVerified: payload.email_verified === true || payload.email_verified === 'true',
   };
 }
 

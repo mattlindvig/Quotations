@@ -286,16 +286,30 @@ app.MapHealthChecks("/api/v1/health/ready");
 // Seed database with sample data
 using (var scope = app.Services.CreateScope())
 {
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var mongoDbService = scope.ServiceProvider.GetRequiredService<MongoDbService>();
     var database = mongoDbService.GetDatabase();
 
-    // Create indexes
-    await MongoIndexes.CreateIndexesAsync(database);
-
-    // Seed sample data (dev only — avoids known credentials in production)
-    if (app.Environment.IsDevelopment())
+    try
     {
-        await DataSeeder.SeedDataAsync(database);
+        // Create indexes
+        await MongoIndexes.CreateIndexesAsync(database);
+
+        // Seed sample data (dev only — avoids known credentials in production)
+        if (app.Environment.IsDevelopment())
+        {
+            await DataSeeder.SeedDataAsync(database);
+        }
+    }
+    catch (MongoDB.Driver.MongoAuthenticationException ex)
+    {
+        logger.LogCritical(ex, "MongoDB authentication failed. Check that MONGO_PASSWORD matches the password used to initialize the data volume. To reset: docker compose down -v && docker compose up");
+        Environment.Exit(1);
+    }
+    catch (Exception ex)
+    {
+        logger.LogCritical(ex, "Failed to initialize database. The application cannot start.");
+        Environment.Exit(1);
     }
 }
 

@@ -98,7 +98,8 @@ public record AiFixResult(
     int? Confidence,
     bool WasAiFilled,
     string Reasoning,
-    string ModelUsed);
+    string ModelUsed,
+    List<string>? Citations = null);
 
 public class AnthropicService : IAnthropicService
 {
