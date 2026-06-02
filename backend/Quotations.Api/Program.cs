@@ -154,7 +154,8 @@ builder.Services.AddScoped<IAiBatchJobRepository, AiBatchJobRepository>();
 
 // Chat service
 builder.Services.AddHttpClient<ChatService>();
-builder.Services.AddSingleton(new AiReviewRuntimeSettings());
+var aiReviewConfig = builder.Configuration.GetSection("AiReview").Get<AiReviewOptions>() ?? new AiReviewOptions();
+builder.Services.AddSingleton(new AiReviewRuntimeSettings(aiReviewConfig.AutoProcessingEnabled, aiReviewConfig.AutoEnqueueEnabled));
 builder.Services.AddHostedService<AiReviewBackgroundService>();
 builder.Services.AddHostedService<AiBatchProcessingService>();
 

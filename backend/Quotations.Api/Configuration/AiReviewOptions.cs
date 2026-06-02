@@ -24,4 +24,6 @@ public class AiReviewOptions
     // Web search adds significant cost per quote (~2x). Disable for bulk processing;
     // enable selectively for user-submitted quotes where accuracy matters more.
     public bool UseWebSearch { get; set; } = false;
+    public bool AutoProcessingEnabled { get; set; } = false;
+    public bool AutoEnqueueEnabled { get; set; } = false;
 }
