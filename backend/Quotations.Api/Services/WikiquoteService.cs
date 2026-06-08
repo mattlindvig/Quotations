@@ -368,7 +368,8 @@ public class WikiquoteService
         var lower = section.ToLowerInvariant();
         return lower is "external links" or "see also" or "references" or "notes"
             or "misattributed" or "disputed" or "about" or "cast" or "crew"
-            or "voice cast" or "main cast" or "recurring cast" or "guest cast";
+            or "voice cast" or "main cast" or "recurring cast" or "guest cast"
+            or "quotes about" or "film" or "television" or "music";
     }
 
     private static List<string> BuildTags(string pageTitle, string section, SourceType sourceType)
