@@ -10,6 +10,17 @@ interface QuotationCardProps {
   quotation: QuotationSummary;
 }
 
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  Book: 'Book',
+  Movie: 'Film',
+  Television: 'TV',
+  Speech: 'Speech',
+  Interview: 'Interview',
+  Poem: 'Poem',
+  Organization: 'Organization',
+  Other: 'Other',
+};
+
 export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -129,15 +140,20 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
 
         <div className="quotation-source">
           <span className="source-type" aria-label="Source type">
-            {quotation.source.type}
+            {SOURCE_TYPE_LABELS[quotation.source.type] ?? quotation.source.type}
           </span>
-          <button
-            className="source-title source-link"
-            onClick={handleSourceClick}
-            title={`Browse quotes from ${quotation.source.title}`}
-          >
-            {quotation.source.title}
-          </button>
+          {quotation.source.title && (
+            <>
+              <span className="source-from">from</span>
+              <button
+                className="source-title source-link"
+                onClick={handleSourceClick}
+                title={`Browse quotes from ${quotation.source.title}`}
+              >
+                {quotation.source.title}
+              </button>
+            </>
+          )}
           {quotation.source.year && (
             <span className="source-year" aria-label="Publication year">
               ({quotation.source.year})

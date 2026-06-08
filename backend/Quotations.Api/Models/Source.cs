@@ -15,6 +15,7 @@ public enum SourceType
     Speech,
     Interview,
     Poem,
+    Organization,
     Other
 }
 

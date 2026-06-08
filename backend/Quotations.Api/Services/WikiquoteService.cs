@@ -287,6 +287,8 @@ public class WikiquoteService
 
     private static readonly Regex WikiLinkWithLabel = new(@"\[\[(?:[^\]|]+)\|([^\]]+)\]\]");
     private static readonly Regex WikiLink = new(@"\[\[([^\]]+)\]\]");
+    private static readonly Regex ExternalLinkWithLabel = new(@"\[https?://\S+\s+([^\]]+)\]");
+    private static readonly Regex ExternalLink = new(@"\[https?://\S+\]");
     private static readonly Regex WikiTemplate = new(@"\{\{[^}]*\}\}");
     private static readonly Regex HtmlRef = new(@"<ref[^>]*>.*?</ref>", RegexOptions.Singleline);
     private static readonly Regex HtmlTag = new(@"<[^>]+>");
@@ -299,6 +301,8 @@ public class WikiquoteService
     {
         text = WikiLinkWithLabel.Replace(text, "$1");
         text = WikiLink.Replace(text, "$1");
+        text = ExternalLinkWithLabel.Replace(text, "$1");
+        text = ExternalLink.Replace(text, string.Empty);
         text = WikiTemplate.Replace(text, string.Empty);
         text = HtmlRef.Replace(text, string.Empty);
         text = HtmlTag.Replace(text, string.Empty);
@@ -356,6 +360,7 @@ public class WikiquoteService
         if (cats.Any(c => c.Contains("novel") || c.Contains("book"))) return SourceType.Book;
         if (cats.Any(c => c.Contains("speech") || c.Contains("address"))) return SourceType.Speech;
         if (cats.Any(c => c.Contains("poem") || c.Contains("poetry"))) return SourceType.Poem;
+        if (cats.Any(c => c.Contains("organization") || c.Contains("organisation") || c.Contains("company") || c.Contains("foundation") || c.Contains("institute"))) return SourceType.Organization;
         if (Regex.IsMatch(title, @"Season\s+\d|Episode|\(TV\)|\(TV series\)")) return SourceType.Television;
         return SourceType.Other;
     }
