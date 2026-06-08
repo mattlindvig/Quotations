@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
+using System.Globalization;
 
 namespace Quotations.Api.Models;
 
@@ -171,8 +172,19 @@ public class Quotation
 
     public static string ComputeTextHash(string text)
     {
-        var normalised = string.Join(" ", text.ToLowerInvariant().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalised));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
+        // NFKD decomposes accented chars; drop non-ASCII; keep only [a-z0-9];
+        // normalise whitespace. Matches the Python _text_hash() function exactly.
+        var nfkd = text.Normalize(NormalizationForm.FormKD).ToLowerInvariant();
+        var sb = new StringBuilder(nfkd.Length);
+        foreach (var c in nfkd)
+        {
+            if (c > 127) continue;
+            if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
+                sb.Append(c);
+            else
+                sb.Append(' ');
+        }
+        var clean = string.Join(" ", sb.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(clean))).ToLowerInvariant();
     }
 }

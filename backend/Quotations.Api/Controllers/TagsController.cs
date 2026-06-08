@@ -43,13 +43,14 @@ public class TagsController : ControllerBase
     public async Task<ActionResult<ApiResponse<List<TagDto>>>> GetTags(
         [FromQuery] int limit = 100,
         [FromQuery] string? authorName = null,
-        [FromQuery] string? sourceType = null)
+        [FromQuery] string? sourceType = null,
+        [FromQuery] int? maxCount = null)
     {
         SourceType? sourceTypeFilter = null;
         if (!string.IsNullOrEmpty(sourceType) && System.Enum.TryParse<SourceType>(sourceType, true, out var parsed))
             sourceTypeFilter = parsed;
 
-        var tagsWithCounts = await _quotationRepository.GetTagsWithCountsAsync(limit, authorName, sourceTypeFilter);
+        var tagsWithCounts = await _quotationRepository.GetTagsWithCountsAsync(limit, authorName, sourceTypeFilter, maxCount);
 
         var tagDtos = tagsWithCounts.Select(t => new TagDto
         {

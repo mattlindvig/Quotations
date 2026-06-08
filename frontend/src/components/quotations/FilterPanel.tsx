@@ -13,7 +13,14 @@ interface FilterPanelProps {
   initialFilters?: QuotationFilters;
 }
 
-const MAX_SUGGESTIONS = 8;
+const MAX_AUTHOR_SUGGESTIONS = 8;
+const MAX_TAG_SUGGESTIONS = 8;
+
+const CURATED_TAGS = [
+  'wisdom', 'courage', 'love', 'friendship',
+  'nature', 'art', 'war', 'peace',
+  'humor', 'work', 'history', 'family',
+];
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
   onFilterChange,
@@ -22,7 +29,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const [authorNames, setAuthorNames] = useState<string[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
 
-  // Autocomplete state
+  // Author autocomplete state
   const [inputValue, setInputValue] = useState(initialFilters.authorName || '');
   const [selectedAuthorName, setSelectedAuthorName] = useState(initialFilters.authorName || '');
   const [isOpen, setIsOpen] = useState(false);
@@ -32,18 +39,31 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const [selectedSourceType, setSelectedSourceType] = useState(initialFilters.sourceType || '');
   const [selectedSourceTitle, setSelectedSourceTitle] = useState(initialFilters.sourceTitle || '');
   const [selectedTags, setSelectedTags] = useState<string[]>(initialFilters.tags || []);
-  const [showAllTags, setShowAllTags] = useState(false);
-  const [tagSearch, setTagSearch] = useState('');
   const [isExpanded, setIsExpanded] = useState(
     !!(initialFilters.authorName || initialFilters.sourceType || initialFilters.tags?.length)
   );
 
+  // Tag autocomplete state
+  const [tagInputValue, setTagInputValue] = useState('');
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const [tagDropdownHighlight, setTagDropdownHighlight] = useState(-1);
+  const tagAutocompleteRef = useRef<HTMLDivElement>(null);
+
   const sourceTypes: SourceType[] = ['book', 'movie', 'speech', 'interview', 'other'];
 
-  const suggestions = inputValue.trim().length > 0
+  const authorSuggestions = inputValue.trim().length > 0
     ? authorNames
         .filter((n) => n.toLowerCase().includes(inputValue.toLowerCase()))
-        .slice(0, MAX_SUGGESTIONS)
+        .slice(0, MAX_AUTHOR_SUGGESTIONS)
+    : [];
+
+  const tagSuggestions = tagInputValue.trim().length > 0
+    ? tags
+        .filter(({ tag }) =>
+          tag.toLowerCase().includes(tagInputValue.trim().toLowerCase()) &&
+          !selectedTags.includes(tag)
+        )
+        .slice(0, MAX_TAG_SUGGESTIONS)
     : [];
 
   // Sync state when initialFilters change externally (e.g. clicking an author name on a card)
@@ -77,9 +97,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       .catch(console.error);
   }, []);
 
-  // Re-fetch tags whenever the author or source type selection changes
+  // Fetch tags for autocomplete pool and curated chip counts
   useEffect(() => {
-    const params = new URLSearchParams({ limit: '200' });
+    const params = new URLSearchParams({ limit: '500' });
     if (selectedAuthorName) params.append('authorName', selectedAuthorName);
     if (selectedSourceType) params.append('sourceType', selectedSourceType);
 
@@ -88,18 +108,28 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       .catch(console.error);
   }, [selectedAuthorName, selectedSourceType]);
 
-  // Close dropdown on outside click
+  // Close author dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (autocompleteRef.current && !autocompleteRef.current.contains(e.target as Node)) {
         setIsOpen(false);
-        // If user typed but didn't select, revert input to last confirmed selection
         setInputValue(selectedAuthorName);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [selectedAuthorName]);
+
+  // Close tag dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (tagAutocompleteRef.current && !tagAutocompleteRef.current.contains(e.target as Node)) {
+        setTagDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // Keep a stable ref to the callback so the effect below only re-runs when
   // filter *values* change, not when the parent recreates the callback reference.
@@ -116,6 +146,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     onFilterChangeRef.current(filters);
   }, [selectedAuthorName, selectedSourceType, selectedSourceTitle, selectedTags]);
 
+  // ── Author autocomplete handlers ──
   const selectAuthor = useCallback((name: string) => {
     setSelectedAuthorName(name);
     setInputValue(name);
@@ -133,37 +164,73 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setInputValue(val);
-    setSelectedAuthorName(''); // clear confirmed selection while typing
+    setSelectedAuthorName('');
     setHighlightedIndex(-1);
     setIsOpen(val.trim().length > 0);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!isOpen || suggestions.length === 0) {
+    if (!isOpen || authorSuggestions.length === 0) {
       if (e.key === 'Escape') clearAuthor();
       return;
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlightedIndex((i) => Math.min(i + 1, suggestions.length - 1));
+      setHighlightedIndex((i) => Math.min(i + 1, authorSuggestions.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlightedIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (highlightedIndex >= 0) selectAuthor(suggestions[highlightedIndex]);
+      if (highlightedIndex >= 0) selectAuthor(authorSuggestions[highlightedIndex]);
     } else if (e.key === 'Escape') {
       setIsOpen(false);
       setInputValue(selectedAuthorName);
     }
   };
 
+  // ── Tag handlers ──
   const handleTagToggle = (tag: string) => {
     setSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
   };
 
+  const selectTag = useCallback((tag: string) => {
+    setSelectedTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]));
+    setTagInputValue('');
+    setTagDropdownOpen(false);
+    setTagDropdownHighlight(-1);
+  }, []);
+
+  const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setTagInputValue(val);
+    setTagDropdownHighlight(-1);
+    setTagDropdownOpen(val.trim().length > 0);
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!tagDropdownOpen || tagSuggestions.length === 0) {
+      if (e.key === 'Escape') { setTagInputValue(''); setTagDropdownOpen(false); }
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setTagDropdownHighlight((i) => Math.min(i + 1, tagSuggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setTagDropdownHighlight((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (tagDropdownHighlight >= 0) selectTag(tagSuggestions[tagDropdownHighlight].tag);
+    } else if (e.key === 'Escape') {
+      setTagDropdownOpen(false);
+      setTagInputValue('');
+    }
+  };
+
+  // ── Misc handlers ──
   const handleClearFilters = () => {
     clearAuthor();
     setSelectedSourceType('');
@@ -227,7 +294,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 onFocus={() => {
-                  if (inputValue.trim().length > 0 && suggestions.length > 0) setIsOpen(true);
+                  if (inputValue.trim().length > 0 && authorSuggestions.length > 0) setIsOpen(true);
                 }}
                 autoComplete="off"
                 role="combobox"
@@ -250,14 +317,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
               )}
             </div>
 
-            {isOpen && suggestions.length > 0 && (
+            {isOpen && authorSuggestions.length > 0 && (
               <ul
                 id="author-listbox"
                 className="author-suggestions"
                 role="listbox"
                 aria-label="Author suggestions"
               >
-                {suggestions.map((name, i) => (
+                {authorSuggestions.map((name, i) => (
                   <li
                     key={name}
                     id={`author-option-${i}`}
@@ -265,7 +332,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                     role="option"
                     aria-selected={i === highlightedIndex}
                     onMouseDown={(e) => {
-                      e.preventDefault(); // keep focus on input
+                      e.preventDefault();
                       selectAuthor(name);
                     }}
                     onMouseEnter={() => setHighlightedIndex(i)}
@@ -313,57 +380,85 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           </div>
         )}
 
-        {/* Tags filter */}
-        {tags.length > 0 && (
-          <div className="filter-group">
-            <label className="filter-label">Tags</label>
+        {/* Tags — two-tier: curated chips + search autocomplete */}
+        <div className="filter-group">
+          <label className="filter-label">Tags</label>
 
-            <input
-              type="search"
-              className="tag-search-input"
-              placeholder="Filter tags…"
-              value={tagSearch}
-              onChange={(e) => { setTagSearch(e.target.value); setShowAllTags(false); }}
-              autoComplete="off"
-            />
+          {/* Active selected tags as removable chips */}
+          {selectedTags.length > 0 && (
+            <div className="active-selected-tags">
+              {selectedTags.map((tag) => (
+                <button
+                  key={tag}
+                  className="active-tag-chip"
+                  onClick={() => handleTagToggle(tag)}
+                  aria-label={`Remove tag ${tag}`}
+                >
+                  {tag} <span className="active-tag-x" aria-hidden="true">×</span>
+                </button>
+              ))}
+            </div>
+          )}
 
-            {(() => {
-              const filtered = tagSearch.trim()
-                ? tags.filter(({ tag }) => tag.includes(tagSearch.trim().toLowerCase()))
-                : tags;
-              const visible = (showAllTags || tagSearch.trim()) ? filtered : filtered.slice(0, 15);
-              return (
-                <>
-                  <div className="tags-container">
-                    {visible.map(({ tag, count }) => (
-                      <button
-                        key={tag}
-                        className={`tag-filter-button ${selectedTags.includes(tag) ? 'active' : ''}`}
-                        onClick={() => handleTagToggle(tag)}
-                        aria-pressed={selectedTags.includes(tag)}
-                      >
-                        {tag} <span className="tag-count">({count})</span>
-                      </button>
-                    ))}
-                    {filtered.length === 0 && (
-                      <span className="tag-no-results">No tags match</span>
-                    )}
-                  </div>
-
-                  {!tagSearch.trim() && tags.length > 15 && (
-                    <button
-                      className="tag-show-more"
-                      onClick={() => setShowAllTags(v => !v)}
-                    >
-                      {showAllTags ? `Show fewer tags ▲` : `Show all ${tags.length} tags ▼`}
-                    </button>
-                  )}
-                </>
-              );
-            })()}
+          {/* Curated tag chips */}
+          <div className="curated-tags">
+            {CURATED_TAGS.map((tag) => (
+              <button
+                key={tag}
+                className={`tag-chip${selectedTags.includes(tag) ? ' tag-chip--active' : ''}`}
+                onClick={() => handleTagToggle(tag)}
+                aria-pressed={selectedTags.includes(tag)}
+              >
+                {tag}
+              </button>
+            ))}
           </div>
-        )}
 
+          {/* Tag search autocomplete */}
+          <div className="tag-autocomplete" ref={tagAutocompleteRef}>
+            <div className="author-input-wrap">
+              <input
+                type="text"
+                className="author-input"
+                placeholder="Search more tags…"
+                value={tagInputValue}
+                onChange={handleTagInputChange}
+                onKeyDown={handleTagKeyDown}
+                onFocus={() => {
+                  if (tagInputValue.trim().length > 0 && tagSuggestions.length > 0)
+                    setTagDropdownOpen(true);
+                }}
+                autoComplete="off"
+              />
+              {tagInputValue && (
+                <button
+                  className="author-clear-btn"
+                  onClick={() => { setTagInputValue(''); setTagDropdownOpen(false); }}
+                  tabIndex={-1}
+                  aria-label="Clear tag search"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            {tagDropdownOpen && tagSuggestions.length > 0 && (
+              <ul className="tag-suggestions" role="listbox" aria-label="Tag suggestions">
+                {tagSuggestions.map(({ tag, count }, i) => (
+                  <li
+                    key={tag}
+                    className={`tag-suggestion-item${i === tagDropdownHighlight ? ' highlighted' : ''}`}
+                    role="option"
+                    aria-selected={i === tagDropdownHighlight}
+                    onMouseDown={(e) => { e.preventDefault(); selectTag(tag); }}
+                    onMouseEnter={() => setTagDropdownHighlight(i)}
+                  >
+                    {tag} <span className="tag-count">({count.toLocaleString()})</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

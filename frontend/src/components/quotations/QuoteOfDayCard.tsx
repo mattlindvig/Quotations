@@ -30,7 +30,7 @@ export const QuoteOfDayCard: React.FC = () => {
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/quote/${quote.id}`)}
       title="View full quote"
     >
-      <div className="qotd-label">✦ Quote of the Day</div>
+      <div className="qotd-label">Quote of the Day</div>
       <blockquote className="qotd-text">"{quote.text}"</blockquote>
       <div className="qotd-meta">
         <span className="qotd-author">— {quote.author.name}</span>

@@ -94,7 +94,7 @@ public interface IQuotationRepository
     /// </summary>
     /// <param name="limit">Maximum number of tags to return (optional)</param>
     /// <returns>List of tags with their usage counts</returns>
-    Task<List<(string Tag, int Count)>> GetTagsWithCountsAsync(int? limit = null, string? authorName = null, SourceType? sourceType = null);
+    Task<List<(string Tag, int Count)>> GetTagsWithCountsAsync(int? limit = null, string? authorName = null, SourceType? sourceType = null, int? maxCount = null);
 
     /// <summary>
     /// Find potential duplicate quotations by text similarity, optionally narrowed to the same author name.

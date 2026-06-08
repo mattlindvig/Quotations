@@ -265,7 +265,7 @@ public class QuotationRepository : IQuotationRepository
         return count > 0;
     }
 
-    public async Task<List<(string Tag, int Count)>> GetTagsWithCountsAsync(int? limit = null, string? authorName = null, SourceType? sourceType = null)
+    public async Task<List<(string Tag, int Count)>> GetTagsWithCountsAsync(int? limit = null, string? authorName = null, SourceType? sourceType = null, int? maxCount = null)
     {
         var matchDoc = new BsonDocument("status", "Approved");
         if (!string.IsNullOrEmpty(authorName))
@@ -276,19 +276,22 @@ public class QuotationRepository : IQuotationRepository
         var pipelineStages = new List<BsonDocument>
         {
             new BsonDocument("$match", matchDoc),
-            // Unwind tags array
             new BsonDocument("$unwind", "$tags"),
-            // Group by tag and count
             new BsonDocument("$group", new BsonDocument
             {
                 { "_id", "$tags" },
                 { "count", new BsonDocument("$sum", 1) }
             }),
-            // Sort by count descending
             new BsonDocument("$sort", new BsonDocument("count", -1))
         };
 
-        // Add limit stage if specified
+        // Drop tags that are so broad they don't usefully narrow results
+        if (maxCount.HasValue)
+        {
+            pipelineStages.Add(new BsonDocument("$match",
+                new BsonDocument("count", new BsonDocument("$lte", maxCount.Value))));
+        }
+
         if (limit.HasValue)
         {
             pipelineStages.Add(new BsonDocument("$limit", limit.Value));
