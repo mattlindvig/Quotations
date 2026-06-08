@@ -192,14 +192,34 @@ public class WikiquoteService
             if (line.StartsWith("**") && !line.StartsWith("***") && pendingQuote != null)
             {
                 var attribution = CleanWikimarkup(line[2..].Trim());
-                var source = isPersonPage ? ExtractSourceFromAttribution(attribution) : sourceTitle;
                 var year = ExtractYearFromAttribution(attribution);
-                var context = isPersonPage ? source : (currentSubsection.Length > 0 ? currentSubsection : currentSection);
+
+                string quoteAuthor;
+                string quoteSource;
+
+                if (isPersonPage)
+                {
+                    // Person page: attribution is the source ("Source Title, Year")
+                    quoteAuthor = pendingCharacter ?? authorName;
+                    quoteSource = ExtractSourceFromAttribution(attribution);
+                }
+                else if (pendingCharacter != null)
+                {
+                    // Work page with character dialogue: character is author, page title is source
+                    quoteAuthor = pendingCharacter;
+                    quoteSource = sourceTitle;
+                }
+                else
+                {
+                    // Topic page: attribution is "Author Name, Source/Year"
+                    quoteAuthor = ExtractAuthorFromAttribution(attribution);
+                    quoteSource = sourceTitle;
+                }
 
                 results.Add(new ParsedQuote(
                     Text: pendingQuote,
-                    AuthorName: pendingCharacter ?? authorName,
-                    SourceTitle: context.Length > 0 ? context : source,
+                    AuthorName: quoteAuthor,
+                    SourceTitle: quoteSource,
                     SourceType: sourceType,
                     SourceYear: year,
                     Tags: BuildTags(pageTitle, currentSection, sourceType)
@@ -248,13 +268,16 @@ public class WikiquoteService
     {
         if (pendingQuote is null) return;
 
+        // Ignore single-letter subsections (alphabetical organization on topic pages)
+        var meaningfulSubsection = subsection.Length > 1 ? subsection : string.Empty;
+
         results.Add(new ParsedQuote(
             Text: pendingQuote,
             AuthorName: pendingCharacter ?? authorName,
-            SourceTitle: isPersonPage ? string.Empty : (subsection.Length > 0 ? subsection : sourceTitle),
+            SourceTitle: isPersonPage ? string.Empty : (meaningfulSubsection.Length > 0 ? meaningfulSubsection : sourceTitle),
             SourceType: sourceType,
             SourceYear: null,
-            Tags: BuildTags(pageTitle, subsection, sourceType)
+            Tags: BuildTags(pageTitle, meaningfulSubsection, sourceType)
         ));
         pendingQuote = null;
         pendingCharacter = null;
@@ -299,10 +322,18 @@ public class WikiquoteService
 
     private static string ExtractSourceFromAttribution(string attribution)
     {
-        // Strip leading dashes/em-dashes
         var text = Regex.Replace(attribution, @"^[—–\-]+\s*", string.Empty).Trim();
-        // Take everything before a comma or year
         var match = Regex.Match(text, @"^([^,\(]+)");
+        return match.Success ? match.Groups[1].Value.Trim() : text;
+    }
+
+    private static string ExtractAuthorFromAttribution(string attribution)
+    {
+        // "Bill Dudley, [1]" → "Bill Dudley"
+        // "Vince Lombardi, as quoted in The New York Times" → "Vince Lombardi"
+        var text = Regex.Replace(attribution, @"^[—–\-~]+\s*", string.Empty).Trim();
+        text = Regex.Replace(text, @"\[\d+\]", string.Empty).Trim();
+        var match = Regex.Match(text, @"^([^,\[]+)");
         return match.Success ? match.Groups[1].Value.Trim() : text;
     }
 
@@ -336,7 +367,8 @@ public class WikiquoteService
     {
         var lower = section.ToLowerInvariant();
         return lower is "external links" or "see also" or "references" or "notes"
-            or "misattributed" or "disputed" or "see also" or "about";
+            or "misattributed" or "disputed" or "about" or "cast" or "crew"
+            or "voice cast" or "main cast" or "recurring cast" or "guest cast";
     }
 
     private static List<string> BuildTags(string pageTitle, string section, SourceType sourceType)
