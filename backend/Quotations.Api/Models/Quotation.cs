@@ -2,6 +2,8 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Quotations.Api.Models;
 
@@ -157,9 +159,20 @@ public class Quotation
     [BsonElement("potentialDuplicateIds")]
     public List<string> PotentialDuplicateIds { get; set; } = new();
 
+    [BsonElement("textHash")]
+    [BsonIgnoreIfNull]
+    public string? TextHash { get; set; }
+
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [BsonElement("updatedAt")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    public static string ComputeTextHash(string text)
+    {
+        var normalised = string.Join(" ", text.ToLowerInvariant().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalised));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
 }

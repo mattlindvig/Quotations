@@ -51,6 +51,7 @@ export function useSearch(): UseSearchResult {
     setSearchQuery(query);
     setSearchLoading(true);
     setSearchError(null);
+    if (isNewQuery) setSearchResults([]);
     setCurrentPageSize(pageSize);
     setCurrentFilters(filters);
 

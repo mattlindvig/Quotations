@@ -42,6 +42,7 @@ export function useQuotations(initialFilters?: QuotationFilters): UseQuotationsR
 
     setLoading(true);
     setError(null);
+    if (isNewQuery) setQuotations([]);
 
     try {
       const params = new URLSearchParams();

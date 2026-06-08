@@ -168,6 +168,12 @@ builder.Services.AddHttpClient<WikiquoteService>(client =>
 });
 builder.Services.AddHostedService<WikiquoteSyncBackgroundService>();
 
+// FavQs sync
+builder.Services.Configure<FavQsSyncOptions>(builder.Configuration.GetSection("FavQsSync"));
+builder.Services.AddScoped<IFavQsSyncRepository, FavQsSyncRepository>();
+builder.Services.AddHttpClient<FavQsService>();
+builder.Services.AddHostedService<FavQsSyncBackgroundService>();
+
 // Configure JWT Authentication (using custom implementation, not ASP.NET Identity)
 builder.Services.AddJwtAuthentication(builder.Configuration, builder.Environment);
 

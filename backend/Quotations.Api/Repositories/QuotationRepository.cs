@@ -184,6 +184,7 @@ public class QuotationRepository : IQuotationRepository
         quotation.CreatedAt = DateTime.UtcNow;
         quotation.UpdatedAt = DateTime.UtcNow;
         quotation.SubmittedAt = DateTime.UtcNow;
+        quotation.TextHash ??= Quotation.ComputeTextHash(quotation.Text);
 
         await _quotations.InsertOneAsync(quotation);
         return quotation;

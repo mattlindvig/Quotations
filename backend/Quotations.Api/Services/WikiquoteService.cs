@@ -126,6 +126,7 @@ public class WikiquoteService
                 .Select(q => new Quotation
                 {
                     Text = q.Text,
+                    TextHash = Quotation.ComputeTextHash(q.Text),
                     Author = new AuthorReference { Name = q.AuthorName },
                     Source = new SourceReference { Title = q.SourceTitle, Type = q.SourceType, Year = q.SourceYear },
                     Tags = q.Tags,

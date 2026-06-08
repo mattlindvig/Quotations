@@ -6,6 +6,7 @@ import { useFilters, type QuotationFilters } from '../../hooks/useFilters';
 import { QuotationList } from '../../components/quotations/QuotationList';
 import { SearchBar } from '../../components/quotations/SearchBar';
 import { FilterPanel } from '../../components/quotations/FilterPanel';
+import { QuoteOfDayCard } from '../../components/quotations/QuoteOfDayCard';
 import type { SourceType, QuotationSortBy } from '../../types/quotation';
 import './BrowsePage.css';
 
@@ -176,6 +177,8 @@ export const BrowsePage: React.FC = () => {
   return (
     <main className="browse-page" id="main-content">
       <a href="#main-content" className="skip-link">Skip to main content</a>
+
+      <QuoteOfDayCard />
 
       <div className="browse-layout">
         {/* Left sidebar — filters */}
