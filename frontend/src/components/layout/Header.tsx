@@ -8,7 +8,7 @@ const Header = () => {
 
   const goHome = (e: React.MouseEvent) => {
     e.preventDefault();
-    navigate('/', { replace: true });
+    navigate('/', { replace: true, state: { resetFilters: Date.now() } });
   };
 
   return (

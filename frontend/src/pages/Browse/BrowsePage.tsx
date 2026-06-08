@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { useQuotations } from '../../hooks/useQuotations';
 import { useSearch } from '../../hooks/useSearch';
 import { useFilters, type QuotationFilters } from '../../hooks/useFilters';
@@ -11,6 +11,7 @@ import './BrowsePage.css';
 
 export const BrowsePage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const [activeMode, setActiveMode] = useState<'browse' | 'search'>('browse');
   const [sortBy, setSortBy] = useState<QuotationSortBy>(
     (searchParams.get('sortBy') as QuotationSortBy | null) || 'newest'
@@ -30,7 +31,7 @@ export const BrowsePage: React.FC = () => {
     tags: initialTags,
   };
 
-  const { filters, setFilters } = useFilters(initialFilters);
+  const { filters, setFilters, clearFilters } = useFilters(initialFilters);
   const {
     quotations: browseQuotations,
     loading: browseLoading,
@@ -90,6 +91,16 @@ export const BrowsePage: React.FC = () => {
       setActiveMode('search');
     }
   }, []);
+
+  useEffect(() => {
+    if (!(location.state as any)?.resetFilters) return;
+    clearFilters();
+    setSortBy('newest');
+    setActiveMode('browse');
+    clearSearch();
+    setSearchParams({}, { replace: true });
+    fetchQuotations({ status: 'approved', page: 1, pageSize: 20, sortBy: 'newest' });
+  }, [(location.state as any)?.resetFilters]);
 
   const updateUrl = useCallback(
     (query: string, newFilters: QuotationFilters, newSortBy: QuotationSortBy) => {
