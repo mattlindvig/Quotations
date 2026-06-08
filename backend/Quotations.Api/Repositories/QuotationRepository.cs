@@ -649,4 +649,18 @@ public class QuotationRepository : IQuotationRepository
             .Limit(limit)
             .ToListAsync();
     }
+
+    public async Task BulkInsertAsync(IEnumerable<Quotation> quotations) =>
+        await _quotations.InsertManyAsync(quotations, new InsertManyOptions { IsOrdered = false });
+
+    public async Task<HashSet<string>> GetExistingTextsAsync(IEnumerable<string> texts)
+    {
+        var textList = texts.ToList();
+        var filter = Builders<Quotation>.Filter.In(q => q.Text, textList);
+        var existing = await _quotations
+            .Find(filter)
+            .Project(q => q.Text)
+            .ToListAsync();
+        return existing.ToHashSet();
+    }
 }

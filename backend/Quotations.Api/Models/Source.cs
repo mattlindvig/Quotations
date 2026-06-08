@@ -11,8 +11,10 @@ public enum SourceType
 {
     Book,
     Movie,
+    Television,
     Speech,
     Interview,
+    Poem,
     Other
 }
 

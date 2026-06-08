@@ -159,6 +159,15 @@ builder.Services.AddSingleton(new AiReviewRuntimeSettings(aiReviewConfig.AutoPro
 builder.Services.AddHostedService<AiReviewBackgroundService>();
 builder.Services.AddHostedService<AiBatchProcessingService>();
 
+// Wikiquote sync
+builder.Services.Configure<WikiquoteSyncOptions>(builder.Configuration.GetSection("WikiquoteSync"));
+builder.Services.AddScoped<IWikiquoteSyncRepository, WikiquoteSyncRepository>();
+builder.Services.AddHttpClient<WikiquoteService>(client =>
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("QuotationHub/1.0 (https://quotationhub.net; mattlindvig@gmail.com)");
+});
+builder.Services.AddHostedService<WikiquoteSyncBackgroundService>();
+
 // Configure JWT Authentication (using custom implementation, not ASP.NET Identity)
 builder.Services.AddJwtAuthentication(builder.Configuration, builder.Environment);
 

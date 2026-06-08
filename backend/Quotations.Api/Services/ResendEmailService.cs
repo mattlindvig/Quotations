@@ -16,6 +16,7 @@ public class ResendEmailService : IEmailService
     {
         _http = http;
         _settings = settings.Value;
+        _logger = logger;
         _http.BaseAddress = new Uri("https://api.resend.com/");
         _http.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", _settings.ApiKey);

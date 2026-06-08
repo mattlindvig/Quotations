@@ -189,4 +189,14 @@ public interface IQuotationRepository
     /// Get up to <paramref name="limit"/> FixPending quotations for fix batch submission.
     /// </summary>
     Task<List<Quotation>> GetFixPendingForBatchAsync(int limit);
+
+    /// <summary>
+    /// Bulk-insert a list of quotations directly (used by Wikiquote sync).
+    /// </summary>
+    Task BulkInsertAsync(IEnumerable<Quotation> quotations);
+
+    /// <summary>
+    /// Return the subset of the given texts that already exist in the collection.
+    /// </summary>
+    Task<HashSet<string>> GetExistingTextsAsync(IEnumerable<string> texts);
 }
