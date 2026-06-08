@@ -85,15 +85,29 @@ public static class MongoIndexes
                 new CreateIndexOptions { Name = "submitter_date_idx" }
             ),
 
-            // Deduplication via SHA-256 hash of normalised text — much smaller than a
-            // full-text unique index while still preventing duplicate quotes.
-            new CreateIndexModel<object>(
-                Builders<object>.IndexKeys.Ascending("textHash"),
-                new CreateIndexOptions { Name = "text_hash_unique_idx", Unique = true }
-            )
         };
 
         await quotationsCollection.Indexes.CreateManyAsync(quotationIndexes);
+
+        // Unique dedup index built separately so a data anomaly (residual duplicates) doesn't
+        // prevent the other indexes — and the rest of the app — from starting up.
+        try
+        {
+            await quotationsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<object>(
+                    Builders<object>.IndexKeys.Ascending("textHash"),
+                    new CreateIndexOptions { Name = "text_hash_unique_idx", Unique = true }
+                )
+            );
+        }
+        catch (MongoCommandException ex) when (ex.Code == 11000 || ex.Code == 85 || ex.Code == 86)
+        {
+            // E11000 = duplicate key — residual duplicates in textHash.
+            // Log and continue; the app can run without this index (it just won't block new dupes).
+            Console.Error.WriteLine(
+                $"[WARNING] text_hash_unique_idx could not be created due to duplicate textHash values. " +
+                $"Run the dedup migration script to resolve. Error: {ex.Message}");
+        }
 
         // Authors indexes
         var authorIndexes = new[]

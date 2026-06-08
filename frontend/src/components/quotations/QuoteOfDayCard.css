@@ -4,15 +4,15 @@
   border-left: 3px solid #1976d2;
   border-radius: 8px;
   padding: 16px 20px 18px;
-  margin-bottom: 1.5rem;
+  margin-bottom: 16px;
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   transition: box-shadow 0.15s ease;
 }
 
 .qotd-card:hover,
 .qotd-card:focus-visible {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
   outline: none;
 }
 
@@ -22,12 +22,12 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #1976d2;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .qotd-text {
-  font-size: 1.05rem;
-  line-height: 1.55;
+  font-size: 1rem;
+  line-height: 1.6;
   font-style: italic;
   color: #212121;
   margin: 0 0 10px;
@@ -48,8 +48,8 @@
 
 .qotd-author {
   font-weight: 600;
-  font-size: 0.9rem;
-  color: #1976d2;
+  font-size: 0.875rem;
+  color: #424242;
 }
 
 .qotd-source {
@@ -58,13 +58,10 @@
   font-style: italic;
 }
 
-.qotd-tags { display: none; }
-.qotd-tag  { display: none; }
-
 .qotd-skeleton {
   height: 96px;
   border-radius: 8px;
-  margin-bottom: 1.5rem;
+  margin-bottom: 16px;
   background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;

@@ -178,8 +178,6 @@ export const BrowsePage: React.FC = () => {
     <main className="browse-page" id="main-content">
       <a href="#main-content" className="skip-link">Skip to main content</a>
 
-      <QuoteOfDayCard />
-
       <div className="browse-layout">
         {/* Left sidebar — filters */}
         <aside className="browse-sidebar">
@@ -188,6 +186,8 @@ export const BrowsePage: React.FC = () => {
 
         {/* Main content */}
         <div className="browse-main">
+          <QuoteOfDayCard />
+
           <div className="browse-toolbar">
             <SearchBar onSearch={handleSearch} initialValue={initialQuery} />
           </div>
