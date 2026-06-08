@@ -132,51 +132,74 @@ public class QuotationRepository : IQuotationRepository
         int? yearFrom = null,
         int? yearTo = null)
     {
-        var filterBuilder = Builders<Quotation>.Filter;
-        var filters = new List<FilterDefinition<Quotation>>();
+        var fb = Builders<Quotation>.Filter;
 
-        // Case-insensitive partial-match regex across quote text, author name, and source title.
-        // Regex.Escape prevents user input from being interpreted as a regex pattern.
-        var regex = new BsonRegularExpression(Regex.Escape(searchText), "i");
-        filters.Add(filterBuilder.Or(
-            filterBuilder.Regex(q => q.Text, regex),
-            filterBuilder.Regex(q => q.Author.Name, regex),
-            filterBuilder.Regex(q => q.Source.Title, regex)
-        ));
-
-        // Status filter (default to approved)
-        if (status.HasValue)
+        // Non-text filters (same for both the $text and regex paths)
+        var baseFilters = new List<FilterDefinition<Quotation>>
         {
-            filters.Add(filterBuilder.Eq(q => q.Status, status.Value));
-        }
-        else
-        {
-            filters.Add(filterBuilder.Eq(q => q.Status, QuotationStatus.Approved));
-        }
-
+            fb.Eq(q => q.Status, status ?? QuotationStatus.Approved)
+        };
         if (!string.IsNullOrWhiteSpace(authorName))
-            filters.Add(filterBuilder.Regex(q => q.Author.Name, new BsonRegularExpression(Regex.Escape(authorName), "i")));
+            baseFilters.Add(fb.Regex(q => q.Author.Name, new BsonRegularExpression(Regex.Escape(authorName), "i")));
         if (sourceType.HasValue)
-            filters.Add(filterBuilder.Eq(q => q.Source.Type, sourceType.Value));
+            baseFilters.Add(fb.Eq(q => q.Source.Type, sourceType.Value));
         if (tags != null && tags.Count > 0)
-            filters.Add(filterBuilder.All(q => q.Tags, tags));
+            baseFilters.Add(fb.All(q => q.Tags, tags));
         if (yearFrom.HasValue)
-            filters.Add(filterBuilder.Gte(q => q.Source.Year, yearFrom.Value));
+            baseFilters.Add(fb.Gte(q => q.Source.Year, yearFrom.Value));
         if (yearTo.HasValue)
-            filters.Add(filterBuilder.Lte(q => q.Source.Year, yearTo.Value));
+            baseFilters.Add(fb.Lte(q => q.Source.Year, yearTo.Value));
 
-        var combinedFilter = filterBuilder.And(filters);
+        var baseFilter = fb.And(baseFilters);
 
-        var totalCount = await _quotations.CountDocumentsAsync(combinedFilter);
+        // Try $text first (text_search_idx, language "none" = no stopwords stripped).
+        // Falls back to a punctuation-agnostic regex if the index isn't ready.
+        try
+        {
+            var textFilter = fb.And(
+                fb.Text(searchText, new TextSearchOptions { Language = "none" }),
+                baseFilter
+            );
+            return await ExecuteSearchAsync(textFilter, page, pageSize);
+        }
+        catch (MongoCommandException ex) when (ex.Code == 27)
+        {
+            // Code 27 = "text index required" — index unavailable, use regex fallback
+            var regexFilter = fb.And(BuildPhraseRegexFilter(fb, searchText), baseFilter);
+            return await ExecuteSearchAsync(regexFilter, page, pageSize);
+        }
+    }
 
-        var items = await _quotations
-            .Find(combinedFilter)
-            .Sort(Builders<Quotation>.Sort.Descending(q => q.SubmittedAt))
-            .Skip((page - 1) * pageSize)
-            .Limit(pageSize)
-            .ToListAsync();
+    // Runs count and results in parallel to halve wall-clock time.
+    private async Task<(List<Quotation> Items, long TotalCount)> ExecuteSearchAsync(
+        FilterDefinition<Quotation> filter, int page, int pageSize)
+    {
+        var sort = Builders<Quotation>.Sort.Descending(q => q.SubmittedAt);
+        var countTask = _quotations.CountDocumentsAsync(filter);
+        var itemsTask = _quotations.Find(filter).Sort(sort)
+            .Skip((page - 1) * pageSize).Limit(pageSize).ToListAsync();
+        await Task.WhenAll(countTask, itemsTask);
+        return (itemsTask.Result, countTask.Result);
+    }
 
-        return (items, totalCount);
+    // Splits query into words, allows any punctuation/whitespace between them.
+    // "do or do not there is no try" matches "Do. Or do not. There is no try."
+    private static FilterDefinition<Quotation> BuildPhraseRegexFilter(
+        FilterDefinitionBuilder<Quotation> fb, string searchText)
+    {
+        var words = Regex.Split(searchText.Trim(), @"\W+")
+            .Where(w => w.Length > 0)
+            .Select(Regex.Escape)
+            .ToArray();
+        if (words.Length == 0)
+            return fb.Exists(q => q.Id); // match everything (empty query)
+        var pattern = string.Join(@"\W+", words);
+        var regex = new BsonRegularExpression(pattern, "i");
+        return fb.Or(
+            fb.Regex(q => q.Text, regex),
+            fb.Regex(q => q.Author.Name, regex),
+            fb.Regex(q => q.Source.Title, regex)
+        );
     }
 
     public async Task<Quotation> CreateQuotationAsync(Quotation quotation)

@@ -15,13 +15,15 @@ public static class MongoIndexes
         // covers plain status-only queries.
         var quotationIndexes = new[]
         {
-            // Full-text search across quote text, author name, and source title
+            // Full-text search across quote text, author name, and source title.
+            // DefaultLanguage "none" disables stopword stripping so short common words
+            // ("not", "no", "or", "is") are indexed and searchable — important for quotes.
             new CreateIndexModel<object>(
                 Builders<object>.IndexKeys
                     .Text("text")
                     .Text("author.name")
                     .Text("source.title"),
-                new CreateIndexOptions { Name = "text_search_idx" }
+                new CreateIndexOptions { Name = "text_search_idx", DefaultLanguage = "none" }
             ),
 
             // Default browse: filter by status, sort newest-first
@@ -83,10 +85,11 @@ public static class MongoIndexes
                 new CreateIndexOptions { Name = "submitter_date_idx" }
             ),
 
-            // Deduplication — prevents the same quote text being inserted twice
+            // Deduplication via SHA-256 hash of normalised text — much smaller than a
+            // full-text unique index while still preventing duplicate quotes.
             new CreateIndexModel<object>(
-                Builders<object>.IndexKeys.Ascending("text"),
-                new CreateIndexOptions { Name = "text_unique_idx", Unique = true }
+                Builders<object>.IndexKeys.Ascending("textHash"),
+                new CreateIndexOptions { Name = "text_hash_unique_idx", Unique = true }
             )
         };
 
