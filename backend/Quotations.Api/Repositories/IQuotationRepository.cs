@@ -193,7 +193,7 @@ public interface IQuotationRepository
     /// <summary>
     /// Bulk-insert a list of quotations directly (used by Wikiquote sync).
     /// </summary>
-    Task BulkInsertAsync(IEnumerable<Quotation> quotations);
+    Task<(int inserted, int skipped)> BulkInsertAsync(IEnumerable<Quotation> quotations);
 
     /// <summary>
     /// Return the subset of the given texts that already exist in the collection.

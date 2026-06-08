@@ -81,6 +81,12 @@ public static class MongoIndexes
                     .Ascending("submittedBy.id")
                     .Descending("submittedAt"),
                 new CreateIndexOptions { Name = "submitter_date_idx" }
+            ),
+
+            // Deduplication — prevents the same quote text being inserted twice
+            new CreateIndexModel<object>(
+                Builders<object>.IndexKeys.Ascending("text"),
+                new CreateIndexOptions { Name = "text_unique_idx", Unique = true }
             )
         };
 

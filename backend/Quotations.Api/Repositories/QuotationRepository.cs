@@ -650,8 +650,20 @@ public class QuotationRepository : IQuotationRepository
             .ToListAsync();
     }
 
-    public async Task BulkInsertAsync(IEnumerable<Quotation> quotations) =>
-        await _quotations.InsertManyAsync(quotations, new InsertManyOptions { IsOrdered = false });
+    public async Task<(int inserted, int skipped)> BulkInsertAsync(IEnumerable<Quotation> quotations)
+    {
+        var list = quotations.ToList();
+        try
+        {
+            await _quotations.InsertManyAsync(list, new InsertManyOptions { IsOrdered = false });
+            return (list.Count, 0);
+        }
+        catch (MongoDB.Driver.MongoBulkWriteException ex)
+        {
+            var skipped = ex.WriteErrors.Count(e => e.Code == 11000); // duplicate key
+            return (list.Count - skipped, skipped);
+        }
+    }
 
     public async Task<HashSet<string>> GetExistingTextsAsync(IEnumerable<string> texts)
     {

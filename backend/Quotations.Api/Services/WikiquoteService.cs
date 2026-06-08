@@ -120,20 +120,9 @@ public class WikiquoteService
 
             if (quotes.Count == 0) return (0, 0);
 
-            var existingTexts = await _quotationRepo.GetExistingTextsAsync(quotes.Select(q => q.Text));
-
-            int inserted = 0, skipped = 0;
-            var newDocs = new List<Quotation>();
-
-            foreach (var q in quotes)
-            {
-                if (existingTexts.Contains(q.Text) || q.Text.Length < _options.MinQuoteLength)
-                {
-                    skipped++;
-                    continue;
-                }
-
-                newDocs.Add(new Quotation
+            var newDocs = quotes
+                .Where(q => q.Text.Length >= _options.MinQuoteLength)
+                .Select(q => new Quotation
                 {
                     Text = q.Text,
                     Author = new AuthorReference { Name = q.AuthorName },
@@ -145,13 +134,13 @@ public class WikiquoteService
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
                     AiReview = new AiReview { Status = AiReviewStatus.NotReviewed }
-                });
-                inserted++;
-            }
+                })
+                .ToList();
 
-            if (newDocs.Count > 0)
-                await _quotationRepo.BulkInsertAsync(newDocs);
+            if (newDocs.Count == 0) return (0, quotes.Count);
 
+            // Let MongoDB reject duplicates via the unique text index — no pre-query needed
+            var (inserted, skipped) = await _quotationRepo.BulkInsertAsync(newDocs);
             return (inserted, skipped);
         }
         catch (Exception ex)
