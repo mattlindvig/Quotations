@@ -21,4 +21,4 @@ COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 5173
 
-CMD ["/bin/sh", "-c", "envsubst '${PORT} ${API_URL}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+CMD ["/bin/sh", "-c", "export NAMESERVER=$(grep nameserver /etc/resolv.conf | head -1 | awk '{print $2}') && envsubst '${PORT} ${API_URL} ${NAMESERVER}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
