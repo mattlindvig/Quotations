@@ -33,9 +33,9 @@ public class WikiquoteService
     // ── Full sync ──────────────────────────────────────────────────────────────
 
     public async IAsyncEnumerable<(int inserted, int skipped)> RunFullSyncAsync(
-        WikiquoteSyncRecord record, CancellationToken ct)
+        WikiquoteSyncRecord record, CancellationToken ct, string? resumeToken = null)
     {
-        string? continueToken = null;
+        string? continueToken = resumeToken;
 
         do
         {
@@ -48,6 +48,7 @@ public class WikiquoteService
 
             var pages = response.Query.AllPages.Select(p => p.Title).ToList();
             continueToken = response.Continue?.ApContinue;
+            record.ContinueToken = continueToken; // save so a restart can resume this batch
 
             foreach (var title in pages)
             {
@@ -142,6 +143,10 @@ public class WikiquoteService
             // Let MongoDB reject duplicates via the unique text index — no pre-query needed
             var (inserted, skipped) = await _quotationRepo.BulkInsertAsync(newDocs);
             return (inserted, skipped);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -412,6 +417,10 @@ public class WikiquoteService
         {
             var json = await _http.GetStringAsync(url, ct);
             return JsonSerializer.Deserialize<T>(json);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

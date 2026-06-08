@@ -27,6 +27,12 @@ public class WikiquoteSyncRepository : IWikiquoteSyncRepository
             .FirstOrDefaultAsync();
     }
 
+    public async Task<WikiquoteSyncRecord?> GetLastAsync(WikiquoteSyncType type) =>
+        await _collection
+            .Find(Builders<WikiquoteSyncRecord>.Filter.Eq(r => r.SyncType, type))
+            .SortByDescending(r => r.StartedAt)
+            .FirstOrDefaultAsync();
+
     public async Task<WikiquoteSyncRecord?> GetRunningAsync() =>
         await _collection
             .Find(Builders<WikiquoteSyncRecord>.Filter.Eq(r => r.Status, WikiquoteSyncStatus.Running))

@@ -63,7 +63,12 @@ public class WikiquoteSyncBackgroundService : BackgroundService
 
         if (lastFull is null)
         {
-            await RunSyncAsync(WikiquoteSyncType.Full, null, syncRepo, wikiquoteService, ct);
+            // Resume a cancelled partial run if one exists
+            var lastAttempt = await syncRepo.GetLastAsync(WikiquoteSyncType.Full);
+            var resumeToken = lastAttempt?.Status == WikiquoteSyncStatus.Failed
+                ? lastAttempt.ContinueToken
+                : null;
+            await RunSyncAsync(WikiquoteSyncType.Full, null, resumeToken, syncRepo, wikiquoteService, ct);
             return;
         }
 
@@ -73,13 +78,14 @@ public class WikiquoteSyncBackgroundService : BackgroundService
         if (daysSinceLast >= _options.DeltaIntervalDays)
         {
             var deltaFrom = lastSync!.DeltaFromTimestamp ?? lastSync.StartedAt;
-            await RunSyncAsync(WikiquoteSyncType.Delta, deltaFrom, syncRepo, wikiquoteService, ct);
+            await RunSyncAsync(WikiquoteSyncType.Delta, deltaFrom, null, syncRepo, wikiquoteService, ct);
         }
     }
 
     private async Task RunSyncAsync(
         WikiquoteSyncType syncType,
         DateTime? deltaFrom,
+        string? resumeToken,
         IWikiquoteSyncRepository syncRepo,
         WikiquoteService wikiquoteService,
         CancellationToken ct)
@@ -92,14 +98,17 @@ public class WikiquoteSyncBackgroundService : BackgroundService
             DeltaFromTimestamp = deltaFrom
         });
 
-        _logger.LogInformation("Starting Wikiquote {SyncType} sync (id={Id}).", syncType, record.Id);
+        if (resumeToken != null)
+            _logger.LogInformation("Resuming Wikiquote {SyncType} sync from token {Token} (id={Id}).", syncType, resumeToken, record.Id);
+        else
+            _logger.LogInformation("Starting Wikiquote {SyncType} sync (id={Id}).", syncType, record.Id);
 
         try
         {
             var syncStarted = DateTime.UtcNow;
 
             var stream = syncType == WikiquoteSyncType.Full
-                ? wikiquoteService.RunFullSyncAsync(record, ct)
+                ? wikiquoteService.RunFullSyncAsync(record, ct, resumeToken)
                 : wikiquoteService.RunDeltaSyncAsync(deltaFrom!.Value, record, ct);
 
             await foreach (var _ in stream.WithCancellation(ct))

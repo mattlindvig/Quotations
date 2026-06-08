@@ -28,5 +28,8 @@ public class WikiquoteSyncRecord
     // For delta syncs — the Wikiquote timestamp we last synced up to
     public DateTime? DeltaFromTimestamp { get; set; }
 
+    // Wikiquote apcontinue token saved after each batch so a cancelled full sync can resume
+    public string? ContinueToken { get; set; }
+
     public string? ErrorMessage { get; set; }
 }
