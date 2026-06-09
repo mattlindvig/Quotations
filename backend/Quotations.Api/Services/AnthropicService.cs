@@ -28,6 +28,7 @@ public record LeanReviewResult(
     string? Author,
     string? Source,
     string? Text,
+    bool Reject,
     string ModelUsed);
 
 public interface IAnthropicService
@@ -95,14 +96,15 @@ public class AnthropicService : IAnthropicService
             "1. Select 1-5 tags from this exact list: " + tagList + "\n" +
             "2. If the author is wrong, blank, \"Unknown\", \"Anonymous\", or a clear placeholder — provide the correct name.\n" +
             "3. If the source is wrong, blank, \"Unknown\", \"Other\", or a clear placeholder — provide the correct title.\n" +
-            "4. If the quote text has a clear wording error vs. the widely-known canonical version — provide the corrected text.\n\n" +
+            "4. If the quote text has a clear wording error vs. the widely-known canonical version — provide the corrected text.\n" +
+            "5. Set reject=true if the text is NOT a real quotation — e.g. a list of episodes/seasons, file metadata, scraped navigation text, or other non-quote garbage.\n\n" +
             "Rules:\n" +
             "- Set a field to null if no change is needed.\n" +
             "- Only correct text if you are highly confident in the canonical wording.\n" +
             "- Only correct author/source if you are confident in the real value.\n" +
             "- Return only tags from the list above — no invented tags.\n\n" +
             "Respond ONLY with valid JSON (no other text):\n" +
-            "{\"tags\":[\"tag1\"],\"author\":\"corrected name or null\",\"source\":\"corrected title or null\",\"text\":\"corrected wording or null\"}";
+            "{\"tags\":[\"tag1\"],\"author\":null,\"source\":null,\"text\":null,\"reject\":false}";
     }
 
     private static string BuildQuoteContext(string text, string authorName, string sourceTitle, string sourceType) =>
@@ -124,7 +126,7 @@ public class AnthropicService : IAnthropicService
         var requestNode = new JsonObject
         {
             ["model"] = _options.Model,
-            ["max_tokens"] = 150,
+            ["max_tokens"] = 80,
             ["messages"] = new JsonArray
             {
                 new JsonObject
@@ -192,8 +194,10 @@ public class AnthropicService : IAnthropicService
             string? author = GetNullableString(root, "author");
             string? source = GetNullableString(root, "source");
             string? text   = GetNullableString(root, "text");
+            bool reject = root.TryGetProperty("reject", out var rejectEl)
+                && rejectEl.ValueKind == JsonValueKind.True;
 
-            return new LeanReviewResult(tags, author, source, text, modelUsed);
+            return new LeanReviewResult(tags, author, source, text, reject, modelUsed);
         }
         catch (Exception ex)
         {

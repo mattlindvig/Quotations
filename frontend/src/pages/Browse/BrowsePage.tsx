@@ -179,7 +179,7 @@ export const BrowsePage: React.FC = () => {
       <a href="#main-content" className="skip-link">Skip to main content</a>
 
       <div className="browse-layout">
-        {/* Left sidebar — filters */}
+        {/* Left sidebar — filters + quote of the day */}
         <aside className="browse-sidebar">
           <FilterPanel
             onFilterChange={handleFilterChange}
@@ -192,6 +192,7 @@ export const BrowsePage: React.FC = () => {
               updateUrl('', filters, sortBy);
             }}
           />
+          <QuoteOfDayCard />
         </aside>
 
         {/* Main content */}
@@ -199,8 +200,6 @@ export const BrowsePage: React.FC = () => {
           <div className="browse-toolbar">
             <SearchBar onSearch={handleSearch} initialValue={initialQuery} />
           </div>
-
-          {activeMode === 'browse' && <QuoteOfDayCard />}
 
           <div className="sort-bar">
             {!loading && hasResults && pagination && (

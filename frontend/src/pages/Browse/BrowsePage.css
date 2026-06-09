@@ -18,7 +18,11 @@
 .browse-sidebar {
   grid-area: sidebar;
   position: sticky;
-  top: 24px;
+  /* Header is 56px; page padding-top is 24px — stick immediately at the natural start position */
+  top: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .browse-main {

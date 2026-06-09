@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Quotations.Api.Configuration;
 using Quotations.Api.Models;
 using Quotations.Api.Repositories;
@@ -21,6 +22,7 @@ public class AiReviewDashboardController : ControllerBase
     private readonly IAiReviewQueueService _queueService;
     private readonly IAnthropicService _anthropic;
     private readonly IAiBatchJobRepository _batchJobs;
+    private readonly ILogger<AiReviewDashboardController> _logger;
 
     public AiReviewDashboardController(
         IQuotationRepository quotations,
@@ -29,7 +31,8 @@ public class AiReviewDashboardController : ControllerBase
         AiReviewService aiReviewService,
         IAiReviewQueueService queueService,
         IAnthropicService anthropic,
-        IAiBatchJobRepository batchJobs)
+        IAiBatchJobRepository batchJobs,
+        ILogger<AiReviewDashboardController> logger)
     {
         _quotations = quotations;
         _errors = errors;
@@ -38,6 +41,7 @@ public class AiReviewDashboardController : ControllerBase
         _queueService = queueService;
         _anthropic = anthropic;
         _batchJobs = batchJobs;
+        _logger = logger;
     }
 
     [HttpGet("stats")]
@@ -329,6 +333,20 @@ public class AiReviewDashboardController : ControllerBase
         var quotations = await _quotations.GetUnreviewedForBatchAsync(limit);
         if (quotations.Count == 0)
             return Ok(new { success = true, message = "No unreviewed quotations to submit.", data = new { submitted = 0 } });
+
+        // Pre-filter obvious garbage before spending API tokens on it
+        var garbage = quotations.Where(q => QuotationGarbageFilter.IsLikelyGarbage(q.Text)).ToList();
+        if (garbage.Count > 0)
+        {
+            await _quotations.BulkSetAiReviewStatusAsync(
+                garbage.Select(q => q.Id).ToList(),
+                AiReviewStatus.Rejected);
+            _logger.LogInformation("Pre-filtered {Count} garbage quotations before batch submit", garbage.Count);
+        }
+
+        quotations = quotations.Where(q => !QuotationGarbageFilter.IsLikelyGarbage(q.Text)).ToList();
+        if (quotations.Count == 0)
+            return Ok(new { success = true, message = "All candidates were pre-filtered as garbage.", data = new { submitted = 0, preFiltered = garbage.Count } });
 
         var requests = quotations.Select(q => (
             QuotationId: q.Id,

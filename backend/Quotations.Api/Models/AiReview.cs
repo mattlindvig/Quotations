@@ -12,6 +12,7 @@ public enum AiReviewStatus
     Reviewed,
     Failed,
     BatchPending,
+    Rejected,      // pre-filtered as garbage, or AI flagged reject=true
     FixPending     // legacy — no longer produced, kept for existing documents
 }
 

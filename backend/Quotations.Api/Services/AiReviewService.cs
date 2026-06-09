@@ -54,9 +54,19 @@ public class AiReviewService
                 return;
             }
 
-            quotation.AiReview.Status = AiReviewStatus.Reviewed;
             quotation.AiReview.ModelUsed = result.ModelUsed;
             quotation.AiReview.ReviewedAt = DateTime.UtcNow;
+
+            if (result.Reject)
+            {
+                quotation.AiReview.Status = AiReviewStatus.Rejected;
+                quotation.AiReview.FailureReason = "AI flagged as non-quotation";
+                await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
+                _logger.LogInformation("AI rejected {QuotationId} as non-quotation", quotation.Id);
+                return;
+            }
+
+            quotation.AiReview.Status = AiReviewStatus.Reviewed;
             await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
 
             await ApplyLeanResultAsync(quotation, result);
@@ -190,9 +200,18 @@ public class AiReviewService
             return;
         }
 
-        quotation.AiReview.Status = AiReviewStatus.Reviewed;
         quotation.AiReview.ModelUsed = modelUsed;
         quotation.AiReview.ReviewedAt = DateTime.UtcNow;
+
+        if (result.Reject)
+        {
+            quotation.AiReview.Status = AiReviewStatus.Rejected;
+            quotation.AiReview.FailureReason = "AI flagged as non-quotation";
+            await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
+            return;
+        }
+
+        quotation.AiReview.Status = AiReviewStatus.Reviewed;
         await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
 
         await ApplyLeanResultAsync(quotation, result);
