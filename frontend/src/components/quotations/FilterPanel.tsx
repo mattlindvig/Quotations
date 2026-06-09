@@ -11,6 +11,8 @@ interface Tag {
 interface FilterPanelProps {
   onFilterChange: (filters: QuotationFilters) => void;
   initialFilters?: QuotationFilters;
+  activeSearch?: string;
+  onClearSearch?: () => void;
 }
 
 const MAX_AUTHOR_SUGGESTIONS = 8;
@@ -25,6 +27,8 @@ const CURATED_TAGS = [
 export const FilterPanel: React.FC<FilterPanelProps> = ({
   onFilterChange,
   initialFilters = {},
+  activeSearch,
+  onClearSearch,
 }) => {
   const [authorNames, setAuthorNames] = useState<string[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -236,9 +240,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     setSelectedSourceType('');
     setSelectedSourceTitle('');
     setSelectedTags([]);
+    onClearSearch?.();
   };
 
-  const hasActiveFilters = !!(selectedAuthorName || selectedSourceType || selectedSourceTitle || selectedTags.length > 0);
+  const hasActiveFilters = !!(activeSearch || selectedAuthorName || selectedSourceType || selectedSourceTitle || selectedTags.length > 0);
 
   return (
     <div className="filter-panel">
@@ -264,7 +269,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           <span>Filters</span>
           {hasActiveFilters && (
             <span className="filter-badge">
-              {[selectedAuthorName, selectedSourceType, selectedSourceTitle, ...selectedTags].filter(Boolean).length}
+              {[activeSearch, selectedAuthorName, selectedSourceType, selectedSourceTitle, ...selectedTags].filter(Boolean).length}
             </span>
           )}
         </button>

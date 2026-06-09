@@ -1,18 +1,17 @@
 .qotd-card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: #f0f7ff;
+  border: 1px solid #bbdefb;
   border-left: 3px solid #1976d2;
   border-radius: 8px;
-  padding: 16px 20px 18px;
+  padding: 18px 22px 20px;
   margin-bottom: 16px;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   transition: box-shadow 0.15s ease;
 }
 
 .qotd-card:hover,
 .qotd-card:focus-visible {
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 10px rgba(25, 118, 210, 0.12);
   outline: none;
 }
 
@@ -21,7 +20,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #1976d2;
+  color: #1565c0;
   margin-bottom: 10px;
 }
 
@@ -29,7 +28,7 @@
   font-size: 1rem;
   line-height: 1.6;
   font-style: italic;
-  color: #212121;
+  color: #1a2733;
   margin: 0 0 10px;
   padding: 0;
   border: none;
@@ -49,12 +48,12 @@
 .qotd-author {
   font-weight: 600;
   font-size: 0.875rem;
-  color: #424242;
+  color: #37474f;
 }
 
 .qotd-source {
   font-size: 0.85rem;
-  color: #757575;
+  color: #546e7a;
   font-style: italic;
 }
 

@@ -117,11 +117,6 @@ public interface IQuotationRepository
     Task<Dictionary<string, long>> GetAiReviewCountsByStatusAsync();
 
     /// <summary>
-    /// Get average AI accuracy scores across all reviewed quotations
-    /// </summary>
-    Task<(double? QuoteAccuracy, double? Attribution, double? Source)> GetAverageAiScoresAsync();
-
-    /// <summary>
     /// Get most recently AI-reviewed quotations
     /// </summary>
     Task<List<Quotation>> GetRecentlyAiReviewedAsync(int limit = 20);

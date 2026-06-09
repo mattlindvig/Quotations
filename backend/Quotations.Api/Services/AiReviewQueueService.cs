@@ -103,14 +103,7 @@ public class AiReviewQueueService : IAiReviewQueueService
         var quotation = await _quotations.GetQuotationByIdAsync(quotationId);
         if (quotation == null) return null;
 
-        var preview = _anthropic.BuildRequestPreview(
-            quotation.Text,
-            quotation.Author.Name,
-            null,
-            quotation.Source.Title,
-            quotation.Source.Type.ToString(),
-            null,
-            _options.UseWebSearch);
+        var context = $"Quotation text: \"{quotation.Text}\"\nAttributed to: {quotation.Author.Name}\nSource: {quotation.Source.Title} ({quotation.Source.Type})";
 
         return new AiRequestPreviewDto
         {
@@ -120,10 +113,10 @@ public class AiReviewQueueService : IAiReviewQueueService
             SourceTitle = quotation.Source.Title,
             SourceType = quotation.Source.Type.ToString(),
             CurrentStatus = quotation.AiReview?.Status.ToString() ?? "NotReviewed",
-            Model = preview.Model,
-            MaxTokens = preview.MaxTokens,
-            Prompt = preview.Prompt,
-            RequestJson = preview.RequestJson
+            Model = _options.Model,
+            MaxTokens = 150,
+            Prompt = context,
+            RequestJson = $"{{\"model\":\"{_options.Model}\",\"max_tokens\":150,\"messages\":[{{\"role\":\"user\",\"content\":\"[lean-prompt] + {context.Replace("\"", "\\\"")}\"}}]}}"
         };
     }
 }

@@ -15,8 +15,9 @@ public enum AiBatchJobStatus
 
 public enum AiBatchJobPhase
 {
-    Triage,
-    Fix
+    Triage,  // legacy — kept for existing documents
+    Fix,     // legacy — kept for existing documents
+    Review   // lean single-pass
 }
 
 public class AiBatchJob

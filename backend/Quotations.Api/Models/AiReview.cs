@@ -11,29 +11,25 @@ public enum AiReviewStatus
     InProgress,
     Reviewed,
     Failed,
-    BatchPending,  // Submitted to Anthropic Batch API; awaiting async results
-    FixPending     // Triage complete; awaiting fix batch
+    BatchPending,
+    FixPending     // legacy — no longer produced, kept for existing documents
 }
 
-public class AiScoreWithSuggestion
-{
-    public int Score { get; set; }
-    public string Reasoning { get; set; } = string.Empty;
-    public string? SuggestedValue { get; set; }
-    public int? SuggestionConfidence { get; set; }
-    public bool WasAiFilled { get; set; }
-    public List<string> Citations { get; set; } = new();
-}
-
+/// <summary>
+/// A single field value changed by AI review.
+/// </summary>
+[BsonIgnoreExtraElements]
 public class AiFieldChange
 {
     public string Field { get; set; } = string.Empty;
     public string PreviousValue { get; set; } = string.Empty;
     public string NewValue { get; set; } = string.Empty;
-    public string Reasoning { get; set; } = string.Empty;
-    public int Confidence { get; set; }
 }
 
+/// <summary>
+/// One AI review pass that produced one or more field corrections.
+/// </summary>
+[BsonIgnoreExtraElements]
 public class AiRevision
 {
     public DateTime AppliedAt { get; set; }
@@ -41,23 +37,19 @@ public class AiRevision
     public List<AiFieldChange> Changes { get; set; } = new();
 }
 
-public class AiProcessingSnapshot
-{
-    public string Model { get; set; } = string.Empty;
-    public int MaxTokens { get; set; }
-    public bool WebSearchEnabled { get; set; }
-    public int ConcurrentRequests { get; set; }
-    public int BatchSize { get; set; }
-}
-
+/// <summary>
+/// Minimal AI review metadata stored per quotation.
+/// All score/suggestion/authenticity fields from earlier versions are intentionally
+/// omitted — they ballooned document size without being surfaced to users.
+/// BsonIgnoreExtraElements ensures old documents with those fields still deserialize.
+/// </summary>
+[BsonIgnoreExtraElements]
 public class AiReview
 {
     [BsonRepresentation(MongoDB.Bson.BsonType.String)]
     public AiReviewStatus Status { get; set; } = AiReviewStatus.NotReviewed;
 
     public string? ModelUsed { get; set; }
-
-    public AiProcessingSnapshot? ProcessingSnapshot { get; set; }
 
     public DateTime? ReviewedAt { get; set; }
 
@@ -66,22 +58,4 @@ public class AiReview
     public DateTime? LastAttemptAt { get; set; }
 
     public string? FailureReason { get; set; }
-
-    public AiScoreWithSuggestion? QuoteAccuracy { get; set; }
-
-    public AiScoreWithSuggestion? AttributionAccuracy { get; set; }
-
-    public AiScoreWithSuggestion? SourceAccuracy { get; set; }
-
-    public string? Summary { get; set; }
-
-    public List<string> SuggestedTags { get; set; } = new();
-
-    public bool? IsLikelyAuthentic { get; set; }
-
-    public string? AuthenticityReasoning { get; set; }
-
-    public string? ApproximateEra { get; set; }
-
-    public List<string> KnownVariants { get; set; } = new();
 }

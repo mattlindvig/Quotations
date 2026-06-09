@@ -25,20 +25,6 @@ public class AiReviewDto
     public string Status { get; set; } = string.Empty;
     public string? ModelUsed { get; set; }
     public DateTime? ReviewedAt { get; set; }
-    public AiScoreDto? QuoteAccuracy { get; set; }
-    public AiScoreDto? AttributionAccuracy { get; set; }
-    public AiScoreDto? SourceAccuracy { get; set; }
-    public string? Summary { get; set; }
-    public List<string> SuggestedTags { get; set; } = new();
-}
-
-public class AiScoreDto
-{
-    public int Score { get; set; }
-    public string Reasoning { get; set; } = string.Empty;
-    public string? SuggestedValue { get; set; }
-    public bool WasAiFilled { get; set; }
-    public List<string> Citations { get; set; } = new();
 }
 
 /// <summary>
@@ -63,21 +49,11 @@ public class SourceDto
     public int? Year { get; set; }
 }
 
-/// <summary>
-/// Slim AI review data returned on list endpoints — omits per-dimension reasoning,
-/// citations, and suggested values. Full detail is available on GET /quotations/{id}.
-/// </summary>
 public class AiReviewSummaryDto
 {
     public string Status { get; set; } = string.Empty;
     public string? ModelUsed { get; set; }
     public DateTime? ReviewedAt { get; set; }
-    public string? Summary { get; set; }
-    public bool? IsLikelyAuthentic { get; set; }
-    public string? ApproximateEra { get; set; }
-    public int? QuoteAccuracyScore { get; set; }
-    public int? AttributionAccuracyScore { get; set; }
-    public int? SourceAccuracyScore { get; set; }
 }
 
 /// <summary>

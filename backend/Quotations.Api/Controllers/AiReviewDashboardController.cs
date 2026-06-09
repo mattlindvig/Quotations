@@ -44,7 +44,6 @@ public class AiReviewDashboardController : ControllerBase
     public async Task<IActionResult> GetStats()
     {
         var counts = await _quotations.GetAiReviewCountsByStatusAsync();
-        var (quoteAvg, attrAvg, srcAvg) = await _quotations.GetAverageAiScoresAsync();
         var errorCount = await _errors.CountAsync();
 
         var allStatuses = new[] { "NotReviewed", "Pending", "InProgress", "Reviewed", "Failed" };
@@ -57,12 +56,6 @@ public class AiReviewDashboardController : ControllerBase
             {
                 counts = normalized,
                 total = normalized.Values.Sum(),
-                averageScores = new
-                {
-                    quoteAccuracy = quoteAvg.HasValue ? Math.Round(quoteAvg.Value, 1) : (double?)null,
-                    attribution = attrAvg.HasValue ? Math.Round(attrAvg.Value, 1) : (double?)null,
-                    source = srcAvg.HasValue ? Math.Round(srcAvg.Value, 1) : (double?)null,
-                },
                 errorCount
             }
         });
@@ -81,14 +74,7 @@ public class AiReviewDashboardController : ControllerBase
             authorName = q.Author.Name,
             reviewedAt = q.AiReview.ReviewedAt,
             modelUsed = q.AiReview.ModelUsed,
-            summary = q.AiReview.Summary,
-            aiChangesApplied = q.AiRevisions.Count > 0,
-            scores = new
-            {
-                quoteAccuracy = q.AiReview.QuoteAccuracy?.Score,
-                attribution = q.AiReview.AttributionAccuracy?.Score,
-                source = q.AiReview.SourceAccuracy?.Score,
-            }
+            aiChangesApplied = q.AiRevisions.Count > 0
         });
 
         return Ok(new { success = true, data = items });
@@ -147,27 +133,16 @@ public class AiReviewDashboardController : ControllerBase
     public IActionResult SetAutoEnqueue([FromBody] SetAutoEnqueueRequest request)
     {
         _runtimeSettings.AutoEnqueueEnabled = request.Enabled;
-        return Ok(new
-        {
-            success = true,
-            data = new { autoEnqueueEnabled = _runtimeSettings.AutoEnqueueEnabled }
-        });
+        return Ok(new { success = true, data = new { autoEnqueueEnabled = _runtimeSettings.AutoEnqueueEnabled } });
     }
 
     [HttpPost("settings/auto-processing")]
     public IActionResult SetAutoProcessing([FromBody] SetAutoProcessingRequest request)
     {
         _runtimeSettings.AutoProcessingEnabled = request.Enabled;
-        return Ok(new
-        {
-            success = true,
-            data = new { autoProcessingEnabled = _runtimeSettings.AutoProcessingEnabled }
-        });
+        return Ok(new { success = true, data = new { autoProcessingEnabled = _runtimeSettings.AutoProcessingEnabled } });
     }
 
-    /// <summary>
-    /// Add a specific quotation to the AI review queue (sets it to Pending for background processing).
-    /// </summary>
     [HttpPost("queue/{quotationId}")]
     public async Task<IActionResult> EnqueueOne(string quotationId)
     {
@@ -178,9 +153,6 @@ public class AiReviewDashboardController : ControllerBase
         return Ok(new { success = true, message = result.Message, data = new { quotationId = result.QuotationId } });
     }
 
-    /// <summary>
-    /// Queue all quotations that have not yet been AI reviewed (NotReviewed status).
-    /// </summary>
     [HttpPost("queue/all-unreviewed")]
     public async Task<IActionResult> EnqueueAllUnreviewed()
     {
@@ -188,10 +160,6 @@ public class AiReviewDashboardController : ControllerBase
         return Ok(new { success = true, message = result.Message, data = new { enqueued = result.Enqueued, skipped = result.Skipped } });
     }
 
-    /// <summary>
-    /// Preview the exact request that would be sent to Anthropic for a given quotation, without executing it.
-    /// Useful for testing and debugging the prompt before committing API calls.
-    /// </summary>
     [HttpGet("request-preview/{quotationId}")]
     public async Task<IActionResult> GetRequestPreview(string quotationId)
     {
@@ -202,9 +170,6 @@ public class AiReviewDashboardController : ControllerBase
         return Ok(new { success = true, data = preview });
     }
 
-    /// <summary>
-    /// Immediately run AI review on a specific quotation (resets + processes synchronously).
-    /// </summary>
     [HttpPost("process/{quotationId}")]
     public async Task<IActionResult> ProcessNow(string quotationId)
     {
@@ -212,7 +177,6 @@ public class AiReviewDashboardController : ControllerBase
         if (quotation == null)
             return NotFound(new { success = false, message = "Quotation not found" });
 
-        // Clear any prior error record and reset so ReviewQuotationAsync starts fresh
         await _errors.DeleteByQuotationIdAsync(quotationId);
         await _quotations.ResetAiReviewAsync(quotationId);
         quotation.AiReview ??= new AiReview();
@@ -229,12 +193,9 @@ public class AiReviewDashboardController : ControllerBase
             data = new
             {
                 status = updated?.AiReview?.Status.ToString(),
-                scores = updated?.AiReview == null ? null : new
-                {
-                    quoteAccuracy = updated.AiReview.QuoteAccuracy?.Score,
-                    attribution = updated.AiReview.AttributionAccuracy?.Score,
-                    source = updated.AiReview.SourceAccuracy?.Score,
-                }
+                reviewedAt = updated?.AiReview?.ReviewedAt,
+                modelUsed = updated?.AiReview?.ModelUsed,
+                changesApplied = updated?.AiRevisions.Count > 0
             }
         });
     }
@@ -263,39 +224,6 @@ public class AiReviewDashboardController : ControllerBase
                 tags = quotation.Tags,
                 modelUsed = review?.ModelUsed,
                 reviewedAt = review?.ReviewedAt,
-                summary = review?.Summary,
-                suggestedTags = review?.SuggestedTags ?? new List<string>(),
-                authenticity = review == null ? null : (object)new
-                {
-                    isLikelyAuthentic = review.IsLikelyAuthentic,
-                    reasoning = review.AuthenticityReasoning,
-                    approximateEra = review.ApproximateEra,
-                    knownVariants = review.KnownVariants
-                },
-                scores = review == null ? null : new
-                {
-                    quoteAccuracy = review.QuoteAccuracy == null ? null : (object)new
-                    {
-                        score = review.QuoteAccuracy.Score,
-                        reasoning = review.QuoteAccuracy.Reasoning,
-                        suggestedValue = review.QuoteAccuracy.SuggestedValue,
-                        suggestionConfidence = review.QuoteAccuracy.SuggestionConfidence
-                    },
-                    attribution = review.AttributionAccuracy == null ? null : (object)new
-                    {
-                        score = review.AttributionAccuracy.Score,
-                        reasoning = review.AttributionAccuracy.Reasoning,
-                        suggestedValue = review.AttributionAccuracy.SuggestedValue,
-                        suggestionConfidence = review.AttributionAccuracy.SuggestionConfidence
-                    },
-                    source = review.SourceAccuracy == null ? null : (object)new
-                    {
-                        score = review.SourceAccuracy.Score,
-                        reasoning = review.SourceAccuracy.Reasoning,
-                        suggestedValue = review.SourceAccuracy.SuggestedValue,
-                        suggestionConfidence = review.SourceAccuracy.SuggestionConfidence
-                    }
-                },
                 revisions = quotation.AiRevisions
                     .OrderByDescending(r => r.AppliedAt)
                     .Select(r => new
@@ -306,9 +234,7 @@ public class AiReviewDashboardController : ControllerBase
                         {
                             field = c.Field,
                             previousValue = c.PreviousValue,
-                            newValue = c.NewValue,
-                            reasoning = c.Reasoning,
-                            confidence = c.Confidence
+                            newValue = c.NewValue
                         })
                     })
             }
@@ -332,9 +258,7 @@ public class AiReviewDashboardController : ControllerBase
                 {
                     field = c.Field,
                     previousValue = c.PreviousValue,
-                    newValue = c.NewValue,
-                    reasoning = c.Reasoning,
-                    confidence = c.Confidence
+                    newValue = c.NewValue
                 })
             });
 
@@ -393,9 +317,8 @@ public class AiReviewDashboardController : ControllerBase
     }
 
     /// <summary>
-    /// Submit up to 10,000 unreviewed quotations to the Anthropic Batch API.
-    /// Results arrive asynchronously (minutes to hours) and are processed by AiBatchProcessingService.
-    /// Cost: ~50% of standard per-request pricing.
+    /// Submit up to 10,000 unreviewed quotations to the Anthropic Batch API (lean single-pass).
+    /// Results arrive asynchronously (minutes to hours) at ~50% of standard pricing.
     /// </summary>
     [HttpPost("batch/submit")]
     [Authorize(Roles = "Admin")]
@@ -415,13 +338,12 @@ public class AiReviewDashboardController : ControllerBase
             SourceType: q.Source.Type.ToString()
         ));
 
-        var batchResult = await _anthropic.SubmitTriageBatchAsync(requests);
+        var batchResult = await _anthropic.SubmitLeanBatchAsync(requests);
 
-        // Record the job
         var job = new AiBatchJob
         {
             AnthropicBatchId = batchResult.AnthropicBatchId,
-            Phase = AiBatchJobPhase.Triage,
+            Phase = AiBatchJobPhase.Review,
             Status = AiBatchJobStatus.Submitted,
             QuotationIds = quotations.Select(q => q.Id).ToList(),
             TotalCount = batchResult.RequestCount,
@@ -430,7 +352,6 @@ public class AiReviewDashboardController : ControllerBase
         };
         await _batchJobs.CreateAsync(job);
 
-        // Mark all quotations as BatchPending so real-time processing skips them
         await _quotations.BulkSetAiReviewStatusAsync(job.QuotationIds, AiReviewStatus.BatchPending);
 
         return Ok(new
@@ -446,9 +367,6 @@ public class AiReviewDashboardController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// List recent batch jobs and their status.
-    /// </summary>
     [HttpGet("batch/jobs")]
     public async Task<IActionResult> GetBatchJobs([FromQuery] int limit = 20)
     {

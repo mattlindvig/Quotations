@@ -394,30 +394,6 @@ public class QuotationRepository : IQuotationRepository
                 doc => (long)doc["count"].AsInt32);
     }
 
-    public async Task<(double? QuoteAccuracy, double? Attribution, double? Source)> GetAverageAiScoresAsync()
-    {
-        var pipeline = new[]
-        {
-            new BsonDocument("$match", new BsonDocument("aiReview.status", "Reviewed")),
-            new BsonDocument("$group", new BsonDocument
-            {
-                { "_id", BsonNull.Value },
-                { "avgQuote", new BsonDocument("$avg", "$aiReview.quoteAccuracy.score") },
-                { "avgAttribution", new BsonDocument("$avg", "$aiReview.attributionAccuracy.score") },
-                { "avgSource", new BsonDocument("$avg", "$aiReview.sourceAccuracy.score") }
-            })
-        };
-
-        var result = await _quotations.Aggregate<BsonDocument>(pipeline).FirstOrDefaultAsync();
-        if (result == null) return (null, null, null);
-
-        double? quote = result["avgQuote"] != BsonNull.Value ? result["avgQuote"].ToDouble() : null;
-        double? attr = result["avgAttribution"] != BsonNull.Value ? result["avgAttribution"].ToDouble() : null;
-        double? src = result["avgSource"] != BsonNull.Value ? result["avgSource"].ToDouble() : null;
-
-        return (quote, attr, src);
-    }
-
     public async Task<List<Quotation>> GetRecentlyAiReviewedAsync(int limit = 20)
     {
         var filter = Builders<Quotation>.Filter.Eq("aiReview.status", "Reviewed");

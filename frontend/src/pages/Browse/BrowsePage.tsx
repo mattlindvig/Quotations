@@ -181,16 +181,26 @@ export const BrowsePage: React.FC = () => {
       <div className="browse-layout">
         {/* Left sidebar — filters */}
         <aside className="browse-sidebar">
-          <FilterPanel onFilterChange={handleFilterChange} initialFilters={initialFilters} />
+          <FilterPanel
+            onFilterChange={handleFilterChange}
+            initialFilters={initialFilters}
+            activeSearch={activeMode === 'search' ? searchQuery : undefined}
+            onClearSearch={() => {
+              clearSearch();
+              setActiveMode('browse');
+              fetchQuotations({ status: 'approved', page: 1, pageSize: 20, ...filters, sortBy });
+              updateUrl('', filters, sortBy);
+            }}
+          />
         </aside>
 
         {/* Main content */}
         <div className="browse-main">
-          <QuoteOfDayCard />
-
           <div className="browse-toolbar">
             <SearchBar onSearch={handleSearch} initialValue={initialQuery} />
           </div>
+
+          {activeMode === 'browse' && <QuoteOfDayCard />}
 
           <div className="sort-bar">
             {!loading && hasResults && pagination && (

@@ -535,13 +535,7 @@ public class QuotationService
         {
             Status = aiReview.Status.ToString().ToLowerInvariant(),
             ModelUsed = aiReview.ModelUsed,
-            ReviewedAt = aiReview.ReviewedAt,
-            Summary = aiReview.Summary,
-            IsLikelyAuthentic = aiReview.IsLikelyAuthentic,
-            ApproximateEra = aiReview.ApproximateEra,
-            QuoteAccuracyScore = aiReview.QuoteAccuracy?.Score,
-            AttributionAccuracyScore = aiReview.AttributionAccuracy?.Score,
-            SourceAccuracyScore = aiReview.SourceAccuracy?.Score
+            ReviewedAt = aiReview.ReviewedAt
         };
     }
 
@@ -553,26 +547,7 @@ public class QuotationService
         {
             Status = aiReview.Status.ToString().ToLowerInvariant(),
             ModelUsed = aiReview.ModelUsed,
-            ReviewedAt = aiReview.ReviewedAt,
-            Summary = aiReview.Summary,
-            QuoteAccuracy = MapScoreToDto(aiReview.QuoteAccuracy),
-            AttributionAccuracy = MapScoreToDto(aiReview.AttributionAccuracy),
-            SourceAccuracy = MapScoreToDto(aiReview.SourceAccuracy),
-            SuggestedTags = aiReview.SuggestedTags
-        };
-    }
-
-    private static AiScoreDto? MapScoreToDto(AiScoreWithSuggestion? score)
-    {
-        if (score == null) return null;
-
-        return new AiScoreDto
-        {
-            Score = score.Score,
-            Reasoning = score.Reasoning,
-            SuggestedValue = score.SuggestedValue,
-            WasAiFilled = score.WasAiFilled,
-            Citations = score.Citations
+            ReviewedAt = aiReview.ReviewedAt
         };
     }
 }
