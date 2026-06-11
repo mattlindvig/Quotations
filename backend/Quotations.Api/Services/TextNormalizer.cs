@@ -5,9 +5,11 @@ namespace Quotations.Api.Services;
 
 public static class TextNormalizer
 {
-    // Ensure a space follows . , ! ? ; : when the next char is a letter or digit
+    // Add a space after , ; : when directly followed by a non-space, non-punctuation char.
+    // Deliberately excludes . ! ? — periods are too ambiguous (initials, ellipsis, abbreviations)
+    // and ! / ? mid-sentence are rare enough not to be worth the risk of false positives.
     private static readonly Regex MissingSpace =
-        new(@"([.,!?;:])([^\s""'\)\]\}])", RegexOptions.Compiled);
+        new(@"([,;:])([^\s.,!?;:""'\)\]\}])", RegexOptions.Compiled);
 
     // Collapse runs of horizontal whitespace (tabs, spaces) to a single space
     private static readonly Regex MultipleSpaces =
