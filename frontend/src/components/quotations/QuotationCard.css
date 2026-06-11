@@ -18,6 +18,8 @@
   line-height: 1.6;
   color: #212121;
   font-style: italic;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .quotation-text p {

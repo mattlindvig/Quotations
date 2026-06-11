@@ -2,6 +2,7 @@
   min-height: 100vh;
   background: #fafafa;
   padding: 24px 16px;
+  overflow-x: hidden;
 }
 
 /* ── Layout ── */
