@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.RegularExpressions;
 
 namespace Quotations.Api.Services;
@@ -25,11 +26,17 @@ public static class TextNormalizer
         if (string.IsNullOrWhiteSpace(text))
             return text;
 
+        // Decode HTML entities (&nbsp; &amp; &mdash; &ldquo; etc.) before any other processing
+        text = WebUtility.HtmlDecode(text);
+
+        // Non-breaking spaces (U+00A0) — common artifact of &nbsp; — become regular spaces
+        // so MultipleSpaces below can collapse them
+        text = text.Replace(' ', ' ');
+
         // Strip carriage returns
         text = text.Replace("\r", string.Empty);
 
         // Strip wrapping quotes added by the source (e.g. `"the quote text"`)
-        // Only strip one layer — if someone stored `""quoted""` we'd need two passes, but that's pathological
         text = WrappedStraightQuotes.Replace(text, "$1");
         text = WrappedCurlyQuotes.Replace(text, "$1");
 
