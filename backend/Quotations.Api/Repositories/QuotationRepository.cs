@@ -152,14 +152,16 @@ public class QuotationRepository : IQuotationRepository
 
         var baseFilter = fb.And(baseFilters);
 
-        // Word-AND search: all words must appear somewhere in the document, order doesn't matter.
-        // The index returns a relevance score — results are sorted by score so the best matches
-        // come first. Falls back to a substring regex if the text index isn't ready.
+        // Word-AND search: every meaningful word must appear somewhere in the document.
+        // Stopwords (is, a, the, …) are stripped so they don't inflate result counts.
+        // Each remaining token is quoted individually in the $text expression — MongoDB
+        // treats multiple quoted single-word phrases as AND, not OR.
+        // Falls back to a substring regex if the text index isn't ready.
         try
         {
-            var wordSearch = searchText.Trim().Replace("\"", "");
+            var wordAndQuery = BuildWordAndQuery(searchText);
             var textFilter = fb.And(
-                fb.Text(wordSearch, new TextSearchOptions { Language = "none" }),
+                fb.Text(wordAndQuery, new TextSearchOptions { Language = "none" }),
                 baseFilter
             );
             return await ExecuteSearchAsync(textFilter, page, pageSize, sortByRelevance: true);
@@ -169,6 +171,38 @@ public class QuotationRepository : IQuotationRepository
             var regexFilter = fb.And(BuildPhraseRegexFilter(fb, searchText), baseFilter);
             return await ExecuteSearchAsync(regexFilter, page, pageSize);
         }
+    }
+
+    // High-frequency words that appear in virtually every sentence and add no search value.
+    // Intentionally excludes meaningful negations: not, no, never, nor, neither, nothing.
+    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "a", "an", "the",
+        "is", "are", "was", "were", "be", "been", "being", "am",
+        "do", "does", "did", "have", "has", "had", "will", "would", "could", "should",
+        "to", "of", "in", "at", "by", "for", "as", "on", "up", "out", "with", "from",
+        "it", "its", "i", "my", "me", "we", "our", "us",
+        "you", "your", "he", "she", "his", "her", "they", "their", "them",
+        "and", "or", "but", "so", "if", "than", "that", "this", "these", "those",
+        "which", "who", "whom", "what", "when", "where", "how",
+    };
+
+    // Transforms a free-text query into a MongoDB $text word-AND expression.
+    // Each meaningful token is quoted so MongoDB requires it (AND), not just scores it (OR).
+    private static string BuildWordAndQuery(string searchText)
+    {
+        var tokens = searchText
+            .Trim()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => !StopWords.Contains(t))
+            .Select(t => $"\"{t.Replace("\"", "")}\"")
+            .ToList();
+
+        // If every word was a stopword (e.g. "is it"), search the original as a phrase
+        // so the user at least gets some results rather than an empty match-all.
+        return tokens.Count > 0
+            ? string.Join(" ", tokens)
+            : $"\"{searchText.Trim().Replace("\"", "")}\"";
     }
 
     // Runs count and results in parallel to halve wall-clock time.
