@@ -9,7 +9,7 @@ public static class TextNormalizer
     // Deliberately excludes . ! ? — periods are too ambiguous (initials, ellipsis, abbreviations)
     // and ! / ? mid-sentence are rare enough not to be worth the risk of false positives.
     private static readonly Regex MissingSpace =
-        new(@"([,;:])([^\s.,!?;:""'\)\]\}])", RegexOptions.Compiled);
+        new(@"([,;:])([^\s.,!?;:""“”'‘’\)\]\}])", RegexOptions.Compiled);
 
     // Collapse runs of horizontal whitespace (tabs, spaces) to a single space
     private static readonly Regex MultipleSpaces =

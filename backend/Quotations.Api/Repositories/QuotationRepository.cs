@@ -152,72 +152,53 @@ public class QuotationRepository : IQuotationRepository
 
         var baseFilter = fb.And(baseFilters);
 
-        // $text search: each word is quoted so MongoDB treats them as AND (all must appear)
-        // rather than the default OR. language "none" means no stopwords are stripped, so
-        // "not", "no", "or", "is" are all required when present in the query.
-        // Falls back to a per-word AND regex if the text index isn't ready.
+        // Word-AND search: all words must appear somewhere in the document, order doesn't matter.
+        // The index returns a relevance score — results are sorted by score so the best matches
+        // come first. Falls back to a substring regex if the text index isn't ready.
         try
         {
-            var quotedSearch = BuildQuotedTextSearch(searchText);
+            var wordSearch = searchText.Trim().Replace("\"", "");
             var textFilter = fb.And(
-                fb.Text(quotedSearch, new TextSearchOptions { Language = "none" }),
+                fb.Text(wordSearch, new TextSearchOptions { Language = "none" }),
                 baseFilter
             );
-            return await ExecuteSearchAsync(textFilter, page, pageSize);
+            return await ExecuteSearchAsync(textFilter, page, pageSize, sortByRelevance: true);
         }
         catch (MongoCommandException ex) when (ex.Code == 27)
         {
-            var regexFilter = fb.And(BuildAllWordsRegexFilter(fb, searchText), baseFilter);
+            var regexFilter = fb.And(BuildPhraseRegexFilter(fb, searchText), baseFilter);
             return await ExecuteSearchAsync(regexFilter, page, pageSize);
         }
     }
 
-    // Wraps every distinct word in quotes so $text requires ALL words (AND), not OR.
-    // "do or do not try" → "\"do\" \"or\" \"not\" \"try\""
-    private static string BuildQuotedTextSearch(string searchText)
-    {
-        var words = Regex.Split(searchText.Trim(), @"\W+")
-            .Where(w => w.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        return string.Join(" ", words.Select(w => $"\"{w}\""));
-    }
-
     // Runs count and results in parallel to halve wall-clock time.
+    // sortByRelevance: true when a $text filter is active — uses textScore from the index.
     private async Task<(List<Quotation> Items, long TotalCount)> ExecuteSearchAsync(
-        FilterDefinition<Quotation> filter, int page, int pageSize)
+        FilterDefinition<Quotation> filter, int page, int pageSize, bool sortByRelevance = false)
     {
-        var sort = Builders<Quotation>.Sort.Descending(q => q.SubmittedAt);
-        var countTask = _quotations.CountDocumentsAsync(filter);
+        var sort = sortByRelevance
+            ? Builders<Quotation>.Sort.MetaTextScore("score")
+            : Builders<Quotation>.Sort.Descending(q => q.SubmittedAt);
+        var countTask = _quotations.CountDocumentsAsync(filter, new CountOptions { Limit = 2000 });
         var itemsTask = _quotations.Find(filter).Sort(sort)
             .Skip((page - 1) * pageSize).Limit(pageSize).ToListAsync();
         await Task.WhenAll(countTask, itemsTask);
         return (itemsTask.Result, countTask.Result);
     }
 
-    // Regex fallback: every distinct word must appear somewhere across the three fields.
-    // Slower than $text but handles punctuation and partial word matches.
-    private static FilterDefinition<Quotation> BuildAllWordsRegexFilter(
+    // Regex fallback: match the full phrase as a substring across text, author, or source.
+    private static FilterDefinition<Quotation> BuildPhraseRegexFilter(
         FilterDefinitionBuilder<Quotation> fb, string searchText)
     {
-        var words = Regex.Split(searchText.Trim(), @"\W+")
-            .Where(w => w.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(Regex.Escape)
-            .ToArray();
-        if (words.Length == 0)
+        var phrase = searchText.Trim();
+        if (string.IsNullOrEmpty(phrase))
             return fb.Exists(q => q.Id);
-        // Each word must appear in text OR author OR source — all words ANDed together
-        var wordFilters = words.Select(w =>
-        {
-            var regex = new BsonRegularExpression(w, "i");
-            return fb.Or(
-                fb.Regex(q => q.Text, regex),
-                fb.Regex(q => q.Author.Name, regex),
-                fb.Regex(q => q.Source.Title, regex)
-            );
-        });
-        return fb.And(wordFilters);
+        var regex = new BsonRegularExpression(Regex.Escape(phrase), "i");
+        return fb.Or(
+            fb.Regex(q => q.Text, regex),
+            fb.Regex(q => q.Author.Name, regex),
+            fb.Regex(q => q.Source.Title, regex)
+        );
     }
 
     public async Task<Quotation> CreateQuotationAsync(Quotation quotation)
