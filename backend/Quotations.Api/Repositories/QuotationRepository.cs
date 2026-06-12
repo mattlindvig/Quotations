@@ -179,7 +179,7 @@ public class QuotationRepository : IQuotationRepository
         var sort = sortByRelevance
             ? Builders<Quotation>.Sort.MetaTextScore("score")
             : Builders<Quotation>.Sort.Descending(q => q.SubmittedAt);
-        var countTask = _quotations.CountDocumentsAsync(filter, new CountOptions { Limit = 2000 });
+        var countTask = _quotations.CountDocumentsAsync(filter);
         var itemsTask = _quotations.Find(filter).Sort(sort)
             .Skip((page - 1) * pageSize).Limit(pageSize).ToListAsync();
         await Task.WhenAll(countTask, itemsTask);
