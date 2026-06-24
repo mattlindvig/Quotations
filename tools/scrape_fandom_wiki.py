@@ -26,10 +26,7 @@ from datetime import datetime, timezone
 from pymongo import MongoClient, InsertOne
 from pymongo.errors import BulkWriteError
 
-MONGO_URI = os.environ.get(
-    "MONGO_URI",
-    "mongodb://mongo:UbSviXPNWvFhMxBjqHlsYiTnOkuOPzdf@acela.proxy.rlwy.net:46933",
-)
+MONGO_URI = os.environ["MONGO_URI"]
 DB_NAME      = "quotations"
 BATCH_SIZE   = 200
 MIN_QUOTE_LEN = 20

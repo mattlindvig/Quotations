@@ -16,10 +16,7 @@ import re
 from pymongo import MongoClient, UpdateMany
 from pymongo.errors import BulkWriteError
 
-MONGO_URI = os.environ.get(
-    "MONGO_URI",
-    "mongodb://mongo:UbSviXPNWvFhMxBjqHlsYiTnOkuOPzdf@acela.proxy.rlwy.net:46933",
-)
+MONGO_URI = os.environ["MONGO_URI"]
 DB_NAME   = "quotations"
 COLL_NAME = "quotations"
 

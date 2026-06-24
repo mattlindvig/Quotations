@@ -1,0 +1,2 @@
+pymongo==4.10.1
+meilisearch==0.31.4

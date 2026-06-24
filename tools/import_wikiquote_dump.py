@@ -27,7 +27,7 @@ from pymongo.errors import BulkWriteError
 
 DUMP_URL    = "https://dumps.wikimedia.org/enwikiquote/latest/enwikiquote-latest-pages-articles.xml.bz2"
 IMPORT_DATE = datetime(2026, 1, 1, tzinfo=timezone.utc)
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:UbSviXPNWvFhMxBjqHlsYiTnOkuOPzdf@acela.proxy.rlwy.net:46933")
+MONGO_URI = os.environ["MONGO_URI"]
 DB_NAME   = "quotations"
 COLL_NAME = "quotations"
 BATCH_SIZE     = 500
