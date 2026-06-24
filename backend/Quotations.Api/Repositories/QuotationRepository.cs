@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Driver;
+using Microsoft.Extensions.Logging;
 using Quotations.Api.Models;
 using Quotations.Api.Services;
 using System;
@@ -18,11 +19,13 @@ public class QuotationRepository : IQuotationRepository
 {
     private readonly IMongoCollection<Quotation> _quotations;
     private readonly MeilisearchService _meilisearch;
+    private readonly ILogger<QuotationRepository> _logger;
 
-    public QuotationRepository(MongoDbService mongoDbService, MeilisearchService meilisearch)
+    public QuotationRepository(MongoDbService mongoDbService, MeilisearchService meilisearch, ILogger<QuotationRepository> logger)
     {
         _quotations = mongoDbService.GetCollection<Quotation>("quotations");
         _meilisearch = meilisearch;
+        _logger = logger;
     }
 
     public async Task<(List<Quotation> Items, long TotalCount)> GetQuotationsAsync(
@@ -137,6 +140,7 @@ public class QuotationRepository : IQuotationRepository
         var effectiveStatus = status ?? QuotationStatus.Approved;
 
         // Meilisearch path: faster, relevance-ranked, no RAM overhead of MongoDB text index
+        _logger.LogInformation("Search: meilisearch enabled={Enabled}, query='{Query}'", _meilisearch.Enabled, searchText);
         if (_meilisearch.Enabled && !string.IsNullOrWhiteSpace(searchText))
         {
             try
@@ -168,9 +172,9 @@ public class QuotationRepository : IQuotationRepository
 
                 return (items, total);
             }
-            catch
+            catch (Exception ex)
             {
-                // Fall through to MongoDB $text
+                _logger.LogWarning(ex, "Meilisearch search failed, falling back to MongoDB $text");
             }
         }
 
