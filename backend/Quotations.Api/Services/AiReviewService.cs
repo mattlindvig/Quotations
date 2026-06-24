@@ -6,6 +6,7 @@ using Quotations.Api.Repositories;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Quotations.Api.Services;
@@ -44,7 +45,8 @@ public class AiReviewService
         {
             var result = await _anthropic.LeanReviewAsync(
                 quotation.Text, quotation.Author.Name,
-                quotation.Source.Title, quotation.Source.Type.ToString());
+                quotation.Source.Title, quotation.Source.Type.ToString(),
+                quotation.Tags);
 
             if (result == null)
             {
@@ -59,10 +61,8 @@ public class AiReviewService
 
             if (result.Reject)
             {
-                quotation.AiReview.Status = AiReviewStatus.Rejected;
-                quotation.AiReview.FailureReason = "AI flagged as non-quotation";
-                await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
-                _logger.LogInformation("AI rejected {QuotationId} as non-quotation", quotation.Id);
+                await _quotationRepository.DeleteQuotationAsync(quotation.Id);
+                _logger.LogInformation("AI rejected and deleted {QuotationId} as non-quotation", quotation.Id);
                 return;
             }
 
@@ -139,7 +139,7 @@ public class AiReviewService
             }
         }
 
-        // Source
+        // Source title
         if (!string.IsNullOrWhiteSpace(result.Source))
         {
             var newSource = TextNormalizer.Normalize(result.Source);
@@ -150,23 +150,34 @@ public class AiReviewService
             }
         }
 
-        // Tags — merge canonical suggestions into existing tags
-        if (result.Tags.Count > 0)
+        // Source type
+        if (!string.IsNullOrWhiteSpace(result.SourceType)
+            && Enum.TryParse<SourceType>(result.SourceType, ignoreCase: true, out var newSourceType)
+            && newSourceType != quotation.Source.Type)
+        {
+            changes.Add(new AiFieldChange { Field = "SourceType", PreviousValue = quotation.Source.Type.ToString(), NewValue = newSourceType.ToString() });
+            quotation.Source.Type = newSourceType;
+        }
+
+        // Tags — full replacement: AI returns the complete curated list, then sanitized
         {
             var previousTags = quotation.Tags.ToList();
-            var merged = previousTags
-                .Union(result.Tags, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var newTags = SanitizeTags(
+                result.Tags,
+                quotation.Author.Name,
+                quotation.Source.Title);
 
-            if (merged.Count != previousTags.Count)
+            var prevSet = new HashSet<string>(previousTags, StringComparer.OrdinalIgnoreCase);
+            var newSet  = new HashSet<string>(newTags,      StringComparer.OrdinalIgnoreCase);
+            if (!prevSet.SetEquals(newSet))
             {
                 changes.Add(new AiFieldChange
                 {
                     Field = "Tags",
                     PreviousValue = string.Join(", ", previousTags),
-                    NewValue = string.Join(", ", merged)
+                    NewValue = string.Join(", ", newTags)
                 });
-                quotation.Tags = merged;
+                quotation.Tags = newTags;
             }
         }
 
@@ -205,9 +216,7 @@ public class AiReviewService
 
         if (result.Reject)
         {
-            quotation.AiReview.Status = AiReviewStatus.Rejected;
-            quotation.AiReview.FailureReason = "AI flagged as non-quotation";
-            await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
+            await _quotationRepository.DeleteQuotationAsync(quotation.Id);
             return;
         }
 
@@ -215,5 +224,39 @@ public class AiReviewService
         await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
 
         await ApplyLeanResultAsync(quotation, result);
+    }
+
+    // Characters that indicate a tag is navigation garbage, a MediaWiki template, or a sentence fragment.
+    private static readonly char[] GarbageTagChars = ['>', '{', '}', '<', '|', '[', ']'];
+
+    private static readonly Regex NonAlphanumeric = new(@"[^a-z0-9]", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Clean a raw tag list by removing:
+    ///   - Tags that duplicate the author name or source title (already separate fields)
+    ///   - Tags containing navigation/template garbage characters
+    ///   - Tags longer than 60 characters (sentences, not tags)
+    ///   - Tags in the global banned list
+    /// </summary>
+    internal static List<string> SanitizeTags(IEnumerable<string> tags, string authorName, string sourceTitle)
+    {
+        var authorKey  = NonAlphanumeric.Replace(authorName.ToLowerInvariant(), "");
+        var sourceKey  = NonAlphanumeric.Replace(sourceTitle.ToLowerInvariant(), "");
+
+        return tags
+            .Select(t => t.Trim().ToLowerInvariant())
+            .Where(t =>
+            {
+                if (string.IsNullOrWhiteSpace(t)) return false;
+                if (t.Length > 60) return false;
+                if (t.IndexOfAny(GarbageTagChars) >= 0) return false;
+                if (CanonicalTags.BannedTags.Contains(t)) return false;
+                var key = NonAlphanumeric.Replace(t, "");
+                if (!string.IsNullOrEmpty(authorKey) && key == authorKey) return false;
+                if (!string.IsNullOrEmpty(sourceKey) && key == sourceKey) return false;
+                return true;
+            })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 }

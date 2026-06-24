@@ -17,10 +17,12 @@ namespace Quotations.Api.Repositories;
 public class QuotationRepository : IQuotationRepository
 {
     private readonly IMongoCollection<Quotation> _quotations;
+    private readonly MeilisearchService _meilisearch;
 
-    public QuotationRepository(MongoDbService mongoDbService)
+    public QuotationRepository(MongoDbService mongoDbService, MeilisearchService meilisearch)
     {
         _quotations = mongoDbService.GetCollection<Quotation>("quotations");
+        _meilisearch = meilisearch;
     }
 
     public async Task<(List<Quotation> Items, long TotalCount)> GetQuotationsAsync(
@@ -132,12 +134,52 @@ public class QuotationRepository : IQuotationRepository
         int? yearFrom = null,
         int? yearTo = null)
     {
+        var effectiveStatus = status ?? QuotationStatus.Approved;
+
+        // Meilisearch path: faster, relevance-ranked, no RAM overhead of MongoDB text index
+        if (_meilisearch.Enabled && !string.IsNullOrWhiteSpace(searchText))
+        {
+            try
+            {
+                var (ids, total) = await _meilisearch.SearchAsync(
+                    searchText, page, pageSize,
+                    status: effectiveStatus.ToString(),
+                    sourceType: sourceType?.ToString(),
+                    tags: tags,
+                    yearFrom: yearFrom,
+                    yearTo: yearTo);
+
+                if (ids.Count == 0)
+                    return (new List<Quotation>(), total);
+
+                var fb2 = Builders<Quotation>.Filter;
+                var fetchFilters = new List<FilterDefinition<Quotation>> { fb2.In(q => q.Id, ids) };
+                if (!string.IsNullOrWhiteSpace(authorName))
+                    fetchFilters.Add(fb2.Regex(q => q.Author.Name,
+                        new BsonRegularExpression(Regex.Escape(authorName), "i")));
+
+                var items = await _quotations.Find(fb2.And(fetchFilters)).ToListAsync();
+
+                // Restore Meilisearch relevance order
+                var rank = ids.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
+                items.Sort((a, b) =>
+                    rank.GetValueOrDefault(a.Id, int.MaxValue)
+                        .CompareTo(rank.GetValueOrDefault(b.Id, int.MaxValue)));
+
+                return (items, total);
+            }
+            catch
+            {
+                // Fall through to MongoDB $text
+            }
+        }
+
         var fb = Builders<Quotation>.Filter;
 
         // Non-text filters (same for both the $text and regex paths)
         var baseFilters = new List<FilterDefinition<Quotation>>
         {
-            fb.Eq(q => q.Status, status ?? QuotationStatus.Approved)
+            fb.Eq(q => q.Status, effectiveStatus)
         };
         if (!string.IsNullOrWhiteSpace(authorName))
             baseFilters.Add(fb.Regex(q => q.Author.Name, new BsonRegularExpression(Regex.Escape(authorName), "i")));
@@ -550,6 +592,21 @@ public class QuotationRepository : IQuotationRepository
         int limit = 5,
         QuotationStatus status = QuotationStatus.Approved)
     {
+        if (_meilisearch.Enabled && !string.IsNullOrWhiteSpace(searchText))
+        {
+            try
+            {
+                var (ids, _) = await _meilisearch.SearchAsync(
+                    searchText, page: 1, pageSize: limit, status: status.ToString());
+                if (ids.Count > 0)
+                    return await _quotations
+                        .Find(Builders<Quotation>.Filter.In(q => q.Id, ids))
+                        .Limit(limit)
+                        .ToListAsync();
+            }
+            catch { }
+        }
+
         try
         {
             var filter = Builders<Quotation>.Filter.And(
@@ -561,7 +618,7 @@ public class QuotationRepository : IQuotationRepository
         }
         catch (MongoCommandException)
         {
-            // Text index unavailable (e.g., still building on first run) — fall back to regex
+            // Text index unavailable — fall back to regex search
             var (items, _) = await SearchQuotationsAsync(searchText, page: 1, pageSize: limit, status: status);
             return items;
         }
@@ -662,6 +719,13 @@ public class QuotationRepository : IQuotationRepository
         var update = Builders<Quotation>.Update.Set("aiReview.status", status.ToString());
         var result = await _quotations.UpdateManyAsync(filter, update);
         return result.ModifiedCount;
+    }
+
+    public async Task<long> BulkDeleteByAiStatusAsync(AiReviewStatusEnum status)
+    {
+        var filter = Builders<Quotation>.Filter.Eq("aiReview.status", status.ToString());
+        var result = await _quotations.DeleteManyAsync(filter);
+        return result.DeletedCount;
     }
 
     public async Task<List<Quotation>> GetUnreviewedForBatchAsync(int limit)

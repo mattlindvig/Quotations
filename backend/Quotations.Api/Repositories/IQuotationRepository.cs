@@ -176,6 +176,12 @@ public interface IQuotationRepository
     Task<long> BulkSetAiReviewStatusAsync(IEnumerable<string> quotationIds, AiReviewStatus status);
 
     /// <summary>
+    /// Delete all quotations whose aiReview.status matches the given value.
+    /// Returns the number of documents deleted.
+    /// </summary>
+    Task<long> BulkDeleteByAiStatusAsync(AiReviewStatus status);
+
+    /// <summary>
     /// Get up to <paramref name="limit"/> NotReviewed quotations for batch submission.
     /// </summary>
     Task<List<Quotation>> GetUnreviewedForBatchAsync(int limit);

@@ -2,7 +2,11 @@
  * TypeScript types for quotation data
  */
 
-export type SourceType = 'book' | 'movie' | 'speech' | 'interview' | 'other';
+export type SourceType =
+  | 'book' | 'movie' | 'television' | 'speech' | 'interview' | 'poem'
+  | 'song' | 'play' | 'musical' | 'videogame' | 'comic' | 'article'
+  | 'letter' | 'podcast' | 'documentary' | 'scripture' | 'proverb'
+  | 'memoir' | 'standup' | 'organization' | 'other';
 export type QuotationStatus = 'pending' | 'approved' | 'rejected';
 
 export interface Author {

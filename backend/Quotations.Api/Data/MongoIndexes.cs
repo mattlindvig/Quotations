@@ -15,16 +15,8 @@ public static class MongoIndexes
         // covers plain status-only queries.
         var quotationIndexes = new[]
         {
-            // Full-text search across quote text, author name, and source title.
-            // DefaultLanguage "none" disables stopword stripping so short common words
-            // ("not", "no", "or", "is") are indexed and searchable — important for quotes.
-            new CreateIndexModel<object>(
-                Builders<object>.IndexKeys
-                    .Text("text")
-                    .Text("author.name")
-                    .Text("source.title"),
-                new CreateIndexOptions { Name = "text_search_idx", DefaultLanguage = "none" }
-            ),
+            // text_search_idx (text, author.name, source.title) was removed — replaced by Meilisearch.
+            // Drop it manually on the live DB: db.quotations.dropIndex('text_search_idx')
 
             // Default browse: filter by status, sort newest-first
             new CreateIndexModel<object>(

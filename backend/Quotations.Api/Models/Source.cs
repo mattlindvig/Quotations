@@ -9,6 +9,7 @@ namespace Quotations.Api.Models;
 /// </summary>
 public enum SourceType
 {
+    // Original
     Book,
     Movie,
     Television,
@@ -16,7 +17,21 @@ public enum SourceType
     Interview,
     Poem,
     Organization,
-    Other
+    Other,
+    // Extended
+    Song,          // Song lyrics / musical track
+    Play,          // Stage play / theater (Shakespeare, etc.)
+    Musical,       // Broadway / stage musical
+    VideoGame,     // Video game
+    Comic,         // Comic book, graphic novel, manga
+    Article,       // Newspaper, magazine, essay, blog post
+    Letter,        // Personal correspondence, open letter
+    Podcast,       // Podcast episode
+    Documentary,   // Documentary film or series
+    Scripture,     // Religious or sacred text
+    Proverb,       // Traditional saying, no specific source
+    Memoir,        // Autobiography or memoir
+    Standup,       // Stand-up comedy special
 }
 
 /// <summary>

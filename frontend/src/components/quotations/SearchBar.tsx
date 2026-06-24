@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import './SearchBar.css';
 
 interface SearchBarProps {
@@ -8,18 +8,22 @@ interface SearchBarProps {
   debounceMs?: number;
 }
 
-/**
- * Search bar component with debouncing
- * Debounces user input to avoid excessive API calls
- */
-export const SearchBar: React.FC<SearchBarProps> = ({
+export interface SearchBarHandle {
+  clear: () => void;
+}
+
+export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(({
   onSearch,
   initialValue = '',
   placeholder = 'Search quotations...',
   debounceMs = 500,
-}) => {
+}, ref) => {
   const [searchValue, setSearchValue] = useState(initialValue);
   const isMountRef = useRef(true);
+
+  useImperativeHandle(ref, () => ({
+    clear: () => setSearchValue(''),
+  }));
 
   // Debounced search effect
   useEffect(() => {
@@ -96,4 +100,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       </div>
     </form>
   );
-};
+});
+
+SearchBar.displayName = 'SearchBar';

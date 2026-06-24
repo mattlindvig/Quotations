@@ -4,7 +4,7 @@ import { useQuotations } from '../../hooks/useQuotations';
 import { useSearch } from '../../hooks/useSearch';
 import { useFilters, type QuotationFilters } from '../../hooks/useFilters';
 import { QuotationList } from '../../components/quotations/QuotationList';
-import { SearchBar } from '../../components/quotations/SearchBar';
+import { SearchBar, type SearchBarHandle } from '../../components/quotations/SearchBar';
 import { FilterPanel } from '../../components/quotations/FilterPanel';
 import { QuoteOfDayCard } from '../../components/quotations/QuoteOfDayCard';
 import type { SourceType, QuotationSortBy } from '../../types/quotation';
@@ -71,6 +71,7 @@ export const BrowsePage: React.FC = () => {
   }, [activeMode, browseNextPage, searchPage]);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const searchBarRef = useRef<SearchBarHandle>(null);
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -190,6 +191,7 @@ export const BrowsePage: React.FC = () => {
               setActiveMode('browse');
               fetchQuotations({ status: 'approved', page: 1, pageSize: 20, ...filters, sortBy });
               updateUrl('', filters, sortBy);
+              searchBarRef.current?.clear();
             }}
           />
           <QuoteOfDayCard />
@@ -198,7 +200,7 @@ export const BrowsePage: React.FC = () => {
         {/* Main content */}
         <div className="browse-main">
           <div className="browse-toolbar">
-            <SearchBar onSearch={handleSearch} initialValue={initialQuery} />
+            <SearchBar ref={searchBarRef} onSearch={handleSearch} initialValue={initialQuery} />
           </div>
 
           <div className="sort-bar">
@@ -234,6 +236,7 @@ export const BrowsePage: React.FC = () => {
                     setActiveMode('browse');
                     fetchQuotations({ page: 1 });
                     setSearchParams({}, { replace: true });
+                    searchBarRef.current?.clear();
                   }}
                 >
                   Clear search and filters

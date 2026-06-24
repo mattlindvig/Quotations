@@ -321,6 +321,19 @@ public class AiReviewDashboardController : ControllerBase
     }
 
     /// <summary>
+    /// Delete all quotations currently marked Rejected (garbage from earlier review runs
+    /// before delete-on-reject was implemented). Safe to call multiple times.
+    /// </summary>
+    [HttpDelete("rejected/purge")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> PurgeRejected()
+    {
+        var deleted = await _quotations.BulkDeleteByAiStatusAsync(AiReviewStatus.Rejected);
+        _logger.LogInformation("Purged {Count} rejected quotations", deleted);
+        return Ok(new { success = true, data = new { deleted } });
+    }
+
+    /// <summary>
     /// Submit up to 10,000 unreviewed quotations to the Anthropic Batch API (lean single-pass).
     /// Results arrive asynchronously (minutes to hours) at ~50% of standard pricing.
     /// </summary>
@@ -334,14 +347,13 @@ public class AiReviewDashboardController : ControllerBase
         if (quotations.Count == 0)
             return Ok(new { success = true, message = "No unreviewed quotations to submit.", data = new { submitted = 0 } });
 
-        // Pre-filter obvious garbage before spending API tokens on it
+        // Pre-filter obvious garbage before spending API tokens on it — delete immediately
         var garbage = quotations.Where(q => QuotationGarbageFilter.IsLikelyGarbage(q.Text)).ToList();
         if (garbage.Count > 0)
         {
-            await _quotations.BulkSetAiReviewStatusAsync(
-                garbage.Select(q => q.Id).ToList(),
-                AiReviewStatus.Rejected);
-            _logger.LogInformation("Pre-filtered {Count} garbage quotations before batch submit", garbage.Count);
+            foreach (var q in garbage)
+                await _quotations.DeleteQuotationAsync(q.Id);
+            _logger.LogInformation("Pre-filtered and deleted {Count} garbage quotations before batch submit", garbage.Count);
         }
 
         quotations = quotations.Where(q => !QuotationGarbageFilter.IsLikelyGarbage(q.Text)).ToList();
@@ -353,7 +365,8 @@ public class AiReviewDashboardController : ControllerBase
             Text: q.Text,
             AuthorName: q.Author.Name,
             SourceTitle: q.Source.Title,
-            SourceType: q.Source.Type.ToString()
+            SourceType: q.Source.Type.ToString(),
+            ExistingTags: (IEnumerable<string>)q.Tags
         ));
 
         var batchResult = await _anthropic.SubmitLeanBatchAsync(requests);

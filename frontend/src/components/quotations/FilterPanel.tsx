@@ -53,7 +53,29 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const [tagDropdownHighlight, setTagDropdownHighlight] = useState(-1);
   const tagAutocompleteRef = useRef<HTMLDivElement>(null);
 
-  const sourceTypes: SourceType[] = ['book', 'movie', 'speech', 'interview', 'other'];
+  const sourceTypes: { value: SourceType; label: string }[] = [
+    { value: 'book',         label: 'Book' },
+    { value: 'movie',        label: 'Movie' },
+    { value: 'television',   label: 'TV Show' },
+    { value: 'speech',       label: 'Speech' },
+    { value: 'interview',    label: 'Interview' },
+    { value: 'poem',         label: 'Poem' },
+    { value: 'song',         label: 'Song' },
+    { value: 'play',         label: 'Play' },
+    { value: 'musical',      label: 'Musical' },
+    { value: 'videogame',    label: 'Video Game' },
+    { value: 'comic',        label: 'Comic / Graphic Novel' },
+    { value: 'article',      label: 'Article / Essay' },
+    { value: 'letter',       label: 'Letter / Correspondence' },
+    { value: 'podcast',      label: 'Podcast' },
+    { value: 'documentary',  label: 'Documentary' },
+    { value: 'scripture',    label: 'Scripture / Religious Text' },
+    { value: 'proverb',      label: 'Proverb' },
+    { value: 'memoir',       label: 'Memoir / Autobiography' },
+    { value: 'standup',      label: 'Stand-up Comedy' },
+    { value: 'organization', label: 'Organization' },
+    { value: 'other',        label: 'Other' },
+  ];
 
   const authorSuggestions = inputValue.trim().length > 0
     ? authorNames
@@ -360,10 +382,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             onChange={(e) => setSelectedSourceType(e.target.value)}
           >
             <option value="">All types</option>
-            {sourceTypes.map((type) => (
-              <option key={type} value={type}>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </option>
+            {sourceTypes.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
             ))}
           </select>
         </div>

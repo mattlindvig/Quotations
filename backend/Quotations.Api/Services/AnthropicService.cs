@@ -27,6 +27,7 @@ public record LeanReviewResult(
     List<string> Tags,
     string? Author,
     string? Source,
+    string? SourceType,
     string? Text,
     bool Reject,
     string ModelUsed);
@@ -36,7 +37,7 @@ public interface IAnthropicService
     /// <summary>
     /// Single-pass lean review: returns tags + optional field corrections.
     /// </summary>
-    Task<LeanReviewResult?> LeanReviewAsync(string text, string authorName, string sourceTitle, string sourceType);
+    Task<LeanReviewResult?> LeanReviewAsync(string text, string authorName, string sourceTitle, string sourceType, IEnumerable<string> existingTags);
 
     /// <summary>
     /// Parse a lean review result from a batch response content string.
@@ -47,7 +48,7 @@ public interface IAnthropicService
     /// Submit a lean review batch to the Anthropic Batch API (50% cost discount).
     /// </summary>
     Task<BatchSubmitResult> SubmitLeanBatchAsync(
-        IEnumerable<(string QuotationId, string Text, string AuthorName, string SourceTitle, string SourceType)> requests);
+        IEnumerable<(string QuotationId, string Text, string AuthorName, string SourceTitle, string SourceType, IEnumerable<string> ExistingTags)> requests);
 
     Task<BatchStatusResult> GetBatchStatusAsync(string anthropicBatchId);
     Task<List<BatchMessageResult>> GetBatchResultsAsync(string anthropicBatchId);
@@ -90,28 +91,42 @@ public class AnthropicService : IAnthropicService
 
     private static string BuildLeanPrompt()
     {
-        var tagList = string.Join(", ", CanonicalTags.All);
+        var thematicTags = string.Join(", ", CanonicalTags.All);
+        var bannedTags = string.Join(", ", CanonicalTags.BannedTags.OrderBy(t => t).Take(20));
         return
-            "You are a quotation editor. Given a quote, author, and source:\n" +
-            "1. Select 1-5 tags from this exact list: " + tagList + "\n" +
-            "2. If the author is wrong, blank, \"Unknown\", \"Anonymous\", or a clear placeholder — provide the correct name.\n" +
-            "3. If the source is wrong, blank, \"Unknown\", \"Other\", or a clear placeholder — provide the correct title.\n" +
-            "4. If the quote text has a clear wording error vs. the widely-known canonical version — provide the corrected text.\n" +
-            "5. Set reject=true if the text is NOT a real quotation — e.g. a list of episodes/seasons, file metadata, scraped navigation text, or other non-quote garbage.\n\n" +
-            "Rules:\n" +
-            "- Set a field to null if no change is needed.\n" +
-            "- Only correct text if you are highly confident in the canonical wording.\n" +
-            "- Only correct author/source if you are confident in the real value.\n" +
-            "- Return only tags from the list above — no invented tags.\n\n" +
-            "Respond ONLY with valid JSON (no other text):\n" +
-            "{\"tags\":[\"tag1\"],\"author\":null,\"source\":null,\"text\":null,\"reject\":false}";
+            "You are a quotation editor. Given a quote, author, source, and current tags:\n\n" +
+            "1. Tags — return the COMPLETE FINAL tag list (fully replaces existing tags):\n" +
+            "   - Remove useless generic tags such as: " + bannedTags + ", and similar.\n" +
+            "   - Remove tags that duplicate the author's name or source title (those are shown as separate fields).\n" +
+            "   - Remove navigation garbage: anything containing '>', '{', '}', '|', or MediaWiki template syntax.\n" +
+            "   - Consolidate near-duplicates to the simpler form (e.g. keep \"mass-effect\" not \"mass-effect-video-game\").\n" +
+            "   - Keep specific accurate tags (character names, franchise names, work titles).\n" +
+            "   - Add relevant thematic tags from this list where appropriate: " + thematicTags + "\n" +
+            "   - Aim for 2-8 meaningful tags total.\n\n" +
+            "2. Fix the author if blank, \"Unknown\", \"Anonymous\", a placeholder, or parsing garbage (URL, HTML, Wikipedia article title, chapter heading, episode name, or any non-person text).\n" +
+            "   → Always return your best identification — even at lower confidence. Return null only if the existing value is already a correct person name.\n\n" +
+            "3. Fix the source title if blank, \"Unknown\", \"Other\", a placeholder, or parsing garbage.\n" +
+            "   → Always return your best identification — even at lower confidence. Return null only if the existing value is already correct.\n\n" +
+            "4. Fix the source type if it is wrong or \"Other\" and you can determine the real type.\n" +
+            "   Available types: Book, Movie, Television, Speech, Interview, Poem, Song, Play, Musical,\n" +
+            "   VideoGame, Comic, Article, Letter, Podcast, Documentary, Scripture, Proverb, Memoir, Standup, Organization, Other.\n" +
+            "   Return null if the current type is already correct.\n\n" +
+            "5. If the quote text has a clear wording error vs. the widely-known canonical version — provide the corrected text.\n\n" +
+            "6. Set reject=true if the text is NOT a real quotation (episode list, file metadata, navigation text, raw HTML, etc.).\n\n" +
+            "Rules: Set a field to null if no change is needed. Only correct text if highly confident.\n\n" +
+            "Respond ONLY with valid JSON:\n" +
+            "{\"tags\":[\"tag1\"],\"author\":null,\"source\":null,\"sourceType\":null,\"text\":null,\"reject\":false}";
     }
 
-    private static string BuildQuoteContext(string text, string authorName, string sourceTitle, string sourceType) =>
-        $"Quotation text: \"{text}\"\nAttributed to: {authorName}\nSource: {sourceTitle} ({sourceType})";
+    private static string BuildQuoteContext(
+        string text, string authorName, string sourceTitle, string sourceType, IEnumerable<string> existingTags)
+    {
+        var tagList = existingTags.Any() ? string.Join(", ", existingTags) : "(none)";
+        return $"Quotation text: \"{text}\"\nAttributed to: {authorName}\nSource: {sourceTitle} ({sourceType})\nCurrent tags: {tagList}";
+    }
 
     public async Task<LeanReviewResult?> LeanReviewAsync(
-        string text, string authorName, string sourceTitle, string sourceType)
+        string text, string authorName, string sourceTitle, string sourceType, IEnumerable<string> existingTags)
     {
         if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey == "REPLACE_WITH_ANTHROPIC_API_KEY")
         {
@@ -126,7 +141,7 @@ public class AnthropicService : IAnthropicService
         var requestNode = new JsonObject
         {
             ["model"] = _options.Model,
-            ["max_tokens"] = 80,
+            ["max_tokens"] = 200,
             ["messages"] = new JsonArray
             {
                 new JsonObject
@@ -143,7 +158,7 @@ public class AnthropicService : IAnthropicService
                         new JsonObject
                         {
                             ["type"] = "text",
-                            ["text"] = BuildQuoteContext(text, authorName, sourceTitle, sourceType)
+                            ["text"] = BuildQuoteContext(text, authorName, sourceTitle, sourceType, existingTags)
                         }
                     }
                 }
@@ -185,19 +200,20 @@ public class AnthropicService : IAnthropicService
             {
                 foreach (var item in tagsEl.EnumerateArray())
                 {
-                    var tag = item.GetString();
-                    if (!string.IsNullOrWhiteSpace(tag) && CanonicalTags.All.Contains(tag))
+                    var tag = item.GetString()?.Trim().ToLowerInvariant();
+                    if (!string.IsNullOrWhiteSpace(tag) && !CanonicalTags.BannedTags.Contains(tag))
                         tags.Add(tag);
                 }
             }
 
-            string? author = GetNullableString(root, "author");
-            string? source = GetNullableString(root, "source");
-            string? text   = GetNullableString(root, "text");
+            string? author     = GetNullableString(root, "author");
+            string? source     = GetNullableString(root, "source");
+            string? sourceType = GetNullableString(root, "sourceType");
+            string? text       = GetNullableString(root, "text");
             bool reject = root.TryGetProperty("reject", out var rejectEl)
                 && rejectEl.ValueKind == JsonValueKind.True;
 
-            return new LeanReviewResult(tags, author, source, text, reject, modelUsed);
+            return new LeanReviewResult(tags, author, source, sourceType, text, reject, modelUsed);
         }
         catch (Exception ex)
         {
@@ -215,7 +231,7 @@ public class AnthropicService : IAnthropicService
     }
 
     public async Task<BatchSubmitResult> SubmitLeanBatchAsync(
-        IEnumerable<(string QuotationId, string Text, string AuthorName, string SourceTitle, string SourceType)> requests)
+        IEnumerable<(string QuotationId, string Text, string AuthorName, string SourceTitle, string SourceType, IEnumerable<string> ExistingTags)> requests)
     {
         if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey == "REPLACE_WITH_ANTHROPIC_API_KEY")
             throw new InvalidOperationException("Anthropic API key not configured");
@@ -226,7 +242,7 @@ public class AnthropicService : IAnthropicService
             @params = new
             {
                 model = _options.Model,
-                max_tokens = 150,
+                max_tokens = 200,
                 messages = new[]
                 {
                     new
@@ -243,7 +259,7 @@ public class AnthropicService : IAnthropicService
                             new
                             {
                                 type = "text",
-                                text = BuildQuoteContext(r.Text, r.AuthorName, r.SourceTitle, r.SourceType)
+                                text = BuildQuoteContext(r.Text, r.AuthorName, r.SourceTitle, r.SourceType, r.ExistingTags)
                             }
                         }
                     }

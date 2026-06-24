@@ -2,6 +2,23 @@ namespace Quotations.Api.Models;
 
 public static class CanonicalTags
 {
+    /// <summary>
+    /// Generic, low-value tags that add no useful signal and should be stripped during AI review.
+    /// </summary>
+    public static readonly IReadOnlySet<string> BannedTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "quote", "quotes", "quote-of-the-day", "daily-quote", "daily-quotes",
+        "book", "books", "book-quote", "book-quotes", "bookquote", "reading", "read",
+        "goodreads", "goodreads-quote",
+        "words", "words-of-wisdom", "word",
+        "saying", "sayings",
+        "motivational-quotes", "inspirational-quotes",
+        "life-quote", "life-quotes",
+        "deep", "deep-quotes", "deep-thoughts",
+        "thoughts", "thought",
+        "story", "stories",
+        "text", "other",
+    };
     public static readonly IReadOnlyDictionary<string, string[]> ByCategory = new Dictionary<string, string[]>
     {
         ["Life & Human Experience"] = new[]

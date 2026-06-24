@@ -134,6 +134,11 @@ builder.Services.Configure<MongoDbSettings>(
     builder.Configuration.GetSection("MongoDbSettings"));
 builder.Services.AddSingleton<MongoDbService>();
 
+// Meilisearch search service (replaces MongoDB text_search_idx)
+builder.Services.Configure<Quotations.Api.Configuration.MeilisearchSettings>(
+    builder.Configuration.GetSection("Meilisearch"));
+builder.Services.AddSingleton<MeilisearchService>();
+
 // Register application services
 builder.Services.AddScoped<IQuotationRepository, QuotationRepository>();
 builder.Services.AddScoped<IAuthorRepository, AuthorRepository>();
