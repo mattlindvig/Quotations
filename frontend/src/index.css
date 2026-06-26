@@ -1,7 +1,25 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 :root {
-  font-family: system-ui, -apple-system, Helvetica, Arial, sans-serif;
+  /* Fonts */
+  --font-serif: 'Lora', Georgia, 'Times New Roman', serif;
+  --font-sans: system-ui, -apple-system, Helvetica, Arial, sans-serif;
+
+  /* Palette */
+  --color-bg:           #faf8f4;
+  --color-surface:      #ffffff;
+  --color-border:       #e4ddd4;
+  --color-border-soft:  #ede7df;
+  --color-text:         #1c1614;
+  --color-text-2:       #5a4a42;
+  --color-text-3:       #9a8a82;
+  --color-accent:       #8b2635;
+  --color-accent-light: #f8eef0;
+  --color-accent-hover: #6d1e2b;
+  --color-header-bg:    #1e1a16;
+  --color-header-text:  #f5f0eb;
+
+  font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
@@ -14,14 +32,14 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #fafafa;
-  color: #212121;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
 h1, h2, h3, h4, h5, h6 { margin: 0; }
 
 a {
-  color: #1976d2;
+  color: var(--color-accent);
   text-decoration: none;
 }
 a:hover { text-decoration: underline; }

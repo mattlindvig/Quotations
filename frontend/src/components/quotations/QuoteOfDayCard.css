@@ -1,34 +1,49 @@
 .qotd-card {
-  background: #f0f7ff;
-  border: 1px solid #bbdefb;
-  border-left: 3px solid #1976d2;
-  border-radius: 8px;
-  padding: 18px 22px 20px;
+  background: var(--color-header-bg);
+  border: none;
+  border-radius: 10px;
+  padding: 24px 28px 22px;
   cursor: pointer;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.qotd-card::before {
+  content: '\201C';
+  position: absolute;
+  top: -10px;
+  right: 20px;
+  font-family: var(--font-serif);
+  font-size: 9rem;
+  line-height: 1;
+  color: rgba(245, 240, 235, 0.06);
+  pointer-events: none;
+  user-select: none;
 }
 
 .qotd-card:hover,
 .qotd-card:focus-visible {
-  box-shadow: 0 3px 10px rgba(25, 118, 210, 0.12);
+  box-shadow: 0 6px 24px rgba(28, 22, 20, 0.25);
   outline: none;
 }
 
 .qotd-label {
   font-size: 0.65rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #1565c0;
-  margin-bottom: 10px;
+  color: var(--color-accent);
+  margin-bottom: 14px;
 }
 
 .qotd-text {
-  font-size: 1rem;
-  line-height: 1.6;
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  line-height: 1.7;
   font-style: italic;
-  color: #1a2733;
-  margin: 0 0 10px;
+  color: var(--color-header-text);
+  margin: 0 0 14px;
   padding: 0;
   border: none;
 }
@@ -36,27 +51,27 @@
 .qotd-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .qotd-author {
   font-weight: 600;
   font-size: 0.875rem;
-  color: #37474f;
+  color: rgba(245, 240, 235, 0.8);
 }
 
 .qotd-source {
   font-size: 0.85rem;
-  color: #546e7a;
+  color: rgba(245, 240, 235, 0.5);
   font-style: italic;
 }
 
 .qotd-skeleton {
-  height: 96px;
-  border-radius: 8px;
+  height: 120px;
+  border-radius: 10px;
   margin-bottom: 16px;
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background: linear-gradient(90deg, #2a2420 25%, #342e28 50%, #2a2420 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
 }
