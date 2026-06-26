@@ -8,7 +8,7 @@ namespace Quotations.Api.Data;
 public static class DataSeeder
 {
     public static async Task SeedDataAsync(IMongoDatabase database)
-    {
+    { 
         var authorsCollection = database.GetCollection<BsonDocument>("authors");
         var sourcesCollection = database.GetCollection<BsonDocument>("sources");
         var quotationsCollection = database.GetCollection<BsonDocument>("quotations");
