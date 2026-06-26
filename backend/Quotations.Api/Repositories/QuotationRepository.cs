@@ -367,45 +367,79 @@ public class QuotationRepository : IQuotationRepository
     }
 
     /// <summary>
-    /// Find potential duplicate quotations based on text similarity, author, and source
+    /// Find potential duplicate quotations based on text similarity, author, and source.
+    /// Uses Meilisearch for efficient fuzzy full-text matching when available; falls back
+    /// to a MongoDB regex search. No documents are loaded into memory for comparison.
     /// </summary>
     public async Task<List<Quotation>> FindPotentialDuplicatesAsync(string text, string authorName, string excludeId)
     {
-        var normalizedText = NormalizeForComparison(text);
+        if (string.IsNullOrWhiteSpace(text))
+            return new List<Quotation>();
 
-        var filters = new List<FilterDefinition<Quotation>>
+        // --- Meilisearch path: relevance-ranked, index-backed, no RAM overhead ---
+        if (_meilisearch.Enabled)
         {
-            Builders<Quotation>.Filter.Ne(q => q.Status, QuotationStatus.Rejected),
-        };
+            try
+            {
+                var (ids, _) = await _meilisearch.SearchAsync(text, page: 1, pageSize: 20);
 
-        // Exclude the quotation itself when an ID is provided
-        if (!string.IsNullOrWhiteSpace(excludeId))
-            filters.Add(Builders<Quotation>.Filter.Ne(q => q.Id, excludeId));
+                if (ids.Count > 0)
+                {
+                    var fb = Builders<Quotation>.Filter;
+                    var fetchFilters = new List<FilterDefinition<Quotation>>
+                    {
+                        fb.In(q => q.Id, ids),
+                        fb.Ne(q => q.Status, QuotationStatus.Rejected),
+                    };
 
-        // Narrow by author name when provided (not ID — imported quotes have empty IDs)
-        if (!string.IsNullOrWhiteSpace(authorName))
-            filters.Add(Builders<Quotation>.Filter.Eq("author.name", authorName));
+                    if (!string.IsNullOrWhiteSpace(excludeId))
+                        fetchFilters.Add(fb.Ne(q => q.Id, excludeId));
 
-        var candidates = await _quotations
-            .Find(Builders<Quotation>.Filter.And(filters))
-            .Limit(200)
-            .ToListAsync();
+                    if (!string.IsNullOrWhiteSpace(authorName))
+                        fetchFilters.Add(fb.Eq("author.name", authorName));
 
-        return candidates.Where(q =>
+                    var results = await _quotations.Find(fb.And(fetchFilters)).ToListAsync();
+
+                    // Restore Meilisearch relevance order
+                    var rank = ids.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
+                    results.Sort((a, b) =>
+                        rank.GetValueOrDefault(a.Id, int.MaxValue)
+                            .CompareTo(rank.GetValueOrDefault(b.Id, int.MaxValue)));
+
+                    return results;
+                }
+
+                return new List<Quotation>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Meilisearch duplicate search failed, falling back to MongoDB regex");
+            }
+        }
+
+        // --- MongoDB regex fallback: simple substring match on the text field ---
         {
-            var candidateNormalized = NormalizeForComparison(q.Text);
+            var fb = Builders<Quotation>.Filter;
+            var phrase = text.Trim();
+            var regex = new BsonRegularExpression(Regex.Escape(phrase), "i");
 
-            if (candidateNormalized == normalizedText) return true;
+            var fallbackFilters = new List<FilterDefinition<Quotation>>
+            {
+                fb.Regex(q => q.Text, regex),
+                fb.Ne(q => q.Status, QuotationStatus.Rejected),
+            };
 
-            if (normalizedText.Contains(candidateNormalized) || candidateNormalized.Contains(normalizedText))
-                return true;
+            if (!string.IsNullOrWhiteSpace(excludeId))
+                fallbackFilters.Add(fb.Ne(q => q.Id, excludeId));
 
-            // 80% Levenshtein similarity — catches paraphrasing and minor wording differences
-            if (CalculateSimilarity(normalizedText, candidateNormalized) >= 0.80)
-                return true;
+            if (!string.IsNullOrWhiteSpace(authorName))
+                fallbackFilters.Add(fb.Eq("author.name", authorName));
 
-            return false;
-        }).ToList();
+            return await _quotations
+                .Find(fb.And(fallbackFilters))
+                .Limit(20)
+                .ToListAsync();
+        }
     }
 
     public async Task<List<Quotation>> GetPendingAiReviewsAsync(int batchSize)
@@ -535,60 +569,6 @@ public class QuotationRepository : IQuotationRepository
             .Where(doc => doc.Contains("name") && doc["name"] != BsonNull.Value)
             .Select(doc => doc["name"].AsString)
             .ToList();
-    }
-
-    /// <summary>
-    /// Strips punctuation and collapses whitespace so comparison focuses on words.
-    /// </summary>
-    private static string NormalizeForComparison(string text)
-    {
-        var sb = new System.Text.StringBuilder(text.Length);
-        bool lastWasSpace = true;
-        foreach (char c in text.ToLowerInvariant())
-        {
-            if (char.IsLetterOrDigit(c))
-            {
-                sb.Append(c);
-                lastWasSpace = false;
-            }
-            else if (!lastWasSpace)
-            {
-                sb.Append(' ');
-                lastWasSpace = true;
-            }
-        }
-        return sb.ToString().TrimEnd();
-    }
-
-    /// <summary>
-    /// Levenshtein-based similarity ratio (0.0–1.0). Uses two-row rolling array
-    /// to keep memory O(n) instead of O(m*n).
-    /// </summary>
-    private static double CalculateSimilarity(string s1, string s2)
-    {
-        if (s1 == s2) return 1.0;
-        if (s1.Length == 0 || s2.Length == 0) return 0.0;
-
-        int[] prev = new int[s2.Length + 1];
-        int[] curr = new int[s2.Length + 1];
-
-        for (int j = 0; j <= s2.Length; j++) prev[j] = j;
-
-        for (int i = 1; i <= s1.Length; i++)
-        {
-            curr[0] = i;
-            for (int j = 1; j <= s2.Length; j++)
-            {
-                int cost = s1[i - 1] == s2[j - 1] ? 0 : 1;
-                curr[j] = Math.Min(
-                    Math.Min(curr[j - 1] + 1, prev[j] + 1),
-                    prev[j - 1] + cost);
-            }
-            (prev, curr) = (curr, prev);
-        }
-
-        int distance = prev[s2.Length];
-        return 1.0 - (double)distance / Math.Max(s1.Length, s2.Length);
     }
 
     public async Task<List<Quotation>> TextSearchAsync(
