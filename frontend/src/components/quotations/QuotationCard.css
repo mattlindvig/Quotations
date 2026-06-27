@@ -211,13 +211,13 @@
 
 .favorite-btn:hover {
   color: var(--color-accent);
-  border-color: #e8a0aa;
+  border-color: var(--color-accent-border);
   background: var(--color-accent-light);
 }
 
 .favorite-btn.favorited {
   color: var(--color-accent);
-  border-color: #e8a0aa;
+  border-color: var(--color-accent-border);
   background: var(--color-accent-light);
 }
 

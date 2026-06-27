@@ -18,6 +18,8 @@
   --color-accent-hover: #6d1e2b;
   --color-header-bg:    #1e1a16;
   --color-header-text:  #f5f0eb;
+  --color-surface-dark: #3e3028;   /* warm dark surface, lighter than header — used for QOTD */
+  --color-accent-border: #e8a0aa; /* light accent pink for active/favorited states */
 
   font-family: var(--font-sans);
   line-height: 1.5;

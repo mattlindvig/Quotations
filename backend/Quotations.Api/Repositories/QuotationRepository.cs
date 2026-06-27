@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Driver;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Quotations.Api.Models;
 using Quotations.Api.Services;
@@ -12,19 +13,22 @@ using AiReviewStatusEnum = Quotations.Api.Models.AiReviewStatus;
 
 namespace Quotations.Api.Repositories;
 
-/// <summary>
-/// MongoDB implementation of quotation repository
-/// </summary>
 public class QuotationRepository : IQuotationRepository
 {
     private readonly IMongoCollection<Quotation> _quotations;
     private readonly MeilisearchService _meilisearch;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<QuotationRepository> _logger;
 
-    public QuotationRepository(MongoDbService mongoDbService, MeilisearchService meilisearch, ILogger<QuotationRepository> logger)
+    private static readonly TimeSpan AuthorCacheTtl = TimeSpan.FromHours(1);
+    private static readonly TimeSpan TagCacheTtl    = TimeSpan.FromHours(1);
+    private static readonly TimeSpan CountCacheTtl  = TimeSpan.FromMinutes(5);
+
+    public QuotationRepository(MongoDbService mongoDbService, MeilisearchService meilisearch, IMemoryCache cache, ILogger<QuotationRepository> logger)
     {
         _quotations = mongoDbService.GetCollection<Quotation>("quotations");
         _meilisearch = meilisearch;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -349,6 +353,12 @@ public class QuotationRepository : IQuotationRepository
 
     public async Task<List<(string Tag, int Count)>> GetTagsWithCountsAsync(int? limit = null, string? authorName = null, SourceType? sourceType = null, int? maxCount = null)
     {
+        // Cache only the unfiltered default call — filtered calls are infrequent and vary widely
+        bool isDefaultCall = string.IsNullOrEmpty(authorName) && !sourceType.HasValue && !maxCount.HasValue;
+        var cacheKey = $"tags:{limit}";
+        if (isDefaultCall && _cache.TryGetValue(cacheKey, out List<(string, int)>? cachedTags) && cachedTags != null)
+            return cachedTags;
+
         var matchDoc = new BsonDocument("status", "Approved");
         if (!string.IsNullOrEmpty(authorName))
             matchDoc.Add("author.name", authorName);
@@ -381,10 +391,15 @@ public class QuotationRepository : IQuotationRepository
 
         var results = await _quotations.Aggregate<BsonDocument>(pipelineStages).ToListAsync();
 
-        return results.Select(doc => (
+        var tags = results.Select(doc => (
             Tag: doc["_id"].AsString,
             Count: doc["count"].AsInt32
         )).ToList();
+
+        if (isDefaultCall)
+            _cache.Set(cacheKey, tags, TagCacheTtl);
+
+        return tags;
     }
 
     /// <summary>
@@ -489,14 +504,23 @@ public class QuotationRepository : IQuotationRepository
 
     public async Task<Quotation?> GetRandomQuotationAsync()
     {
-        // $match → $sample materialises ALL matched docs before sampling, which hangs on large
-        // collections. Random-skip uses the status index for both Count and Find — much faster.
         var filter = Builders<Quotation>.Filter.Eq(q => q.Status, QuotationStatus.Approved);
-        var count = await _quotations.CountDocumentsAsync(filter);
+        var count = await GetApprovedCountAsync(filter);
         if (count == 0) return null;
 
         var skip = (int)Random.Shared.NextInt64(0, count);
         return await _quotations.Find(filter).Skip(skip).Limit(1).FirstOrDefaultAsync();
+    }
+
+    private async Task<long> GetApprovedCountAsync(FilterDefinition<Quotation> filter)
+    {
+        const string key = "count:Approved";
+        if (_cache.TryGetValue(key, out long cached))
+            return cached;
+
+        var count = await _quotations.CountDocumentsAsync(filter);
+        _cache.Set(key, count, CountCacheTtl);
+        return count;
     }
 
     public async Task<bool> UpdateAiReviewAsync(string quotationId, AiReview aiReview)
@@ -538,6 +562,10 @@ public class QuotationRepository : IQuotationRepository
 
     public async Task<List<string>> GetDistinctAuthorNamesAsync(int limit = 500)
     {
+        var cacheKey = $"authors:{limit}";
+        if (_cache.TryGetValue(cacheKey, out List<string>? cached) && cached != null)
+            return cached;
+
         var pipeline = new[]
         {
             new BsonDocument("$match", new BsonDocument("author.name", new BsonDocument("$ne", ""))),
@@ -552,10 +580,13 @@ public class QuotationRepository : IQuotationRepository
         };
 
         var results = await _quotations.Aggregate<BsonDocument>(pipeline).ToListAsync();
-        return results
+        var names = results
             .Where(doc => doc.Contains("name") && doc["name"] != BsonNull.Value)
             .Select(doc => doc["name"].AsString)
             .ToList();
+
+        _cache.Set(cacheKey, names, AuthorCacheTtl);
+        return names;
     }
 
     /// <summary>
@@ -667,7 +698,9 @@ public class QuotationRepository : IQuotationRepository
             filters.Add(filterBuilder.All(q => q.Tags, tags));
 
         var filter = filterBuilder.And(filters);
-        var total = await _quotations.CountDocumentsAsync(filter);
+        var total = sourceType == null && (tags == null || tags.Count == 0)
+            ? await GetApprovedCountAsync(filter)
+            : await _quotations.CountDocumentsAsync(filter);
         if (total == 0) return new List<Quotation>();
 
         count = (int)Math.Min(count, total);
@@ -689,7 +722,9 @@ public class QuotationRepository : IQuotationRepository
                 Builders<Quotation>.Filter.Nin(q => q.Id, excludeList))
             : Builders<Quotation>.Filter.Eq(q => q.Status, QuotationStatus.Approved);
 
-        var count = await _quotations.CountDocumentsAsync(filter);
+        var count = excludeList.Count > 0
+            ? await _quotations.CountDocumentsAsync(filter)
+            : await GetApprovedCountAsync(filter);
         if (count == 0) return null;
 
         var skip = (int)Random.Shared.NextInt64(0, count);

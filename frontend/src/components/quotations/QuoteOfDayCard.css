@@ -1,5 +1,5 @@
 .qotd-card {
-  background: var(--color-header-bg);
+  background: var(--color-surface-dark);
   border: none;
   border-radius: 10px;
   padding: 24px 28px 22px;
@@ -71,7 +71,7 @@
   height: 120px;
   border-radius: 10px;
   margin-bottom: 16px;
-  background: linear-gradient(90deg, #2a2420 25%, #342e28 50%, #2a2420 75%);
+  background: linear-gradient(90deg, #4a3a30 25%, #5a4838 50%, #4a3a30 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
 }
