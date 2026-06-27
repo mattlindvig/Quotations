@@ -12,19 +12,19 @@
   font-size: 1.75rem;
   font-weight: 700;
   margin: 0 0 0.25rem;
-  color: #1e293b;
+  color: var(--color-text);
 }
 
 .random-subtitle {
-  color: #64748b;
+  color: var(--color-text-3);
   margin: 0;
   font-size: 0.95rem;
 }
 
 /* Controls */
 .random-controls {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 1.25rem 1.5rem;
   margin-bottom: 2rem;
@@ -45,7 +45,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #64748b;
+  color: var(--color-text-3);
   width: 3.5rem;
   flex-shrink: 0;
 }
@@ -62,9 +62,9 @@
 .tag-chip {
   padding: 0.3rem 0.8rem;
   border-radius: 999px;
-  border: 1.5px solid #cbd5e1;
-  background: #fff;
-  color: #475569;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-2);
   font-size: 0.82rem;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -73,27 +73,29 @@
 
 .source-chip:hover,
 .tag-chip:hover {
-  border-color: #2563eb;
-  color: #2563eb;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-light);
 }
 
-.source-chip--active {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
-}
-
+.source-chip--active,
 .tag-chip--active {
-  background: #7c3aed;
-  border-color: #7c3aed;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
   color: #fff;
+}
+
+.source-chip--active:hover,
+.tag-chip--active:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
 }
 
 /* Shuffle button */
 .shuffle-btn {
   align-self: flex-start;
   padding: 0.55rem 1.4rem;
-  background: #1e293b;
+  background: var(--color-accent);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -104,7 +106,7 @@
 }
 
 .shuffle-btn:hover:not(:disabled) {
-  background: #334155;
+  background: var(--color-accent-hover);
   transform: translateY(-1px);
 }
 
@@ -125,7 +127,7 @@
   height: 160px;
   border-radius: 10px;
   margin-bottom: 12px;
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background: linear-gradient(90deg, var(--color-border) 25%, var(--color-border-soft) 50%, var(--color-border) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
 }
@@ -139,7 +141,7 @@
 .random-empty {
   text-align: center;
   padding: 3rem 1rem;
-  color: #64748b;
+  color: var(--color-text-3);
 }
 
 .random-empty p {

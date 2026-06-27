@@ -64,7 +64,7 @@
 }
 
 .sort-select:focus {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
 

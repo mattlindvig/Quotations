@@ -222,9 +222,9 @@
 }
 
 .ai-eval-btn.active {
-  background: #e8f0fe;
-  border-color: #adc6ff;
-  color: #1a56db;
+  background: var(--color-accent-light);
+  border-color: var(--color-accent-border);
+  color: var(--color-accent);
 }
 
 .ai-eval-panel {
