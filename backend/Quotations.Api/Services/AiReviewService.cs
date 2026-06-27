@@ -67,6 +67,14 @@ public class AiReviewService
             }
 
             quotation.AiReview.Status = AiReviewStatus.Reviewed;
+            quotation.AiReview.Summary = result.Summary;
+            quotation.AiReview.IsLikelyAuthentic = result.IsLikelyAuthentic;
+            quotation.AiReview.AuthenticityReasoning = result.AuthenticityReasoning;
+            quotation.AiReview.CorrectAttribution = result.CorrectAttribution;
+            quotation.AiReview.ApproximateEra = result.ApproximateEra;
+            quotation.AiReview.Language = result.Language;
+            quotation.AiReview.QualityScore = result.QualityScore;
+            quotation.AiReview.Mood = result.Mood;
             await _quotationRepository.UpdateAiReviewAsync(quotation.Id, quotation.AiReview);
 
             await ApplyLeanResultAsync(quotation, result);

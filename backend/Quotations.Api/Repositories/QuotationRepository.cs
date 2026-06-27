@@ -697,20 +697,12 @@ public class QuotationRepository : IQuotationRepository
         if (tags != null && tags.Count > 0)
             filters.Add(filterBuilder.All(q => q.Tags, tags));
 
-        var filter = filterBuilder.And(filters);
-        var total = sourceType == null && (tags == null || tags.Count == 0)
-            ? await GetApprovedCountAsync(filter)
-            : await _quotations.CountDocumentsAsync(filter);
-        if (total == 0) return new List<Quotation>();
+        var pipeline = new EmptyPipelineDefinition<Quotation>()
+            .Match(filterBuilder.And(filters))
+            .AppendStage<Quotation, Quotation, Quotation>(
+                new BsonDocument("$sample", new BsonDocument("size", count)));
 
-        count = (int)Math.Min(count, total);
-        var positions = GenerateDistinctRandomPositions(count, (int)Math.Min(total, int.MaxValue));
-
-        var tasks = positions.Select(skip =>
-            _quotations.Find(filter).Skip(skip).Limit(1).FirstOrDefaultAsync());
-
-        var results = await Task.WhenAll(tasks);
-        return results.Where(q => q != null).ToList()!;
+        return await _quotations.Aggregate(pipeline).ToListAsync();
     }
 
     public async Task<Quotation?> GetRandomExcludingAsync(IEnumerable<string> excludeIds)
@@ -731,13 +723,6 @@ public class QuotationRepository : IQuotationRepository
         return await _quotations.Find(filter).Skip(skip).Limit(1).FirstOrDefaultAsync();
     }
 
-    private static List<int> GenerateDistinctRandomPositions(int count, int max)
-    {
-        var positions = new HashSet<int>(count);
-        while (positions.Count < count)
-            positions.Add((int)Random.Shared.NextInt64(0, max));
-        return positions.ToList();
-    }
 
     public async Task<List<Quotation>> GetByIdsAsync(IEnumerable<string> ids)
     {

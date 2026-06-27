@@ -38,12 +38,6 @@ public class AiRevision
     public List<AiFieldChange> Changes { get; set; } = new();
 }
 
-/// <summary>
-/// Minimal AI review metadata stored per quotation.
-/// All score/suggestion/authenticity fields from earlier versions are intentionally
-/// omitted — they ballooned document size without being surfaced to users.
-/// BsonIgnoreExtraElements ensures old documents with those fields still deserialize.
-/// </summary>
 [BsonIgnoreExtraElements]
 public class AiReview
 {
@@ -51,12 +45,18 @@ public class AiReview
     public AiReviewStatus Status { get; set; } = AiReviewStatus.NotReviewed;
 
     public string? ModelUsed { get; set; }
-
     public DateTime? ReviewedAt { get; set; }
-
     public int RetryCount { get; set; } = 0;
-
     public DateTime? LastAttemptAt { get; set; }
-
     public string? FailureReason { get; set; }
+
+    // Analysis fields — populated by local or cloud AI review
+    public string? Summary { get; set; }
+    public bool? IsLikelyAuthentic { get; set; }
+    public string? AuthenticityReasoning { get; set; }
+    public string? CorrectAttribution { get; set; }
+    public string? ApproximateEra { get; set; }
+    public string? Language { get; set; }
+    public int? QualityScore { get; set; }
+    public string? Mood { get; set; }
 }

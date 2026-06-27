@@ -136,6 +136,11 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
           {quotation.author.occupation && (
             <span className="author-occupation">{quotation.author.occupation}</span>
           )}
+          {quotation.aiReview?.isLikelyAuthentic === false && (
+            <span className="attribution-warning" title={quotation.aiReview.approximateEra ?? undefined}>
+              ⚠ Disputed
+            </span>
+          )}
         </div>
 
         <div className="quotation-source">
@@ -279,40 +284,69 @@ function ScoreBlock({ label, data }: { label: string; data: AiScore | null | und
   );
 }
 
+const MOOD_LABELS: Record<string, string> = {
+  inspirational: 'Inspirational', philosophical: 'Philosophical', humorous: 'Humorous',
+  melancholic: 'Melancholic', critical: 'Critical', cautionary: 'Cautionary',
+  reflective: 'Reflective', neutral: 'Neutral',
+};
+
 function AiEvaluationPanel({ aiReview }: { aiReview: AiReview }) {
   return (
     <div className="ai-eval-panel">
       <div className="ai-eval-header">
         <span className="ai-eval-title">AI Evaluation</span>
-        {aiReview.modelUsed && (
-          <span className="ai-eval-model">{aiReview.modelUsed}</span>
-        )}
+        <div className="ai-eval-header-right">
+          {aiReview.mood && (
+            <span className="ai-mood-chip">{MOOD_LABELS[aiReview.mood] ?? aiReview.mood}</span>
+          )}
+          {aiReview.modelUsed && (
+            <span className="ai-eval-model">{aiReview.modelUsed}</span>
+          )}
+        </div>
       </div>
 
       {aiReview.summary && (
         <p className="ai-eval-summary">{aiReview.summary}</p>
       )}
 
-      {(aiReview.isLikelyAuthentic !== null && aiReview.isLikelyAuthentic !== undefined) && (
-        <div className="ai-authenticity">
+      <div className="ai-eval-meta-row">
+        {(aiReview.isLikelyAuthentic !== null && aiReview.isLikelyAuthentic !== undefined) && (
           <span className={`ai-authenticity-badge ${aiReview.isLikelyAuthentic ? 'authentic' : 'misattributed'}`}>
             {aiReview.isLikelyAuthentic ? 'Likely Authentic' : 'Possibly Misattributed'}
           </span>
-          {aiReview.approximateEra && (
-            <span className="ai-era">{aiReview.approximateEra}</span>
-          )}
-        </div>
-      )}
+        )}
+        {aiReview.approximateEra && (
+          <span className="ai-era">{aiReview.approximateEra}</span>
+        )}
+        {aiReview.language && aiReview.language !== 'en' && (
+          <span className="ai-language">{aiReview.language.toUpperCase()}</span>
+        )}
+        {aiReview.qualityScore != null && (
+          <span className="ai-quality" title={`Significance: ${aiReview.qualityScore}/5`}>
+            {Array.from({ length: 5 }, (_, i) => (
+              <span key={i} className={i < aiReview.qualityScore! ? 'ai-quality-dot filled' : 'ai-quality-dot'} />
+            ))}
+          </span>
+        )}
+      </div>
 
       {aiReview.authenticityReasoning && (
         <p className="ai-authenticity-reasoning">{aiReview.authenticityReasoning}</p>
       )}
 
-      <div className="ai-scores">
-        <ScoreBlock label="Quote Accuracy"  data={aiReview.quoteAccuracy} />
-        <ScoreBlock label="Attribution"     data={aiReview.attributionAccuracy} />
-        <ScoreBlock label="Source"          data={aiReview.sourceAccuracy} />
-      </div>
+      {aiReview.correctAttribution && (
+        <p className="ai-correct-attribution">
+          <strong>Likely attribution:</strong> {aiReview.correctAttribution}
+        </p>
+      )}
+
+      {(aiReview.quoteAccuracy || aiReview.attributionAccuracy || aiReview.sourceAccuracy) && (
+        <div className="ai-scores">
+          <ScoreBlock label="Quote Accuracy"  data={aiReview.quoteAccuracy} />
+          <ScoreBlock label="Attribution"     data={aiReview.attributionAccuracy} />
+          <ScoreBlock label="Source"          data={aiReview.sourceAccuracy} />
+        </div>
+      )}
 
       {aiReview.knownVariants && aiReview.knownVariants.length > 0 && (
         <div className="ai-variants">

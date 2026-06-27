@@ -42,15 +42,18 @@ export interface AiReview {
   attributionAccuracy?: AiScore | null;
   sourceAccuracy?: AiScore | null;
   summary?: string | null;
-  suggestedTags: string[];
+  suggestedTags?: string[];
   isLikelyAuthentic?: boolean | null;
   authenticityReasoning?: string | null;
+  correctAttribution?: string | null;
   approximateEra?: string | null;
   knownVariants?: string[];
+  language?: string | null;
+  qualityScore?: number | null;
+  mood?: string | null;
 }
 
 // Slim AI review — returned by list/search/random-batch endpoints.
-// Omits reasoning, citations, and suggested values; fetch GET /quotations/:id for full detail.
 export interface AiReviewSummary {
   status: AiReviewStatus;
   modelUsed?: string | null;
@@ -58,9 +61,9 @@ export interface AiReviewSummary {
   summary?: string | null;
   isLikelyAuthentic?: boolean | null;
   approximateEra?: string | null;
-  quoteAccuracyScore?: number | null;
-  attributionAccuracyScore?: number | null;
-  sourceAccuracyScore?: number | null;
+  language?: string | null;
+  qualityScore?: number | null;
+  mood?: string | null;
 }
 
 // Slim quotation returned by list/search/random-batch/favorites endpoints

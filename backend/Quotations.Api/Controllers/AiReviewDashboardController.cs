@@ -455,5 +455,90 @@ public class AiReviewDashboardController : ControllerBase
     }
 }
 
+    /// <summary>
+    /// Fetch a batch of unreviewed quotations for local AI processing.
+    /// </summary>
+    [HttpGet("local/batch")]
+    public async Task<IActionResult> GetLocalBatch([FromQuery] int size = 50)
+    {
+        size = Math.Clamp(size, 1, 200);
+        var quotations = await _quotations.GetPendingAiReviewsAsync(size);
+        return Ok(new
+        {
+            success = true,
+            data = quotations.Select(q => new
+            {
+                id = q.Id,
+                text = q.Text,
+                authorName = q.Author.Name,
+                sourceTitle = q.Source.Title,
+                sourceType = q.Source.Type.ToString(),
+                tags = q.Tags
+            })
+        });
+    }
+
+    /// <summary>
+    /// Submit the result of a local AI review for a single quotation.
+    /// </summary>
+    [HttpPost("local/{id}/result")]
+    public async Task<IActionResult> SubmitLocalResult(string id, [FromBody] LocalReviewResultRequest req)
+    {
+        var quotation = await _quotations.GetQuotationByIdAsync(id);
+        if (quotation == null)
+            return NotFound(new { success = false, error = "Quotation not found" });
+
+        var result = new LeanReviewResult(
+            req.Tags ?? new List<string>(),
+            req.Author, req.Source, req.SourceType, req.Text,
+            req.Reject,
+            req.ModelUsed ?? "local",
+            req.Summary, req.IsLikelyAuthentic, req.AuthenticityReasoning,
+            req.CorrectAttribution, req.ApproximateEra, req.Language,
+            req.QualityScore, req.Mood);
+
+        if (req.Reject)
+        {
+            await _quotations.DeleteQuotationAsync(id);
+            _logger.LogInformation("Local review rejected and deleted {Id}", id);
+            return Ok(new { success = true, data = new { action = "deleted" } });
+        }
+
+        quotation.AiReview.Status = AiReviewStatus.Reviewed;
+        quotation.AiReview.ModelUsed = req.ModelUsed ?? "local";
+        quotation.AiReview.ReviewedAt = DateTime.UtcNow;
+        quotation.AiReview.LastAttemptAt = DateTime.UtcNow;
+        quotation.AiReview.Summary = req.Summary;
+        quotation.AiReview.IsLikelyAuthentic = req.IsLikelyAuthentic;
+        quotation.AiReview.AuthenticityReasoning = req.AuthenticityReasoning;
+        quotation.AiReview.CorrectAttribution = req.CorrectAttribution;
+        quotation.AiReview.ApproximateEra = req.ApproximateEra;
+        quotation.AiReview.Language = req.Language;
+        quotation.AiReview.QualityScore = req.QualityScore;
+        quotation.AiReview.Mood = req.Mood;
+        await _quotations.UpdateAiReviewAsync(id, quotation.AiReview);
+
+        await _aiReviewService.ApplyLeanResultAsync(quotation, result);
+
+        return Ok(new { success = true, data = new { action = "reviewed" } });
+    }
+}
+
 public record SetAutoEnqueueRequest(bool Enabled);
 public record SetAutoProcessingRequest(bool Enabled);
+public record LocalReviewResultRequest(
+    List<string>? Tags,
+    string? Author,
+    string? Source,
+    string? SourceType,
+    string? Text,
+    bool Reject,
+    string? ModelUsed,
+    string? Summary,
+    bool? IsLikelyAuthentic,
+    string? AuthenticityReasoning,
+    string? CorrectAttribution,
+    string? ApproximateEra,
+    string? Language,
+    int? QualityScore,
+    string? Mood);

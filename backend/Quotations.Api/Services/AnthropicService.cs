@@ -21,7 +21,7 @@ public record BatchStatusResult(string AnthropicBatchId, string ProcessingStatus
 public record BatchMessageResult(string CustomId, bool Succeeded, string? ContentText, string? ErrorType);
 
 /// <summary>
-/// Result of a lean single-pass review: tags to merge and field corrections (null = no change).
+/// Result of a lean single-pass review: tags, field corrections, and analysis metadata.
 /// </summary>
 public record LeanReviewResult(
     List<string> Tags,
@@ -30,7 +30,15 @@ public record LeanReviewResult(
     string? SourceType,
     string? Text,
     bool Reject,
-    string ModelUsed);
+    string ModelUsed,
+    string? Summary = null,
+    bool? IsLikelyAuthentic = null,
+    string? AuthenticityReasoning = null,
+    string? CorrectAttribution = null,
+    string? ApproximateEra = null,
+    string? Language = null,
+    int? QualityScore = null,
+    string? Mood = null);
 
 public interface IAnthropicService
 {
@@ -113,9 +121,17 @@ public class AnthropicService : IAnthropicService
             "   Return null if the current type is already correct.\n\n" +
             "5. If the quote text has a clear wording error vs. the widely-known canonical version — provide the corrected text.\n\n" +
             "6. Set reject=true if the text is NOT a real quotation (episode list, file metadata, navigation text, raw HTML, etc.).\n\n" +
+            "7. Write a one-sentence summary of the quote's core idea (summary).\n\n" +
+            "8. Assess authenticity: set isLikelyAuthentic=true if correctly attributed, false if likely misattributed, null if genuinely uncertain. Explain briefly in authenticityReasoning. If misattributed, give the likely correct attribution in correctAttribution.\n\n" +
+            "9. Estimate when the quote originates (approximateEra): \"ancient\", \"medieval\", \"17th century\", \"18th century\", \"19th century\", \"early 20th century\", \"mid 20th century\", \"late 20th century\", \"21st century\", or null.\n\n" +
+            "10. Detect the language as an ISO 639-1 code (language): \"en\", \"fr\", \"de\", \"es\", etc.\n\n" +
+            "11. Rate significance and memorability 1–5 (qualityScore): 1=trivial, 2=minor, 3=notable, 4=memorable, 5=iconic.\n\n" +
+            "12. Identify the dominant tone (mood): \"inspirational\", \"philosophical\", \"humorous\", \"melancholic\", \"critical\", \"cautionary\", \"reflective\", or \"neutral\".\n\n" +
             "Rules: Set a field to null if no change is needed. Only correct text if highly confident.\n\n" +
             "Respond ONLY with valid JSON:\n" +
-            "{\"tags\":[\"tag1\"],\"author\":null,\"source\":null,\"sourceType\":null,\"text\":null,\"reject\":false}";
+            "{\"tags\":[\"tag1\"],\"author\":null,\"source\":null,\"sourceType\":null,\"text\":null,\"reject\":false," +
+            "\"summary\":\"One-sentence theme.\",\"isLikelyAuthentic\":true,\"authenticityReasoning\":\"Brief explanation.\"," +
+            "\"correctAttribution\":null,\"approximateEra\":\"20th century\",\"language\":\"en\",\"qualityScore\":4,\"mood\":\"inspirational\"}";
     }
 
     private static string BuildQuoteContext(
@@ -213,7 +229,22 @@ public class AnthropicService : IAnthropicService
             bool reject = root.TryGetProperty("reject", out var rejectEl)
                 && rejectEl.ValueKind == JsonValueKind.True;
 
-            return new LeanReviewResult(tags, author, source, sourceType, text, reject, modelUsed);
+            string? summary              = GetNullableString(root, "summary");
+            bool? isLikelyAuthentic      = root.TryGetProperty("isLikelyAuthentic", out var authEl)
+                && authEl.ValueKind != JsonValueKind.Null
+                ? authEl.GetBoolean() : (bool?)null;
+            string? authenticityReasoning = GetNullableString(root, "authenticityReasoning");
+            string? correctAttribution    = GetNullableString(root, "correctAttribution");
+            string? approximateEra        = GetNullableString(root, "approximateEra");
+            string? language              = GetNullableString(root, "language");
+            int? qualityScore             = root.TryGetProperty("qualityScore", out var qsEl)
+                && qsEl.ValueKind == JsonValueKind.Number
+                ? qsEl.GetInt32() : (int?)null;
+            string? mood                  = GetNullableString(root, "mood");
+
+            return new LeanReviewResult(tags, author, source, sourceType, text, reject, modelUsed,
+                summary, isLikelyAuthentic, authenticityReasoning, correctAttribution,
+                approximateEra, language, qualityScore, mood);
         }
         catch (Exception ex)
         {
