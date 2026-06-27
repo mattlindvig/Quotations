@@ -15,50 +15,12 @@ public static class MongoIndexes
         // covers plain status-only queries.
         var quotationIndexes = new[]
         {
-            // text_search_idx (text, author.name, source.title) was removed — replaced by Meilisearch.
-            // Drop it manually on the live DB: db.quotations.dropIndex('text_search_idx')
-
             // Default browse: filter by status, sort newest-first
             new CreateIndexModel<object>(
                 Builders<object>.IndexKeys
                     .Ascending("status")
                     .Descending("submittedAt"),
                 new CreateIndexOptions { Name = "status_date_idx" }
-            ),
-
-            // Author filter + default sort (also covers status-only queries via prefix)
-            new CreateIndexModel<object>(
-                Builders<object>.IndexKeys
-                    .Ascending("status")
-                    .Ascending("author.name")
-                    .Descending("submittedAt"),
-                new CreateIndexOptions { Name = "status_author_date_idx" }
-            ),
-
-            // Source type filter + default sort
-            new CreateIndexModel<object>(
-                Builders<object>.IndexKeys
-                    .Ascending("status")
-                    .Ascending("source.type")
-                    .Descending("submittedAt"),
-                new CreateIndexOptions { Name = "status_sourcetype_date_idx" }
-            ),
-
-            // Source title filter
-            new CreateIndexModel<object>(
-                Builders<object>.IndexKeys
-                    .Ascending("status")
-                    .Ascending("source.title"),
-                new CreateIndexOptions { Name = "status_sourcetitle_idx" }
-            ),
-
-            // Tag filter + default sort (multikey index — one entry per tag value)
-            new CreateIndexModel<object>(
-                Builders<object>.IndexKeys
-                    .Ascending("status")
-                    .Ascending("tags")
-                    .Descending("submittedAt"),
-                new CreateIndexOptions { Name = "status_tags_date_idx" }
             ),
 
             // AI review queue — background service picks up NotReviewed/Pending, oldest first

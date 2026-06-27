@@ -24,14 +24,21 @@ public class MeilisearchService
         int page,
         int pageSize,
         string status = "Approved",
+        string? authorName = null,
         string? sourceType = null,
+        string? sourceTitle = null,
         List<string>? tags = null,
         int? yearFrom = null,
-        int? yearTo = null)
+        int? yearTo = null,
+        string? sortBy = null)
     {
         var filters = new List<string> { $"status = \"{Escape(status)}\"" };
+        if (!string.IsNullOrEmpty(authorName))
+            filters.Add($"authorName = \"{Escape(authorName)}\"");
         if (!string.IsNullOrEmpty(sourceType))
             filters.Add($"sourceType = \"{Escape(sourceType)}\"");
+        if (!string.IsNullOrEmpty(sourceTitle))
+            filters.Add($"sourceTitle = \"{Escape(sourceTitle)}\"");
         if (tags != null)
             foreach (var tag in tags)
                 filters.Add($"tags = \"{Escape(tag)}\"");
@@ -47,6 +54,18 @@ public class MeilisearchService
             Filter = string.Join(" AND ", filters),
             AttributesToRetrieve = new[] { "id" },
         };
+
+        // Sort only for filter-browse (empty query); text search uses relevance ranking
+        if (string.IsNullOrWhiteSpace(query) && sortBy != null)
+        {
+            sq.Sort = sortBy switch
+            {
+                "oldest" => new[] { "submittedAt:asc" },
+                "author" => new[] { "authorName:asc" },
+                "year"   => new[] { "year:desc" },
+                _        => new[] { "submittedAt:desc" },
+            };
+        }
 
         var result = await _client.Index(IndexName).SearchAsync<SearchHit>(query, sq);
         var ids = result.Hits.Select(h => h.Id).Where(id => !string.IsNullOrEmpty(id)).ToList();
@@ -68,7 +87,8 @@ public class MeilisearchService
     {
         var index = _client.Index(IndexName);
         await index.UpdateSearchableAttributesAsync(new[] { "text", "authorName", "sourceTitle" });
-        await index.UpdateFilterableAttributesAsync(new[] { "status", "sourceType", "tags", "year" });
+        await index.UpdateFilterableAttributesAsync(new[] { "status", "sourceType", "tags", "year", "authorName", "sourceTitle" });
+        await index.UpdateSortableAttributesAsync(new[] { "submittedAt", "authorName", "year" });
     }
 
     private static string Escape(string val) => val.Replace("\\", "\\\\").Replace("\"", "\\\"");
@@ -105,4 +125,7 @@ public class MeiliQuotationDoc
 
     [JsonPropertyName("year")]
     public int? Year { get; set; }
+
+    [JsonPropertyName("submittedAt")]
+    public long SubmittedAt { get; set; }
 }

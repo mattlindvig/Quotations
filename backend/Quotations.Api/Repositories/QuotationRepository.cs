@@ -41,18 +41,52 @@ public class QuotationRepository : IQuotationRepository
         int? yearFrom = null,
         int? yearTo = null)
     {
-        var filterBuilder = Builders<Quotation>.Filter;
-        var filters = new List<FilterDefinition<Quotation>>();
+        var effectiveStatus = status ?? QuotationStatus.Approved;
 
-        // Apply status filter (default to approved if not specified)
-        if (status.HasValue)
+        // Route filter-browse through Meilisearch when any filter beyond status is present.
+        // Meilisearch only holds Approved docs, so fall back to MongoDB for other statuses.
+        bool hasFilter = !string.IsNullOrEmpty(authorName) ||
+                         !string.IsNullOrEmpty(sourceTitle) ||
+                         sourceType.HasValue ||
+                         (tags != null && tags.Any()) ||
+                         yearFrom.HasValue || yearTo.HasValue;
+
+        if (_meilisearch.Enabled && effectiveStatus == QuotationStatus.Approved && hasFilter)
         {
-            filters.Add(filterBuilder.Eq(q => q.Status, status.Value));
+            try
+            {
+                var (ids, total) = await _meilisearch.SearchAsync(
+                    "", page, pageSize,
+                    status: effectiveStatus.ToString(),
+                    authorName: authorName,
+                    sourceType: sourceType?.ToString(),
+                    sourceTitle: sourceTitle,
+                    tags: tags,
+                    yearFrom: yearFrom,
+                    yearTo: yearTo,
+                    sortBy: sortBy ?? "newest");
+
+                if (ids.Count == 0)
+                    return (new List<Quotation>(), total);
+
+                var fetchFilter = Builders<Quotation>.Filter.In(q => q.Id, ids);
+                var fetched = await _quotations.Find(fetchFilter).ToListAsync();
+                var rank = ids.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
+                fetched.Sort((a, b) => rank.GetValueOrDefault(a.Id, int.MaxValue)
+                    .CompareTo(rank.GetValueOrDefault(b.Id, int.MaxValue)));
+                return (fetched, total);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Meilisearch filter-browse failed, falling back to MongoDB");
+            }
         }
-        else
+
+        var filterBuilder = Builders<Quotation>.Filter;
+        var filters = new List<FilterDefinition<Quotation>>
         {
-            filters.Add(filterBuilder.Eq(q => q.Status, QuotationStatus.Approved));
-        }
+            filterBuilder.Eq(q => q.Status, effectiveStatus)
+        };
 
         // Apply author filter — prefer name (works for imported quotes with empty id)
         if (!string.IsNullOrEmpty(authorName))
@@ -66,21 +100,15 @@ public class QuotationRepository : IQuotationRepository
 
         // Apply source type filter
         if (sourceType.HasValue)
-        {
             filters.Add(filterBuilder.Eq(q => q.Source.Type, sourceType.Value));
-        }
 
         // Apply source title filter
         if (!string.IsNullOrEmpty(sourceTitle))
-        {
             filters.Add(filterBuilder.Eq(q => q.Source.Title, sourceTitle));
-        }
 
         // Apply tags filter (quotation must have all specified tags)
         if (tags != null && tags.Any())
-        {
             filters.Add(filterBuilder.All(q => q.Tags, tags));
-        }
 
         // Apply year range filters
         if (yearFrom.HasValue)
@@ -88,14 +116,10 @@ public class QuotationRepository : IQuotationRepository
         if (yearTo.HasValue)
             filters.Add(filterBuilder.Lte(q => q.Source.Year, yearTo.Value));
 
-        var combinedFilter = filters.Any()
-            ? filterBuilder.And(filters)
-            : filterBuilder.Empty;
+        var combinedFilter = filterBuilder.And(filters);
 
-        // Get total count
         var totalCount = await _quotations.CountDocumentsAsync(combinedFilter);
 
-        // Get paginated results
         var sortDefinition = sortBy switch
         {
             "oldest" => Builders<Quotation>.Sort.Ascending(q => q.SubmittedAt),
@@ -148,6 +172,7 @@ public class QuotationRepository : IQuotationRepository
                 var (ids, total) = await _meilisearch.SearchAsync(
                     searchText, page, pageSize,
                     status: effectiveStatus.ToString(),
+                    authorName: authorName,
                     sourceType: sourceType?.ToString(),
                     tags: tags,
                     yearFrom: yearFrom,
@@ -156,13 +181,9 @@ public class QuotationRepository : IQuotationRepository
                 if (ids.Count == 0)
                     return (new List<Quotation>(), total);
 
-                var fb2 = Builders<Quotation>.Filter;
-                var fetchFilters = new List<FilterDefinition<Quotation>> { fb2.In(q => q.Id, ids) };
-                if (!string.IsNullOrWhiteSpace(authorName))
-                    fetchFilters.Add(fb2.Regex(q => q.Author.Name,
-                        new BsonRegularExpression(Regex.Escape(authorName), "i")));
-
-                var items = await _quotations.Find(fb2.And(fetchFilters)).ToListAsync();
+                var items = await _quotations
+                    .Find(Builders<Quotation>.Filter.In(q => q.Id, ids))
+                    .ToListAsync();
 
                 // Restore Meilisearch relevance order
                 var rank = ids.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
