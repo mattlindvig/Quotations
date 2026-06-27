@@ -453,7 +453,6 @@ public class AiReviewDashboardController : ControllerBase
             }
         });
     }
-}
 
     /// <summary>
     /// Fetch a batch of unreviewed quotations for local AI processing.
