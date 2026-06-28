@@ -59,7 +59,7 @@ public class QuotationRepository : IQuotationRepository
         {
             try
             {
-                var (ids, total) = await _meilisearch.SearchAsync(
+                var (hits, total) = await _meilisearch.SearchAsync(
                     "", page, pageSize,
                     status: effectiveStatus.ToString(),
                     authorName: authorName,
@@ -70,15 +70,10 @@ public class QuotationRepository : IQuotationRepository
                     yearTo: yearTo,
                     sortBy: sortBy ?? "newest");
 
-                if (ids.Count == 0)
+                if (hits.Count == 0)
                     return (new List<Quotation>(), total);
 
-                var fetchFilter = Builders<Quotation>.Filter.In(q => q.Id, ids);
-                var fetched = await _quotations.Find(fetchFilter).ToListAsync();
-                var rank = ids.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
-                fetched.Sort((a, b) => rank.GetValueOrDefault(a.Id, int.MaxValue)
-                    .CompareTo(rank.GetValueOrDefault(b.Id, int.MaxValue)));
-                return (fetched, total);
+                return (hits.Select(ToQuotation).ToList(), total);
             }
             catch (Exception ex)
             {
@@ -173,7 +168,7 @@ public class QuotationRepository : IQuotationRepository
         {
             try
             {
-                var (ids, total) = await _meilisearch.SearchAsync(
+                var (hits, total) = await _meilisearch.SearchAsync(
                     searchText, page, pageSize,
                     status: effectiveStatus.ToString(),
                     authorName: authorName,
@@ -182,20 +177,10 @@ public class QuotationRepository : IQuotationRepository
                     yearFrom: yearFrom,
                     yearTo: yearTo);
 
-                if (ids.Count == 0)
+                if (hits.Count == 0)
                     return (new List<Quotation>(), total);
 
-                var items = await _quotations
-                    .Find(Builders<Quotation>.Filter.In(q => q.Id, ids))
-                    .ToListAsync();
-
-                // Restore Meilisearch relevance order
-                var rank = ids.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
-                items.Sort((a, b) =>
-                    rank.GetValueOrDefault(a.Id, int.MaxValue)
-                        .CompareTo(rank.GetValueOrDefault(b.Id, int.MaxValue)));
-
-                return (items, total);
+                return (hits.Select(ToQuotation).ToList(), total);
             }
             catch (Exception ex)
             {
@@ -652,13 +637,10 @@ public class QuotationRepository : IQuotationRepository
         {
             try
             {
-                var (ids, _) = await _meilisearch.SearchAsync(
+                var (hits, _) = await _meilisearch.SearchAsync(
                     searchText, page: 1, pageSize: limit, status: status.ToString());
-                if (ids.Count > 0)
-                    return await _quotations
-                        .Find(Builders<Quotation>.Filter.In(q => q.Id, ids))
-                        .Limit(limit)
-                        .ToListAsync();
+                if (hits.Count > 0)
+                    return hits.Select(ToQuotation).ToList();
             }
             catch { }
         }
@@ -679,6 +661,22 @@ public class QuotationRepository : IQuotationRepository
             return items;
         }
     }
+
+    private static Quotation ToQuotation(MeiliQuotationDoc doc) => new()
+    {
+        Id = doc.Id,
+        Text = doc.Text,
+        Author = new AuthorReference { Name = doc.AuthorName },
+        Source = new SourceReference
+        {
+            Title = doc.SourceTitle,
+            Type = Enum.TryParse<SourceType>(doc.SourceType, true, out var st) ? st : SourceType.Other,
+            Year = doc.Year,
+        },
+        Tags = doc.Tags,
+        Status = QuotationStatus.Approved,
+        SubmittedAt = DateTimeOffset.FromUnixTimeMilliseconds(doc.SubmittedAt).UtcDateTime,
+    };
 
     public async Task<List<Quotation>> GetRandomBatchAsync(
         int count,

@@ -19,7 +19,7 @@ public class MeilisearchService
         _client = new MeilisearchClient(_settings.Url, _settings.ApiKey);
     }
 
-    public async Task<(List<string> Ids, long TotalCount)> SearchAsync(
+    public async Task<(List<MeiliQuotationDoc> Hits, long TotalCount)> SearchAsync(
         string query,
         int page,
         int pageSize,
@@ -52,7 +52,6 @@ public class MeilisearchService
             Offset = (page - 1) * pageSize,
             Limit = pageSize,
             Filter = string.Join(" AND ", filters),
-            AttributesToRetrieve = new[] { "id" },
         };
 
         // Sort only for filter-browse (empty query); text search uses relevance ranking
@@ -67,10 +66,10 @@ public class MeilisearchService
             };
         }
 
-        var result = await _client.Index(IndexName).SearchAsync<SearchHit>(query, sq);
-        var ids = result.Hits.Select(h => h.Id).Where(id => !string.IsNullOrEmpty(id)).ToList();
-        var total = (result as Meilisearch.SearchResult<SearchHit>)?.EstimatedTotalHits ?? (long)ids.Count;
-        return (ids, total);
+        var result = await _client.Index(IndexName).SearchAsync<MeiliQuotationDoc>(query, sq);
+        var hits = result.Hits.Where(h => !string.IsNullOrEmpty(h.Id)).ToList();
+        var total = (result as Meilisearch.SearchResult<MeiliQuotationDoc>)?.EstimatedTotalHits ?? (long)hits.Count;
+        return (hits, total);
     }
 
     public async Task IndexDocumentsAsync(IEnumerable<MeiliQuotationDoc> docs)
@@ -93,11 +92,6 @@ public class MeilisearchService
 
     private static string Escape(string val) => val.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
-    private sealed class SearchHit
-    {
-        [JsonPropertyName("id")]
-        public string Id { get; set; } = "";
-    }
 }
 
 public class MeiliQuotationDoc
