@@ -162,133 +162,16 @@ public class QuotationRepository : IQuotationRepository
     {
         var effectiveStatus = status ?? QuotationStatus.Approved;
 
-        // Meilisearch path: faster, relevance-ranked, no RAM overhead of MongoDB text index
-        _logger.LogInformation("Search: meilisearch enabled={Enabled}, query='{Query}'", _meilisearch.Enabled, searchText);
-        if (_meilisearch.Enabled && !string.IsNullOrWhiteSpace(searchText))
-        {
-            try
-            {
-                var (hits, total) = await _meilisearch.SearchAsync(
-                    searchText, page, pageSize,
-                    status: effectiveStatus.ToString(),
-                    authorName: authorName,
-                    sourceType: sourceType?.ToString(),
-                    tags: tags,
-                    yearFrom: yearFrom,
-                    yearTo: yearTo);
+        var (hits, total) = await _meilisearch.SearchAsync(
+            searchText, page, pageSize,
+            status: effectiveStatus.ToString(),
+            authorName: authorName,
+            sourceType: sourceType?.ToString(),
+            tags: tags,
+            yearFrom: yearFrom,
+            yearTo: yearTo);
 
-                if (hits.Count == 0)
-                    return (new List<Quotation>(), total);
-
-                return (hits.Select(ToQuotation).ToList(), total);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Meilisearch search failed, falling back to MongoDB $text");
-            }
-        }
-
-        var fb = Builders<Quotation>.Filter;
-
-        // Non-text filters (same for both the $text and regex paths)
-        var baseFilters = new List<FilterDefinition<Quotation>>
-        {
-            fb.Eq(q => q.Status, effectiveStatus)
-        };
-        if (!string.IsNullOrWhiteSpace(authorName))
-            baseFilters.Add(fb.Regex(q => q.Author.Name, new BsonRegularExpression(Regex.Escape(authorName), "i")));
-        if (sourceType.HasValue)
-            baseFilters.Add(fb.Eq(q => q.Source.Type, sourceType.Value));
-        if (tags != null && tags.Count > 0)
-            baseFilters.Add(fb.All(q => q.Tags, tags));
-        if (yearFrom.HasValue)
-            baseFilters.Add(fb.Gte(q => q.Source.Year, yearFrom.Value));
-        if (yearTo.HasValue)
-            baseFilters.Add(fb.Lte(q => q.Source.Year, yearTo.Value));
-
-        var baseFilter = fb.And(baseFilters);
-
-        // Word-AND search: every meaningful word must appear somewhere in the document.
-        // Stopwords (is, a, the, …) are stripped so they don't inflate result counts.
-        // Each remaining token is quoted individually in the $text expression — MongoDB
-        // treats multiple quoted single-word phrases as AND, not OR.
-        // Falls back to a substring regex if the text index isn't ready.
-        try
-        {
-            var wordAndQuery = BuildWordAndQuery(searchText);
-            var textFilter = fb.And(
-                fb.Text(wordAndQuery, new TextSearchOptions { Language = "none" }),
-                baseFilter
-            );
-            return await ExecuteSearchAsync(textFilter, page, pageSize, sortByRelevance: true);
-        }
-        catch (MongoCommandException ex) when (ex.Code == 27)
-        {
-            var regexFilter = fb.And(BuildPhraseRegexFilter(fb, searchText), baseFilter);
-            return await ExecuteSearchAsync(regexFilter, page, pageSize);
-        }
-    }
-
-    // High-frequency words that appear in virtually every sentence and add no search value.
-    // Intentionally excludes meaningful negations: not, no, never, nor, neither, nothing.
-    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "a", "an", "the",
-        "is", "are", "was", "were", "be", "been", "being", "am",
-        "do", "does", "did", "have", "has", "had", "will", "would", "could", "should",
-        "to", "of", "in", "at", "by", "for", "as", "on", "up", "out", "with", "from",
-        "it", "its", "i", "my", "me", "we", "our", "us",
-        "you", "your", "he", "she", "his", "her", "they", "their", "them",
-        "and", "or", "but", "so", "if", "than", "that", "this", "these", "those",
-        "which", "who", "whom", "what", "when", "where", "how",
-    };
-
-    // Transforms a free-text query into a MongoDB $text word-AND expression.
-    // Each meaningful token is quoted so MongoDB requires it (AND), not just scores it (OR).
-    private static string BuildWordAndQuery(string searchText)
-    {
-        var tokens = searchText
-            .Trim()
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Where(t => !StopWords.Contains(t))
-            .Select(t => $"\"{t.Replace("\"", "")}\"")
-            .ToList();
-
-        // If every word was a stopword (e.g. "is it"), search the original as a phrase
-        // so the user at least gets some results rather than an empty match-all.
-        return tokens.Count > 0
-            ? string.Join(" ", tokens)
-            : $"\"{searchText.Trim().Replace("\"", "")}\"";
-    }
-
-    // Runs count and results in parallel to halve wall-clock time.
-    // sortByRelevance: true when a $text filter is active — uses textScore from the index.
-    private async Task<(List<Quotation> Items, long TotalCount)> ExecuteSearchAsync(
-        FilterDefinition<Quotation> filter, int page, int pageSize, bool sortByRelevance = false)
-    {
-        var sort = sortByRelevance
-            ? Builders<Quotation>.Sort.MetaTextScore("score")
-            : Builders<Quotation>.Sort.Descending(q => q.SubmittedAt);
-        var countTask = _quotations.CountDocumentsAsync(filter);
-        var itemsTask = _quotations.Find(filter).Sort(sort)
-            .Skip((page - 1) * pageSize).Limit(pageSize).ToListAsync();
-        await Task.WhenAll(countTask, itemsTask);
-        return (itemsTask.Result, countTask.Result);
-    }
-
-    // Regex fallback: match the full phrase as a substring across text, author, or source.
-    private static FilterDefinition<Quotation> BuildPhraseRegexFilter(
-        FilterDefinitionBuilder<Quotation> fb, string searchText)
-    {
-        var phrase = searchText.Trim();
-        if (string.IsNullOrEmpty(phrase))
-            return fb.Exists(q => q.Id);
-        var regex = new BsonRegularExpression(Regex.Escape(phrase), "i");
-        return fb.Or(
-            fb.Regex(q => q.Text, regex),
-            fb.Regex(q => q.Author.Name, regex),
-            fb.Regex(q => q.Source.Title, regex)
-        );
+        return (hits.Select(ToQuotation).ToList(), total);
     }
 
     public async Task<Quotation> CreateQuotationAsync(Quotation quotation)
@@ -310,17 +193,26 @@ public class QuotationRepository : IQuotationRepository
             q => q.Id == quotation.Id,
             quotation);
 
+        if (result.ModifiedCount > 0 && _meilisearch.Enabled)
+        {
+            FireAndForgetMeili(quotation.Status == QuotationStatus.Approved
+                ? _meilisearch.IndexDocumentsAsync(new[] { ToMeiliDoc(quotation) })
+                : _meilisearch.DeleteDocumentAsync(quotation.Id));
+        }
+
         return result.ModifiedCount > 0;
     }
 
     public async Task<bool> DeleteQuotationAsync(string id)
     {
         if (!ObjectId.TryParse(id, out _))
-        {
             return false;
-        }
 
         var result = await _quotations.DeleteOneAsync(q => q.Id == id);
+
+        if (result.DeletedCount > 0 && _meilisearch.Enabled)
+            FireAndForgetMeili(_meilisearch.DeleteDocumentAsync(id));
+
         return result.DeletedCount > 0;
     }
 
@@ -656,9 +548,7 @@ public class QuotationRepository : IQuotationRepository
         }
         catch (MongoCommandException)
         {
-            // Text index unavailable — fall back to regex search
-            var (items, _) = await SearchQuotationsAsync(searchText, page: 1, pageSize: limit, status: status);
-            return items;
+            return new List<Quotation>();
         }
     }
 
@@ -675,8 +565,26 @@ public class QuotationRepository : IQuotationRepository
         },
         Tags = doc.Tags,
         Status = QuotationStatus.Approved,
-        SubmittedAt = DateTimeOffset.FromUnixTimeMilliseconds(doc.SubmittedAt).UtcDateTime,
+        SubmittedAt = DateTimeOffset.FromUnixTimeSeconds(doc.SubmittedAt).UtcDateTime,
     };
+
+    private static MeiliQuotationDoc ToMeiliDoc(Quotation q) => new()
+    {
+        Id = q.Id,
+        Text = q.Text ?? "",
+        AuthorName = q.Author?.Name ?? "",
+        SourceTitle = q.Source?.Title ?? "",
+        SourceType = q.Source?.Type.ToString() ?? "Other",
+        Status = q.Status.ToString(),
+        Tags = q.Tags ?? new(),
+        Year = q.Source?.Year,
+        SubmittedAt = new DateTimeOffset(DateTime.SpecifyKind(q.SubmittedAt, DateTimeKind.Utc)).ToUnixTimeSeconds(),
+    };
+
+    private void FireAndForgetMeili(Task task) =>
+        task.ContinueWith(
+            t => _logger.LogWarning(t.Exception, "Background Meilisearch sync failed"),
+            TaskContinuationOptions.OnlyOnFaulted);
 
     public async Task<List<Quotation>> GetRandomBatchAsync(
         int count,

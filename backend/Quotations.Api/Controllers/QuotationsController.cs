@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Quotations.Api.Models;
 using Quotations.Api.Models.Dtos;
 using Quotations.Api.Services;
@@ -15,10 +16,12 @@ namespace Quotations.Api.Controllers;
 public class QuotationsController : ControllerBase
 {
     private readonly QuotationService _quotationService;
+    private readonly ILogger<QuotationsController> _logger;
 
-    public QuotationsController(QuotationService quotationService)
+    public QuotationsController(QuotationService quotationService, ILogger<QuotationsController> logger)
     {
         _quotationService = quotationService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -203,12 +206,19 @@ public class QuotationsController : ControllerBase
 
         List<string>? tagsList = tags != null && tags.Length > 0 ? new List<string>(tags) : null;
 
-        var result = await _quotationService.SearchQuotationsAsync(q, page, pageSize, null, authorName, sourceType, tagsList, yearFrom, yearTo);
-
-        return Ok(new ApiResponse<PaginatedQuotationsResponse>
+        try
         {
-            Data = result,
-            Success = true
-        });
+            var result = await _quotationService.SearchQuotationsAsync(q, page, pageSize, null, authorName, sourceType, tagsList, yearFrom, yearTo);
+            return Ok(new ApiResponse<PaginatedQuotationsResponse> { Data = result, Success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Search failed for query '{Query}'", q);
+            return StatusCode(503, new ApiResponse<object>
+            {
+                Success = false,
+                Errors = new Dictionary<string, string[]> { { "search", new[] { "Search is temporarily unavailable. Please try again shortly." } } }
+            });
+        }
     }
 }

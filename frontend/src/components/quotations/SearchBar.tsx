@@ -16,7 +16,7 @@ export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(({
   onSearch,
   initialValue = '',
   placeholder = 'Search quotations...',
-  debounceMs = 500,
+  debounceMs = 200,
 }, ref) => {
   const [searchValue, setSearchValue] = useState(initialValue);
   const isMountRef = useRef(true);
