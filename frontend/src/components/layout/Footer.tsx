@@ -1,19 +1,14 @@
 const Footer = () => {
   return (
-    <footer
-      style={{
-        padding: '2rem',
-        backgroundColor: '#f8f9fa',
-        borderTop: '1px solid #dee2e6',
-        textAlign: 'center',
-        marginTop: 'auto',
-      }}
-    >
-      <p style={{ margin: 0, color: '#6c757d' }}>
-        Quotations &copy; {new Date().getFullYear()} | A community-driven quotation management system
-      </p>
-      <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: '#6c757d' }}>
-        Built with React, TypeScript, ASP.NET Core, and MongoDB
+    <footer style={{
+      padding: '1.5rem 2rem',
+      borderTop: '1px solid var(--color-border)',
+      backgroundColor: 'var(--color-bg)',
+      textAlign: 'center',
+      marginTop: 'auto',
+    }}>
+      <p style={{ margin: 0, color: 'var(--color-text-3)', fontSize: '0.85rem' }}>
+        QuotationHub &copy; {new Date().getFullYear()} | A community-driven quotation collection
       </p>
     </footer>
   );

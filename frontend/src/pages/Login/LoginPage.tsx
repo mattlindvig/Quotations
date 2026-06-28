@@ -65,7 +65,7 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="login-page">
       <div className="login-card">
-        <h1 className="login-title">Quotations</h1>
+        <h1 className="login-title">QuotationHub</h1>
 
         <div className="login-tabs" role="tablist">
           <button

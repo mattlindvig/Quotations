@@ -15,7 +15,7 @@ const Header = () => {
     <header className="site-header">
       <nav className="site-nav">
         <div className="nav-links">
-          <a href="/" className="nav-brand" onClick={goHome}>Quotations</a>
+          <a href="/" className="nav-brand" onClick={goHome}>QuotationHub</a>
           <a href="/" className="nav-link" onClick={goHome}>Browse</a>
           <Link to="/random" className="nav-link">Random</Link>
           {hasRole('Admin') && (

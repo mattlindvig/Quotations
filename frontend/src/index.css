@@ -49,6 +49,7 @@ a:hover { text-decoration: underline; }
 button {
   font-family: inherit;
   font-size: inherit;
+  color: inherit;
   cursor: pointer;
 }
 
