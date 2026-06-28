@@ -70,6 +70,13 @@ export const BrowsePage: React.FC = () => {
       searchPage((paginationRef.current.page ?? 1) + 1);
   }, [activeMode, browseNextPage, searchPage]);
 
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  useEffect(() => {
+    const handleScroll = () => setShowBackToTop(window.scrollY > 400);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const sentinelRef = useRef<HTMLDivElement>(null);
   const searchBarRef = useRef<SearchBarHandle>(null);
   useEffect(() => {
@@ -179,6 +186,10 @@ export const BrowsePage: React.FC = () => {
     <main className="browse-page" id="main-content">
       <a href="#main-content" className="skip-link">Skip to main content</a>
 
+      <div className="browse-search">
+        <SearchBar ref={searchBarRef} onSearch={handleSearch} initialValue={initialQuery} />
+      </div>
+
       <div className="browse-layout">
         {/* Left sidebar — filters + quote of the day */}
         <aside className="browse-sidebar">
@@ -199,10 +210,6 @@ export const BrowsePage: React.FC = () => {
 
         {/* Main content */}
         <div className="browse-main">
-          <div className="browse-toolbar">
-            <SearchBar ref={searchBarRef} onSearch={handleSearch} initialValue={initialQuery} />
-          </div>
-
           <div className="sort-bar">
             {!loading && hasResults && pagination && (
               <p className="result-count">
@@ -277,6 +284,16 @@ export const BrowsePage: React.FC = () => {
         </div>
 
       </div>
+
+      {showBackToTop && (
+        <button
+          className="back-to-top"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Back to top"
+        >
+          ↑
+        </button>
+      )}
     </main>
   );
 };

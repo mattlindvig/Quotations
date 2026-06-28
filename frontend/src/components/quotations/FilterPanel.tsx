@@ -19,9 +19,9 @@ const MAX_AUTHOR_SUGGESTIONS = 8;
 const MAX_TAG_SUGGESTIONS = 8;
 
 const CURATED_TAGS = [
-  'wisdom', 'courage', 'love', 'friendship',
-  'nature', 'art', 'war', 'peace',
-  'humor', 'work', 'history', 'family',
+  'wisdom', 'inspiration', 'love', 'humor',
+  'life', 'friendship', 'courage', 'happiness',
+  'success', 'philosophy', 'nature', 'hope',
 ];
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
