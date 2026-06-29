@@ -16,8 +16,12 @@ public class MeilisearchService
     public MeilisearchService(IOptions<MeilisearchSettings> opts)
     {
         _settings = opts.Value;
-        var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-        _client = new MeilisearchClient(_settings.Url, _settings.ApiKey, http);
+        var http = new System.Net.Http.HttpClient
+        {
+            BaseAddress = new Uri(_settings.Url.TrimEnd('/') + '/'),
+            Timeout = TimeSpan.FromSeconds(8),
+        };
+        _client = new MeilisearchClient(http, _settings.ApiKey);
     }
 
     public async Task<(List<MeiliQuotationDoc> Hits, long TotalCount)> SearchAsync(

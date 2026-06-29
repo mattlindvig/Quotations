@@ -199,9 +199,10 @@ export const BrowsePage: React.FC = () => {
             activeSearch={activeMode === 'search' ? searchQuery : undefined}
             onClearSearch={() => {
               clearSearch();
+              clearFilters();
               setActiveMode('browse');
-              fetchQuotations({ status: 'approved', page: 1, pageSize: 20, ...filters, sortBy });
-              updateUrl('', filters, sortBy);
+              fetchQuotations({ status: 'approved', page: 1, pageSize: 20, sortBy });
+              updateUrl('', {}, sortBy);
               searchBarRef.current?.clear();
             }}
           />
