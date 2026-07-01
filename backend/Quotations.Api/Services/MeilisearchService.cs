@@ -10,6 +10,7 @@ public class MeilisearchService
     private readonly MeilisearchSettings _settings;
     private readonly MeilisearchClient _client;
     private const string IndexName = "quotations";
+    private const string EmbedderName = "default";
 
     public bool Enabled => _settings.Enabled;
 
@@ -35,7 +36,10 @@ public class MeilisearchService
         List<string>? tags = null,
         int? yearFrom = null,
         int? yearTo = null,
-        string? sortBy = null)
+        string? sortBy = null,
+        bool verifiedOnly = false,
+        IEnumerable<float>? vector = null,
+        double? semanticRatio = null)
     {
         var filters = new List<string> { $"status = \"{Escape(status)}\"" };
         if (!string.IsNullOrEmpty(authorName))
@@ -51,6 +55,8 @@ public class MeilisearchService
             filters.Add($"year >= {yearFrom}");
         if (yearTo.HasValue)
             filters.Add($"year <= {yearTo}");
+        if (verifiedOnly)
+            filters.Add("isVerified = true");
 
         var sq = new SearchQuery
         {
@@ -58,6 +64,18 @@ public class MeilisearchService
             Limit = pageSize,
             Filter = string.Join(" AND ", filters),
         };
+
+        // Hybrid (semantic) search — only when the caller supplied a query embedding.
+        // Falls back to plain keyword ranking otherwise.
+        if (vector != null)
+        {
+            sq.Vector = vector.Select(v => (double)v).ToArray();
+            sq.Hybrid = new HybridSearch
+            {
+                Embedder = EmbedderName,
+                SemanticRatio = (float)(semanticRatio ?? 0.5),
+            };
+        }
 
         // Sort only for filter-browse (empty query); text search uses relevance ranking
         if (string.IsNullOrWhiteSpace(query) && sortBy != null)
@@ -91,8 +109,10 @@ public class MeilisearchService
     {
         var index = _client.Index(IndexName);
         await index.UpdateSearchableAttributesAsync(new[] { "text", "authorName", "sourceTitle" });
-        await index.UpdateFilterableAttributesAsync(new[] { "status", "sourceType", "tags", "year", "authorName", "sourceTitle" });
+        await index.UpdateFilterableAttributesAsync(new[] { "status", "sourceType", "tags", "year", "authorName", "sourceTitle", "isVerified" });
         await index.UpdateSortableAttributesAsync(new[] { "submittedAt", "authorName", "year" });
+        // Note: the "default" userProvided embedder for semantic search is configured by
+        // tools/embed_quotes.py, which also backfills the per-document vectors.
     }
 
     private static string Escape(string val) => val.Replace("\\", "\\\\").Replace("\"", "\\\"");
@@ -127,4 +147,8 @@ public class MeiliQuotationDoc
 
     [JsonPropertyName("submittedAt")]
     public long SubmittedAt { get; set; }
+
+    /// <summary>True when AI review ran and judged the attribution likely authentic.</summary>
+    [JsonPropertyName("isVerified")]
+    public bool IsVerified { get; set; }
 }

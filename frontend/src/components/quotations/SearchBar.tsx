@@ -6,6 +6,8 @@ interface SearchBarProps {
   initialValue?: string;
   placeholder?: string;
   debounceMs?: number;
+  semantic?: boolean;
+  onSemanticChange?: (value: boolean) => void;
 }
 
 export interface SearchBarHandle {
@@ -17,6 +19,8 @@ export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(({
   initialValue = '',
   placeholder = 'Search quotations...',
   debounceMs = 200,
+  semantic = false,
+  onSemanticChange,
 }, ref) => {
   const [searchValue, setSearchValue] = useState(initialValue);
   const isMountRef = useRef(true);
@@ -98,6 +102,19 @@ export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(({
           </button>
         )}
       </div>
+
+      {onSemanticChange && (
+        <button
+          type="button"
+          className={`smart-search-toggle${semantic ? ' active' : ''}`}
+          onClick={() => onSemanticChange(!semantic)}
+          aria-pressed={semantic}
+          title="Smart search finds quotes by meaning, not just keywords"
+        >
+          <span className="smart-search-spark" aria-hidden="true">✦</span>
+          Smart
+        </button>
+      )}
     </form>
   );
 });

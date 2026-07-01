@@ -43,7 +43,8 @@ public class QuotationRepository : IQuotationRepository
         List<string>? tags = null,
         string? sortBy = null,
         int? yearFrom = null,
-        int? yearTo = null)
+        int? yearTo = null,
+        bool verifiedOnly = false)
     {
         var effectiveStatus = status ?? QuotationStatus.Approved;
 
@@ -53,7 +54,8 @@ public class QuotationRepository : IQuotationRepository
                          !string.IsNullOrEmpty(sourceTitle) ||
                          sourceType.HasValue ||
                          (tags != null && tags.Any()) ||
-                         yearFrom.HasValue || yearTo.HasValue;
+                         yearFrom.HasValue || yearTo.HasValue ||
+                         verifiedOnly;
 
         if (_meilisearch.Enabled && effectiveStatus == QuotationStatus.Approved && hasFilter)
         {
@@ -68,7 +70,8 @@ public class QuotationRepository : IQuotationRepository
                     tags: tags,
                     yearFrom: yearFrom,
                     yearTo: yearTo,
-                    sortBy: sortBy ?? "newest");
+                    sortBy: sortBy ?? "newest",
+                    verifiedOnly: verifiedOnly);
 
                 if (hits.Count == 0)
                     return (new List<Quotation>(), total);
@@ -115,6 +118,13 @@ public class QuotationRepository : IQuotationRepository
         if (yearTo.HasValue)
             filters.Add(filterBuilder.Lte(q => q.Source.Year, yearTo.Value));
 
+        // Verified = AI reviewed and judged likely authentic
+        if (verifiedOnly)
+        {
+            filters.Add(filterBuilder.Eq("aiReview.status", nameof(AiReviewStatusEnum.Reviewed)));
+            filters.Add(filterBuilder.Eq("aiReview.isLikelyAuthentic", true));
+        }
+
         var combinedFilter = filterBuilder.And(filters);
 
         var totalCount = await _quotations.CountDocumentsAsync(combinedFilter);
@@ -135,6 +145,24 @@ public class QuotationRepository : IQuotationRepository
             .ToListAsync();
 
         return (items, totalCount);
+    }
+
+    public async Task<(List<Quotation> Items, long TotalCount)> GetMisattributedAsync(int page = 1, int pageSize = 20)
+    {
+        var filter = Builders<Quotation>.Filter.And(
+            Builders<Quotation>.Filter.Eq(q => q.Status, QuotationStatus.Approved),
+            Builders<Quotation>.Filter.Eq("aiReview.status", nameof(AiReviewStatusEnum.Reviewed)),
+            Builders<Quotation>.Filter.Eq("aiReview.isLikelyAuthentic", false));
+
+        var total = await _quotations.CountDocumentsAsync(filter);
+        var items = await _quotations
+            .Find(filter)
+            .SortByDescending(q => q.AiReview.ReviewedAt)
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync();
+
+        return (items, total);
     }
 
     public async Task<Quotation?> GetQuotationByIdAsync(string id)
@@ -158,7 +186,10 @@ public class QuotationRepository : IQuotationRepository
         SourceType? sourceType = null,
         List<string>? tags = null,
         int? yearFrom = null,
-        int? yearTo = null)
+        int? yearTo = null,
+        bool verifiedOnly = false,
+        IEnumerable<float>? vector = null,
+        double? semanticRatio = null)
     {
         var effectiveStatus = status ?? QuotationStatus.Approved;
 
@@ -169,7 +200,10 @@ public class QuotationRepository : IQuotationRepository
             sourceType: sourceType?.ToString(),
             tags: tags,
             yearFrom: yearFrom,
-            yearTo: yearTo);
+            yearTo: yearTo,
+            verifiedOnly: verifiedOnly,
+            vector: vector,
+            semanticRatio: semanticRatio);
 
         return (hits.Select(ToQuotation).ToList(), total);
     }
@@ -218,9 +252,11 @@ public class QuotationRepository : IQuotationRepository
 
     public async Task<bool> IsDuplicateAsync(string text)
     {
-        var normalizedText = text.Trim();
+        // Match on the normalized textHash (indexed via text_hash_unique_idx) instead of a
+        // case-insensitive ^...$ regex, which can't use an index and scans the collection.
+        var hash = Quotation.ComputeTextHash(text);
         var filter = Builders<Quotation>.Filter.And(
-            Builders<Quotation>.Filter.Regex(q => q.Text, new BsonRegularExpression($"^{Regex.Escape(normalizedText)}$", "i")),
+            Builders<Quotation>.Filter.Eq(q => q.TextHash, hash),
             Builders<Quotation>.Filter.Ne(q => q.Status, QuotationStatus.Rejected)
         );
 
@@ -381,12 +417,13 @@ public class QuotationRepository : IQuotationRepository
 
     public async Task<Quotation?> GetRandomQuotationAsync()
     {
-        var filter = Builders<Quotation>.Filter.Eq(q => q.Status, QuotationStatus.Approved);
-        var count = await GetApprovedCountAsync(filter);
-        if (count == 0) return null;
+        // $sample draws a random doc without a large Skip walking the index.
+        var pipeline = new EmptyPipelineDefinition<Quotation>()
+            .Match(Builders<Quotation>.Filter.Eq(q => q.Status, QuotationStatus.Approved))
+            .AppendStage<Quotation, Quotation, Quotation>(
+                new BsonDocument("$sample", new BsonDocument("size", 1)));
 
-        var skip = (int)Random.Shared.NextInt64(0, count);
-        return await _quotations.Find(filter).Skip(skip).Limit(1).FirstOrDefaultAsync();
+        return await _quotations.Aggregate(pipeline).FirstOrDefaultAsync();
     }
 
     private async Task<long> GetApprovedCountAsync(FilterDefinition<Quotation> filter)
@@ -534,7 +571,10 @@ public class QuotationRepository : IQuotationRepository
                 if (hits.Count > 0)
                     return hits.Select(ToQuotation).ToList();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Meilisearch TextSearch failed, falling back to MongoDB text index");
+            }
         }
 
         try
@@ -566,6 +606,11 @@ public class QuotationRepository : IQuotationRepository
         Tags = doc.Tags,
         Status = QuotationStatus.Approved,
         SubmittedAt = DateTimeOffset.FromUnixTimeSeconds(doc.SubmittedAt).UtcDateTime,
+        // Carry the verified flag so the Verified badge renders on search/filter results.
+        // The Meili index only stores the boolean, so reconstruct the minimal AiReview it implies.
+        AiReview = doc.IsVerified
+            ? new AiReview { Status = AiReviewStatusEnum.Reviewed, IsLikelyAuthentic = true }
+            : new AiReview(),
     };
 
     private static MeiliQuotationDoc ToMeiliDoc(Quotation q) => new()
@@ -579,6 +624,7 @@ public class QuotationRepository : IQuotationRepository
         Tags = q.Tags ?? new(),
         Year = q.Source?.Year,
         SubmittedAt = new DateTimeOffset(DateTime.SpecifyKind(q.SubmittedAt, DateTimeKind.Utc)).ToUnixTimeSeconds(),
+        IsVerified = q.AiReview?.Status == AiReviewStatusEnum.Reviewed && q.AiReview?.IsLikelyAuthentic == true,
     };
 
     private void FireAndForgetMeili(Task task) =>

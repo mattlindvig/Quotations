@@ -90,6 +90,37 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
     }
   };
 
+  const handleImage = async () => {
+    const url = `${apiClient.baseUrl}/quotations/${quotation.id}/image.png`;
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const file = new File([blob], `quote-${quotation.id}.png`, { type: 'image/png' });
+
+      // Prefer the native share sheet (mobile) when it can share files
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          text: `"${quotation.text}" — ${quotation.author.name}`,
+        });
+        return;
+      }
+
+      // Otherwise download the PNG
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = `quote-${quotation.id}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objUrl);
+    } catch {
+      // Last resort: open the image directly
+      window.open(url, '_blank', 'noopener');
+    }
+  };
+
   const handleToggleAiPanel = async () => {
     const next = !showAiPanel;
     setShowAiPanel(next);
@@ -135,6 +166,11 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
           )}
           {quotation.author.occupation && (
             <span className="author-occupation">{quotation.author.occupation}</span>
+          )}
+          {quotation.aiReview?.isLikelyAuthentic === true && (
+            <span className="attribution-verified" title="Attribution checked by AI and judged authentic">
+              ✓ Verified
+            </span>
           )}
           {quotation.aiReview?.isLikelyAuthentic === false && (
             <span className="attribution-warning" title={quotation.aiReview.approximateEra ?? undefined}>
@@ -229,6 +265,18 @@ export const QuotationCard: React.FC<QuotationCardProps> = ({ quotation }) => {
                   ? <polyline points="20 6 9 17 4 12" />
                   : <><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>
                 }
+              </svg>
+            </button>
+            <button
+              className="card-action-btn image-btn"
+              onClick={handleImage}
+              title="Share or download as image"
+              aria-label="Share or download this quote as an image"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
               </svg>
             </button>
             {quotation.aiReview?.status === 'reviewed' && (

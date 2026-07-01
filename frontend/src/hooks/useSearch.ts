@@ -12,6 +12,8 @@ interface SearchFilters {
   tags?: string[];
   yearFrom?: string;
   yearTo?: string;
+  verifiedOnly?: boolean;
+  semantic?: boolean;
 }
 
 interface UseSearchResult {
@@ -69,6 +71,8 @@ export function useSearch(): UseSearchResult {
       }
       if (filters.yearFrom) params.set('yearFrom', filters.yearFrom);
       if (filters.yearTo) params.set('yearTo', filters.yearTo);
+      if (filters.verifiedOnly) params.set('verifiedOnly', 'true');
+      if (filters.semantic) params.set('semantic', 'true');
 
       const response = await apiClient.get<ApiResponse<PaginatedQuotationsResponse>>(
         `/quotations/search?${params.toString()}`

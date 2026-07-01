@@ -43,6 +43,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const [selectedSourceType, setSelectedSourceType] = useState(initialFilters.sourceType || '');
   const [selectedSourceTitle, setSelectedSourceTitle] = useState(initialFilters.sourceTitle || '');
   const [selectedTags, setSelectedTags] = useState<string[]>(initialFilters.tags || []);
+  const [verifiedOnly, setVerifiedOnly] = useState<boolean>(initialFilters.verifiedOnly ?? false);
   const [isExpanded, setIsExpanded] = useState(
     !!(initialFilters.authorName || initialFilters.sourceType || initialFilters.tags?.length)
   );
@@ -105,6 +106,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   useEffect(() => {
     setSelectedSourceTitle(initialFilters.sourceTitle || '');
   }, [initialFilters.sourceTitle]);
+
+  useEffect(() => {
+    setVerifiedOnly(initialFilters.verifiedOnly ?? false);
+  }, [initialFilters.verifiedOnly]);
 
   const externalTagsKey = (initialFilters.tags || []).join(',');
   useEffect(() => {
@@ -169,8 +174,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     if (selectedSourceType) filters.sourceType = selectedSourceType as SourceType;
     if (selectedSourceTitle) filters.sourceTitle = selectedSourceTitle;
     if (selectedTags.length > 0) filters.tags = selectedTags;
+    if (verifiedOnly) filters.verifiedOnly = true;
     onFilterChangeRef.current(filters);
-  }, [selectedAuthorName, selectedSourceType, selectedSourceTitle, selectedTags]);
+  }, [selectedAuthorName, selectedSourceType, selectedSourceTitle, selectedTags, verifiedOnly]);
 
   // ── Author autocomplete handlers ──
   const selectAuthor = useCallback((name: string) => {
@@ -262,10 +268,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     setSelectedSourceType('');
     setSelectedSourceTitle('');
     setSelectedTags([]);
+    setVerifiedOnly(false);
     onClearSearch?.();
   };
 
-  const hasActiveFilters = !!(activeSearch || selectedAuthorName || selectedSourceType || selectedSourceTitle || selectedTags.length > 0);
+  const hasActiveFilters = !!(activeSearch || selectedAuthorName || selectedSourceType || selectedSourceTitle || selectedTags.length > 0 || verifiedOnly);
 
   return (
     <div className="filter-panel">
@@ -291,7 +298,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           <span>Filters</span>
           {hasActiveFilters && (
             <span className="filter-badge">
-              {[activeSearch, selectedAuthorName, selectedSourceType, selectedSourceTitle, ...selectedTags].filter(Boolean).length}
+              {[activeSearch, selectedAuthorName, selectedSourceType, selectedSourceTitle, verifiedOnly && 'verified', ...selectedTags].filter(Boolean).length}
             </span>
           )}
         </button>
@@ -307,6 +314,22 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         id="filter-content"
         className={`filter-content${isExpanded ? '' : ' filter-content--collapsed'}`}
       >
+        {/* Verified-only toggle — surfaces the AI authenticity differentiator */}
+        <div className="filter-group">
+          <label className="verified-toggle">
+            <input
+              type="checkbox"
+              checked={verifiedOnly}
+              onChange={(e) => setVerifiedOnly(e.target.checked)}
+            />
+            <span className="verified-toggle-label">
+              <span className="verified-toggle-check" aria-hidden="true">✓</span>
+              Verified only
+            </span>
+          </label>
+          <p className="verified-toggle-hint">Show only quotes whose attribution AI judged authentic.</p>
+        </div>
+
         {/* Author autocomplete */}
         <div className="filter-group">
           <label htmlFor="author-filter" className="filter-label">Author</label>

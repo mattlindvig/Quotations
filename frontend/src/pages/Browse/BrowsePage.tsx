@@ -17,6 +17,7 @@ export const BrowsePage: React.FC = () => {
   const [sortBy, setSortBy] = useState<QuotationSortBy>(
     (searchParams.get('sortBy') as QuotationSortBy | null) || 'newest'
   );
+  const [semantic, setSemantic] = useState<boolean>(searchParams.get('semantic') === 'true');
 
   const initialQuery = searchParams.get('q') || '';
   const initialPage = parseInt(searchParams.get('page') || '1');
@@ -24,12 +25,14 @@ export const BrowsePage: React.FC = () => {
   const initialSourceType = searchParams.get('sourceType') as SourceType | undefined;
   const initialSourceTitle = searchParams.get('sourceTitle') || undefined;
   const initialTags = searchParams.get('tags')?.split(',').filter(Boolean) || undefined;
+  const initialVerifiedOnly = searchParams.get('verifiedOnly') === 'true' || undefined;
 
   const initialFilters: QuotationFilters = {
     authorName: initialAuthorName,
     sourceType: initialSourceType,
     sourceTitle: initialSourceTitle,
     tags: initialTags,
+    verifiedOnly: initialVerifiedOnly,
   };
 
   const { filters, setFilters, clearFilters } = useFilters(initialFilters);
@@ -96,7 +99,7 @@ export const BrowsePage: React.FC = () => {
 
   useEffect(() => {
     if (initialQuery) {
-      performSearch(initialQuery, initialPage);
+      performSearch(initialQuery, initialPage, 20, { ...filters, semantic });
       setActiveMode('search');
     }
   }, []);
@@ -119,10 +122,12 @@ export const BrowsePage: React.FC = () => {
       if (newFilters.sourceType) params.sourceType = newFilters.sourceType;
       if (newFilters.sourceTitle) params.sourceTitle = newFilters.sourceTitle;
       if (newFilters.tags?.length) params.tags = newFilters.tags.join(',');
+      if (newFilters.verifiedOnly) params.verifiedOnly = 'true';
+      if (query && semantic) params.semantic = 'true';
       if (newSortBy !== 'newest') params.sortBy = newSortBy;
       setSearchParams(params, { replace: true });
     },
-    [setSearchParams]
+    [setSearchParams, semantic]
   );
 
   const handleSearch = useCallback(
@@ -132,6 +137,8 @@ export const BrowsePage: React.FC = () => {
           authorName: filters.authorName,
           sourceType: filters.sourceType,
           tags: filters.tags,
+          verifiedOnly: filters.verifiedOnly,
+          semantic,
         });
         setActiveMode('search');
         updateUrl(query, filters, sortBy);
@@ -142,7 +149,28 @@ export const BrowsePage: React.FC = () => {
         updateUrl('', filters, sortBy);
       }
     },
-    [performSearch, clearSearch, fetchQuotations, filters, sortBy, updateUrl]
+    [performSearch, clearSearch, fetchQuotations, filters, sortBy, updateUrl, semantic]
+  );
+
+  // Toggling Smart search re-runs the current query immediately under the new mode.
+  const handleSemanticChange = useCallback(
+    (value: boolean) => {
+      setSemantic(value);
+      if (activeMode === 'search' && searchQuery.trim()) {
+        performSearch(searchQuery, 1, 20, {
+          authorName: filters.authorName,
+          sourceType: filters.sourceType,
+          tags: filters.tags,
+          verifiedOnly: filters.verifiedOnly,
+          semantic: value,
+        });
+        const params = new URLSearchParams(searchParams);
+        if (value) params.set('semantic', 'true');
+        else params.delete('semantic');
+        setSearchParams(params, { replace: true });
+      }
+    },
+    [activeMode, searchQuery, filters, performSearch, searchParams, setSearchParams]
   );
 
   const handleFilterChange = useCallback(
@@ -154,6 +182,8 @@ export const BrowsePage: React.FC = () => {
           authorName: newFilters.authorName,
           sourceType: newFilters.sourceType,
           tags: newFilters.tags,
+          verifiedOnly: newFilters.verifiedOnly,
+          semantic,
         });
       } else if (activeMode === 'browse') {
         fetchQuotations({
@@ -163,12 +193,13 @@ export const BrowsePage: React.FC = () => {
           authorName: undefined,
           sourceType: undefined,
           tags: undefined,
+          verifiedOnly: undefined,
           ...newFilters,
           sortBy,
         });
       }
     },
-    [setFilters, fetchQuotations, activeMode, searchQuery, sortBy, updateUrl, performSearch]
+    [setFilters, fetchQuotations, activeMode, searchQuery, sortBy, updateUrl, performSearch, semantic]
   );
 
   const handleSortChange = useCallback(
@@ -187,8 +218,24 @@ export const BrowsePage: React.FC = () => {
       <a href="#main-content" className="skip-link">Skip to main content</a>
 
       <div className="browse-search">
-        <SearchBar ref={searchBarRef} onSearch={handleSearch} initialValue={initialQuery} />
+        <SearchBar
+          ref={searchBarRef}
+          onSearch={handleSearch}
+          initialValue={initialQuery}
+          semantic={semantic}
+          onSemanticChange={handleSemanticChange}
+        />
       </div>
+
+      {activeMode === 'browse' && (
+        <div className="trust-band" role="note">
+          <span className="trust-band-check" aria-hidden="true">✓</span>
+          <span>
+            Every attribution checked by AI.{' '}
+            <a href="/misattributed" className="trust-band-link">See quotes people get wrong →</a>
+          </span>
+        </div>
+      )}
 
       <div className="browse-layout">
         {/* Left sidebar — filters + quote of the day */}

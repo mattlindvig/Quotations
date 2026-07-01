@@ -37,6 +37,7 @@ services:
       - Jwt__Audience=http://localhost:5173
       - Jwt__ExpirationMinutes=15
       - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
+      - Voyage__ApiKey=${VOYAGE_API_KEY}
       - Resend__ApiKey=${RESEND_API_KEY}
       - Resend__FromEmail=${RESEND_FROM_EMAIL}
       - AppSettings__FrontendUrl=http://localhost:5173

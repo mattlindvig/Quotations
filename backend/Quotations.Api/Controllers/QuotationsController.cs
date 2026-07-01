@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Quotations.Api.Models;
 using Quotations.Api.Models.Dtos;
@@ -16,11 +17,19 @@ namespace Quotations.Api.Controllers;
 public class QuotationsController : ControllerBase
 {
     private readonly QuotationService _quotationService;
+    private readonly QuoteImageRenderer _imageRenderer;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<QuotationsController> _logger;
 
-    public QuotationsController(QuotationService quotationService, ILogger<QuotationsController> logger)
+    public QuotationsController(
+        QuotationService quotationService,
+        QuoteImageRenderer imageRenderer,
+        IMemoryCache cache,
+        ILogger<QuotationsController> logger)
     {
         _quotationService = quotationService;
+        _imageRenderer = imageRenderer;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -58,7 +67,8 @@ public class QuotationsController : ControllerBase
         [FromQuery] string? tags = null,
         [FromQuery] string? sortBy = null,
         [FromQuery] int? yearFrom = null,
-        [FromQuery] int? yearTo = null)
+        [FromQuery] int? yearTo = null,
+        [FromQuery] bool verifiedOnly = false)
     {
         // Parse status
         QuotationStatus? statusFilter = null;
@@ -82,13 +92,27 @@ public class QuotationsController : ControllerBase
         }
 
         var result = await _quotationService.GetQuotationsAsync(
-            page, pageSize, statusFilter, authorId, authorName, sourceTypeFilter, sourceTitle, tagsList, sortBy, yearFrom, yearTo);
+            page, pageSize, statusFilter, authorId, authorName, sourceTypeFilter, sourceTitle, tagsList, sortBy, yearFrom, yearTo, verifiedOnly);
 
         return Ok(new ApiResponse<PaginatedQuotationsResponse>
         {
             Data = result,
             Success = true
         });
+    }
+
+    /// <summary>
+    /// Get quotations the AI judged likely misattributed ("quotes people get wrong"),
+    /// including the likely-correct attribution and reasoning.
+    /// </summary>
+    [HttpGet("misattributed")]
+    [ProducesResponseType(typeof(ApiResponse<PaginatedQuotationsResponse>), 200)]
+    public async Task<ActionResult<ApiResponse<PaginatedQuotationsResponse>>> GetMisattributed(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        var result = await _quotationService.GetMisattributedAsync(page, pageSize);
+        return Ok(new ApiResponse<PaginatedQuotationsResponse> { Data = result, Success = true });
     }
 
     /// <summary>
@@ -174,6 +198,30 @@ public class QuotationsController : ControllerBase
     }
 
     /// <summary>
+    /// Render a quotation as a branded, shareable PNG image (also usable as an OG image).
+    /// </summary>
+    [HttpGet("{id}/image.png")]
+    [ProducesResponseType(typeof(FileResult), 200)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> GetQuotationImage(string id)
+    {
+        var cacheKey = $"quoteimg:{id}";
+        if (!_cache.TryGetValue(cacheKey, out byte[]? png) || png == null)
+        {
+            var quotation = await _quotationService.GetQuotationByIdAsync(id);
+            if (quotation == null)
+                return NotFound();
+
+            var verified = quotation.AiReview?.IsLikelyAuthentic == true;
+            png = _imageRenderer.Render(quotation.Text, quotation.Author.Name, verified);
+            _cache.Set(cacheKey, png, TimeSpan.FromHours(6));
+        }
+
+        Response.Headers.CacheControl = "public, max-age=86400";
+        return File(png, "image/png");
+    }
+
+    /// <summary>
     /// Search quotations by text
     /// </summary>
     /// <param name="q">Search query</param>
@@ -190,7 +238,9 @@ public class QuotationsController : ControllerBase
         [FromQuery] SourceType? sourceType = null,
         [FromQuery] string[]? tags = null,
         [FromQuery] int? yearFrom = null,
-        [FromQuery] int? yearTo = null)
+        [FromQuery] int? yearTo = null,
+        [FromQuery] bool verifiedOnly = false,
+        [FromQuery] bool semantic = false)
     {
         if (string.IsNullOrWhiteSpace(q))
         {
@@ -208,7 +258,7 @@ public class QuotationsController : ControllerBase
 
         try
         {
-            var result = await _quotationService.SearchQuotationsAsync(q, page, pageSize, null, authorName, sourceType, tagsList, yearFrom, yearTo);
+            var result = await _quotationService.SearchQuotationsAsync(q, page, pageSize, null, authorName, sourceType, tagsList, yearFrom, yearTo, verifiedOnly, semantic);
             return Ok(new ApiResponse<PaginatedQuotationsResponse> { Data = result, Success = true });
         }
         catch (Exception ex)

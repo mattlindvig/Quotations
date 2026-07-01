@@ -60,6 +60,7 @@ export function useQuotations(initialFilters?: QuotationFilters): UseQuotationsR
       if (mergedFilters.sortBy) params.append('sortBy', mergedFilters.sortBy);
       if (mergedFilters.yearFrom) params.append('yearFrom', mergedFilters.yearFrom);
       if (mergedFilters.yearTo) params.append('yearTo', mergedFilters.yearTo);
+      if (mergedFilters.verifiedOnly) params.append('verifiedOnly', 'true');
 
       const response = await apiClient.get<ApiResponse<PaginatedQuotationsResponse>>(
         `/quotations?${params.toString()}`

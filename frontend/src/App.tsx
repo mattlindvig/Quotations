@@ -16,6 +16,7 @@ import { VerifyEmailPage } from './pages/VerifyEmail/VerifyEmailPage';
 import AiReviewDashboardPage from './pages/AiReviewDashboard/AiReviewDashboardPage';
 import { QuoteDetailPage } from './pages/Quote/QuoteDetailPage';
 import { RandomPage } from './pages/Random/RandomPage';
+import { MisattributedPage } from './pages/Misattributed/MisattributedPage';
 import { ChatWidget } from './components/chat/ChatWidget';
 import { UserManagementPage } from './pages/Admin/UserManagementPage';
 import './App.css';
@@ -46,6 +47,7 @@ function AppContent() {
             <Route path="/review" element={<ReviewQueuePage />} />
             <Route path="/ai-review" element={<AiReviewDashboardPage />} />
             <Route path="/random" element={<RandomPage />} />
+            <Route path="/misattributed" element={<MisattributedPage />} />
             <Route path="/admin/users" element={<UserManagementPage />} />
           </Routes>
         </main>

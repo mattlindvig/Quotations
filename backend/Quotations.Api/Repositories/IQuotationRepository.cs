@@ -30,7 +30,14 @@ public interface IQuotationRepository
         List<string>? tags = null,
         string? sortBy = null,
         int? yearFrom = null,
-        int? yearTo = null);
+        int? yearTo = null,
+        bool verifiedOnly = false);
+
+    /// <summary>
+    /// Get paginated quotations the AI judged likely misattributed (reviewed, isLikelyAuthentic = false),
+    /// most recently reviewed first. Powers the /misattributed collection page.
+    /// </summary>
+    Task<(List<Quotation> Items, long TotalCount)> GetMisattributedAsync(int page = 1, int pageSize = 20);
 
     /// <summary>
     /// Get distinct author names from quotations, ordered by usage count descending
@@ -61,7 +68,10 @@ public interface IQuotationRepository
         SourceType? sourceType = null,
         List<string>? tags = null,
         int? yearFrom = null,
-        int? yearTo = null);
+        int? yearTo = null,
+        bool verifiedOnly = false,
+        IEnumerable<float>? vector = null,
+        double? semanticRatio = null);
 
     /// <summary>
     /// Create a new quotation

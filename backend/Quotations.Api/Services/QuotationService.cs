@@ -19,6 +19,7 @@ public class QuotationService
     private readonly ISourceRepository _sourceRepository;
     private readonly AiReviewService _aiReviewService;
     private readonly IQuoteOfDayRepository _quoteOfDayRepository;
+    private readonly VoyageService _voyage;
     private readonly ILogger<QuotationService> _logger;
 
     public QuotationService(
@@ -27,6 +28,7 @@ public class QuotationService
         ISourceRepository sourceRepository,
         AiReviewService aiReviewService,
         IQuoteOfDayRepository quoteOfDayRepository,
+        VoyageService voyage,
         ILogger<QuotationService> logger)
     {
         _quotationRepository = quotationRepository;
@@ -34,6 +36,7 @@ public class QuotationService
         _sourceRepository = sourceRepository;
         _aiReviewService = aiReviewService;
         _quoteOfDayRepository = quoteOfDayRepository;
+        _voyage = voyage;
         _logger = logger;
     }
 
@@ -56,7 +59,8 @@ public class QuotationService
         List<string>? tags = null,
         string? sortBy = null,
         int? yearFrom = null,
-        int? yearTo = null)
+        int? yearTo = null,
+        bool verifiedOnly = false)
     {
         // Validate pagination parameters
         if (page < 1) page = 1;
@@ -64,7 +68,31 @@ public class QuotationService
         if (pageSize > 100) pageSize = 100; // Max page size limit
 
         var (items, totalCount) = await _quotationRepository.GetQuotationsAsync(
-            page, pageSize, status, authorId, authorName, sourceType, sourceTitle, tags, sortBy, yearFrom, yearTo);
+            page, pageSize, status, authorId, authorName, sourceType, sourceTitle, tags, sortBy, yearFrom, yearTo, verifiedOnly);
+
+        return new PaginatedQuotationsResponse
+        {
+            Items = items.Select(MapToSummaryDto).ToList(),
+            Pagination = new PaginationMetadata
+            {
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = (int)totalCount
+            }
+        };
+    }
+
+    /// <summary>
+    /// Get quotations the AI judged likely misattributed, with full authenticity detail.
+    /// Uses the full DTO so the page can show the likely-correct attribution and reasoning.
+    /// </summary>
+    public async Task<PaginatedQuotationsResponse> GetMisattributedAsync(int page = 1, int pageSize = 20)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 100) pageSize = 100;
+
+        var (items, totalCount) = await _quotationRepository.GetMisattributedAsync(page, pageSize);
 
         return new PaginatedQuotationsResponse
         {
@@ -111,15 +139,28 @@ public class QuotationService
         SourceType? sourceType = null,
         List<string>? tags = null,
         int? yearFrom = null,
-        int? yearTo = null)
+        int? yearTo = null,
+        bool verifiedOnly = false,
+        bool semantic = false)
     {
         // Validate pagination parameters
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 20;
         if (pageSize > 100) pageSize = 100;
 
+        // Semantic ("smart") search: embed the query so Meilisearch can rank by meaning.
+        // If embedding is unavailable, vector stays null and Meili falls back to keyword search.
+        float[]? vector = null;
+        double? semanticRatio = null;
+        if (semantic && _voyage.Enabled)
+        {
+            vector = await _voyage.EmbedQueryAsync(searchText);
+            if (vector != null)
+                semanticRatio = _voyage.SemanticRatio;
+        }
+
         var (items, totalCount) = await _quotationRepository.SearchQuotationsAsync(
-            searchText, page, pageSize, status, authorName, sourceType, tags, yearFrom, yearTo);
+            searchText, page, pageSize, status, authorName, sourceType, tags, yearFrom, yearTo, verifiedOnly, vector, semanticRatio);
 
         return new PaginatedQuotationsResponse
         {
@@ -535,7 +576,15 @@ public class QuotationService
         {
             Status = aiReview.Status.ToString().ToLowerInvariant(),
             ModelUsed = aiReview.ModelUsed,
-            ReviewedAt = aiReview.ReviewedAt
+            ReviewedAt = aiReview.ReviewedAt,
+            Summary = aiReview.Summary,
+            IsLikelyAuthentic = aiReview.IsLikelyAuthentic,
+            AuthenticityReasoning = aiReview.AuthenticityReasoning,
+            CorrectAttribution = aiReview.CorrectAttribution,
+            ApproximateEra = aiReview.ApproximateEra,
+            Language = aiReview.Language,
+            QualityScore = aiReview.QualityScore,
+            Mood = aiReview.Mood
         };
     }
 
@@ -547,7 +596,15 @@ public class QuotationService
         {
             Status = aiReview.Status.ToString().ToLowerInvariant(),
             ModelUsed = aiReview.ModelUsed,
-            ReviewedAt = aiReview.ReviewedAt
+            ReviewedAt = aiReview.ReviewedAt,
+            Summary = aiReview.Summary,
+            IsLikelyAuthentic = aiReview.IsLikelyAuthentic,
+            AuthenticityReasoning = aiReview.AuthenticityReasoning,
+            CorrectAttribution = aiReview.CorrectAttribution,
+            ApproximateEra = aiReview.ApproximateEra,
+            Language = aiReview.Language,
+            QualityScore = aiReview.QualityScore,
+            Mood = aiReview.Mood
         };
     }
 }

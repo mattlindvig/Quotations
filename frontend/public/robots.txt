@@ -1,0 +1,5 @@
+# Pre-launch: site is intentionally hidden from search engines until the
+# AI authenticity analysis has finished running across the corpus.
+# Remove this file (or replace with an allow rule) at public launch.
+User-agent: *
+Disallow: /

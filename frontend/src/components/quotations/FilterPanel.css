@@ -325,6 +325,42 @@
   .filter-toggle svg { display: none; }
 }
 
+/* ── Verified-only toggle ── */
+.verified-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.verified-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: #16a34a;
+  cursor: pointer;
+}
+
+.verified-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.verified-toggle-check {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.verified-toggle-hint {
+  margin: 4px 0 0 24px;
+  font-size: 0.74rem;
+  color: var(--color-text-3);
+}
+
 /* ── Mobile ── */
 @media (max-width: 640px) {
   .filter-header { padding: 10px 12px; }

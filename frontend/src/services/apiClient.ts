@@ -140,6 +140,11 @@ class ApiClient {
     return response.data;
   }
 
+  /** Absolute API base URL — for building direct links to public asset endpoints (e.g. quote images). */
+  get baseUrl(): string {
+    return API_BASE_URL;
+  }
+
   setAuthToken(token: string): void {
     this.accessToken = token;
     localStorage.setItem('hasSession', '1');

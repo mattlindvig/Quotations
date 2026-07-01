@@ -60,6 +60,8 @@ export interface AiReviewSummary {
   reviewedAt?: string | null;
   summary?: string | null;
   isLikelyAuthentic?: boolean | null;
+  authenticityReasoning?: string | null;
+  correctAttribution?: string | null;
   approximateEra?: string | null;
   language?: string | null;
   qualityScore?: number | null;
@@ -131,4 +133,5 @@ export interface QuotationFilters {
   sortBy?: QuotationSortBy;
   yearFrom?: string;
   yearTo?: string;
+  verifiedOnly?: boolean;
 }

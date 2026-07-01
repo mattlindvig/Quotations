@@ -40,6 +40,46 @@
   margin-bottom: 12px;
 }
 
+/* ── Trust band ── */
+.trust-band {
+  max-width: 1200px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #14532d;
+}
+
+.trust-band-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  background: #16a34a;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.trust-band-link {
+  color: #15803d;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.trust-band-link:hover {
+  text-decoration: underline;
+}
+
 /* ── Sort bar ── */
 .sort-bar {
   display: flex;

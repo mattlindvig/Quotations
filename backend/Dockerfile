@@ -20,8 +20,10 @@ RUN dotnet publish "Quotations.Api.csproj" -c Release -o /app/publish /p:UseAppH
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
 
-# Install curl for healthcheck
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# curl for the healthcheck; fontconfig + a serif font so SkiaSharp can render quote images
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl libfontconfig1 fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 5000
 EXPOSE 5001

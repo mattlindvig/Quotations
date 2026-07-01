@@ -14,7 +14,6 @@ using Quotations.Api.Data;
 using Quotations.Api.Extensions;
 using Quotations.Api.Models;
 using Quotations.Api.Repositories;
-using Quotations.Api.Services;
 
 // Configure MongoDB serialization conventions
 var conventionPack = new ConventionPack { new CamelCaseElementNameConvention() };
@@ -54,6 +53,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddMemoryCache();
+
+// Shareable quote-image renderer (stateless, thread-safe)
+builder.Services.AddSingleton<QuoteImageRenderer>();
  
 // Configure Swagger/OpenAPI
 builder.Services.AddSwaggerGen(options =>
@@ -139,6 +141,11 @@ builder.Services.AddSingleton<MongoDbService>();
 builder.Services.Configure<Quotations.Api.Configuration.MeilisearchSettings>(
     builder.Configuration.GetSection("Meilisearch"));
 builder.Services.AddSingleton<MeilisearchService>();
+
+// Voyage AI embeddings — powers semantic ("smart") search via Meilisearch hybrid search
+builder.Services.Configure<Quotations.Api.Configuration.VoyageSettings>(
+    builder.Configuration.GetSection("Voyage"));
+builder.Services.AddHttpClient<VoyageService>();
 
 // Register application services
 builder.Services.AddScoped<IQuotationRepository, QuotationRepository>();

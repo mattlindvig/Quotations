@@ -1,13 +1,18 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Xunit;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
+using Quotations.Api.Configuration;
 using Quotations.Api.Controllers;
 using Quotations.Api.Models;
 using Quotations.Api.Models.Dtos;
 using Quotations.Api.Repositories;
+using Quotations.Api.Services;
 
 namespace Quotations.Tests.Unit;
 
@@ -16,6 +21,7 @@ public class AuthControllerTests
     private readonly Mock<IUserRepository> _mockRepo;
     private readonly Mock<IPasswordHasher<User>> _mockHasher;
     private readonly Mock<IRefreshTokenRepository> _mockRefreshTokenRepo;
+    private readonly Mock<IEmailService> _mockEmailService;
     private readonly IConfiguration _config;
     private readonly AuthController _controller;
 
@@ -24,6 +30,7 @@ public class AuthControllerTests
         _mockRepo = new Mock<IUserRepository>();
         _mockHasher = new Mock<IPasswordHasher<User>>();
         _mockRefreshTokenRepo = new Mock<IRefreshTokenRepository>();
+        _mockEmailService = new Mock<IEmailService>();
 
         _config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -35,7 +42,19 @@ public class AuthControllerTests
             })
             .Build();
 
-        _controller = new AuthController(_mockRepo.Object, _mockHasher.Object, _config, _mockRefreshTokenRepo.Object);
+        var appSettings = Options.Create(new AppSettings { FrontendUrl = "http://localhost:5173" });
+        _controller = new AuthController(
+            _mockRepo.Object,
+            _mockHasher.Object,
+            _config,
+            _mockRefreshTokenRepo.Object,
+            _mockEmailService.Object,
+            appSettings,
+            NullLogger<AuthController>.Instance)
+        {
+            // Provide an HTTP context so refresh-cookie writes have a Response to target.
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+        };
     }
 
     // -------------------------------------------------------------------------

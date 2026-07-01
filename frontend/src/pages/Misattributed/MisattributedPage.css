@@ -1,0 +1,125 @@
+.misattributed-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+
+.misattributed-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.misattributed-header h1 {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 2rem;
+  margin: 0 0 12px;
+  color: var(--color-text);
+}
+
+.misattributed-intro {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-text-2);
+  margin: 0 auto;
+  max-width: 600px;
+}
+
+.misattributed-count {
+  margin-top: 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-3);
+}
+
+.misattributed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.misattributed-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid #f59e0b;
+  border-radius: 8px;
+  padding: 20px 22px;
+}
+
+.misattributed-quote {
+  display: block;
+  font-family: 'Lora', Georgia, serif;
+  font-size: 1.15rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.misattributed-quote:hover {
+  color: var(--color-accent);
+}
+
+.misattributed-attributions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin-top: 14px;
+}
+
+.misattributed-claimed,
+.misattributed-correct {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+.misattributed-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-3);
+  margin-bottom: 2px;
+}
+
+.misattributed-correct strong {
+  color: #166534;
+}
+
+.misattributed-reasoning {
+  margin: 14px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--color-text-2);
+}
+
+.misattributed-loading,
+.misattributed-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.misattributed-more-btn {
+  padding: 8px 20px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-accent);
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.misattributed-more-btn:hover {
+  background: var(--color-accent-light);
+  border-color: var(--color-accent);
+}
+
+.misattributed-error,
+.misattributed-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--color-text-2);
+}

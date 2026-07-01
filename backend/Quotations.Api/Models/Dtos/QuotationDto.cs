@@ -25,6 +25,16 @@ public class AiReviewDto
     public string Status { get; set; } = string.Empty;
     public string? ModelUsed { get; set; }
     public DateTime? ReviewedAt { get; set; }
+
+    // Authenticity / analysis fields (full detail — GET /quotations/{id})
+    public string? Summary { get; set; }
+    public bool? IsLikelyAuthentic { get; set; }
+    public string? AuthenticityReasoning { get; set; }
+    public string? CorrectAttribution { get; set; }
+    public string? ApproximateEra { get; set; }
+    public string? Language { get; set; }
+    public int? QualityScore { get; set; }
+    public string? Mood { get; set; }
 }
 
 /// <summary>
@@ -54,6 +64,17 @@ public class AiReviewSummaryDto
     public string Status { get; set; } = string.Empty;
     public string? ModelUsed { get; set; }
     public DateTime? ReviewedAt { get; set; }
+
+    // Slim authenticity fields — enough to render the Verified/Disputed badge, mood chip,
+    // and the misattributed collection (which needs the corrected attribution + reasoning).
+    public string? Summary { get; set; }
+    public bool? IsLikelyAuthentic { get; set; }
+    public string? AuthenticityReasoning { get; set; }
+    public string? CorrectAttribution { get; set; }
+    public string? ApproximateEra { get; set; }
+    public string? Language { get; set; }
+    public int? QualityScore { get; set; }
+    public string? Mood { get; set; }
 }
 
 /// <summary>
